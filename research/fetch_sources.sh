@@ -18,9 +18,27 @@ OUT="$(cd "$(dirname "$0")" && pwd)/downloads"
 UA="trace_rom_studio-source-survey/0.1 (https://github.com/kleer001/trace_rom_studio)"
 PER_SOURCE=4
 
+# Minimum seconds between any two requests this script makes.
+MIN_GAP=6
+
 mkdir -p "$OUT"
 
-get() { curl -fsSL --retry 3 --retry-delay 2 -A "$UA" "$@"; }
+# Every fetch goes through here, and the gap is enforced inside it rather than at
+# the call sites: the downloads happen inside `while read` pipelines, which run in
+# subshells, so a delay any caller forgot -- or a shell variable tracking the last
+# request -- would be silently lost. The timestamp lives in a file for the same
+# reason. The gap is applied across all hosts rather than per host, which is
+# stricter than needed and one less thing to get wrong.
+STAMP="$(mktemp)"; echo 0 > "$STAMP"
+trap 'rm -f "$STAMP"' EXIT
+
+get() {
+  local last now gap
+  last=$(cat "$STAMP"); now=$(date +%s); gap=$(( now - last ))
+  [ "$gap" -lt "$MIN_GAP" ] && sleep "$(( MIN_GAP - gap ))"
+  date +%s > "$STAMP"
+  curl -fsSL --retry 3 --retry-delay "$MIN_GAP" -A "$UA" "$@"
+}
 
 pick() {  # pick N lines from stdin, seeded and stable
   python3 -c '
