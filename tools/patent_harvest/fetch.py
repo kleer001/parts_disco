@@ -1,18 +1,31 @@
 """The one way this tool talks to a host, and the one place politeness lives.
 
-Two failures look alike to a caller and must not be treated alike. A document that
-is not there is this item's problem: skip it, take the next one. A host answering
-429 or 503 is the *run's* problem -- it is the host saying stop, and the next
-request is not a new attempt at a different document, it is the same refusal
-knocked on again. Walking a list of items through a refusal is how a slow block
-becomes a long one.
+Three outcomes, and the middle one is the one that gets mishandled.
 
-So a refusal is retried here, on a widening delay, and if it keeps refusing it
-raises HostRefusing, which no per-item handler catches and which ends the run.
+A document that is not there (404) is this item's problem: record it, take the next
+number. A host answering 429 or 503 is saying *not now* -- come back later, to the
+same request. Anything else is a bug worth surfacing.
 
-Nothing here reaches for the clock or the network directly: the transport, the
-clock and the sleep are arguments, so the backoff can be tested without waiting
-and the gap can be tested without a server.
+The two "not now" codes mean different things and both warrant the same move.
+429 is rate limiting: RFC 6585 has it as "the user has sent too many requests in a
+given amount of time", so it is about what the caller did. 503 is not about the
+caller at all -- RFC 9110 calls it "a temporary overload or scheduled maintenance,
+which will likely be alleviated after some delay". A 503 is ordinarily a hiccup, and
+retrying it after a wait is exactly what it asks for. (Some hosts do serve an
+anti-automation block as 503 -- Google's "Sorry..." page is one -- but that is a
+vendor convention, not what the status means.)
+
+What both forbid is moving to the *next item*. Skipping ahead is wrong under either
+reading: if the host was briefly overloaded, a document that would have arrived on
+retry has been abandoned; if the host is shedding the caller specifically, the next
+item is the same request again with a different number in it, and the knocks scale
+with the length of the list. So a wait-and-retry happens here, on a widening delay,
+against the same URL. When a host is still not serving after several of those, the
+run stops rather than walking the rest of the list through it.
+
+Nothing here reaches for the clock or the network directly: the transport, the clock
+and the sleep are arguments, so the backoff can be tested without waiting and the gap
+can be tested without a server.
 """
 
 import random
@@ -26,10 +39,12 @@ from urllib.parse import urlparse
 # Minimum seconds between two requests to the same host.
 MIN_GAP = 6.0
 
-# A host that says 429 or 503 is rate-limiting or shedding load. Both mean stop.
-REFUSAL_STATUS = frozenset({429, 503})
+# "Not now, come back later." 429 says the caller asked for too much; 503 says the
+# server cannot serve it right now. Different reasons, same move: wait, then ask
+# again for the same thing.
+RETRYABLE_STATUS = frozenset({429, 503})
 
-# How many times a refusal is waited out before the run gives up on the host.
+# How many times to wait and ask again before giving up on the host.
 MAX_ATTEMPTS = 4
 
 # Each wait doubles from here, up to the cap. Starting at the gap rather than at a
@@ -38,12 +53,16 @@ BACKOFF_BASE = MIN_GAP
 BACKOFF_CAP = 120.0
 
 
-class HostRefusing(Exception):
-    """A host is refusing requests. The run stops; retrying items will not help."""
+class HostUnavailable(Exception):
+    """A host is still not serving after several backed-off attempts.
+
+    Deliberately not caught per item: whether the host is overloaded or shedding
+    this caller, the next item on the list is not the thing to try next.
+    """
 
 
 class Fetcher:
-    """Fetches URLs, holding a per-host gap and backing off when refused."""
+    """Fetches URLs, holding a per-host gap and waiting out a "not now"."""
 
     def __init__(self, user_agent, transport=None, sleep=time.sleep,
                  clock=time.monotonic, jitter=None):
@@ -55,22 +74,23 @@ class Fetcher:
         self._last = {}
 
     def get(self, url):
-        """The body at url. Raises HostRefusing if the host will not serve it."""
+        """The body at url. Raises HostUnavailable if the host will not serve it."""
         host = urlparse(url).netloc
         for attempt in range(MAX_ATTEMPTS):
             self._wait_for_gap(host)
             try:
                 return self._transport(url, self.user_agent)
             except urllib.error.HTTPError as error:
-                if error.code not in REFUSAL_STATUS:
+                if error.code not in RETRYABLE_STATUS:
                     raise
                 # Last attempt: do not sleep on the way out, just stop.
                 if attempt == MAX_ATTEMPTS - 1:
                     break
                 self._sleep(self._backoff(attempt, error))
-        raise HostRefusing(
-            f"{host} answered {sorted(REFUSAL_STATUS)} to {MAX_ATTEMPTS} attempts. "
-            f"Stopping: further requests extend the block rather than get around it."
+        raise HostUnavailable(
+            f"{host} still not serving after {MAX_ATTEMPTS} attempts with backoff "
+            f"(HTTP {sorted(RETRYABLE_STATUS)}). Stopping rather than taking the "
+            f"next item: it is the same request with a different name in it."
         )
 
     def _wait_for_gap(self, host):
@@ -83,7 +103,7 @@ class Fetcher:
         self._last[host] = self._clock()
 
     def _backoff(self, attempt, error):
-        """How long to wait before trying a refused host again."""
+        """How long to wait before asking the same host for the same thing again."""
         retry_after = self._retry_after(error)
         if retry_after is not None:
             return retry_after

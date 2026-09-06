@@ -31,7 +31,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from fetch import Fetcher, HostRefusing
+from fetch import Fetcher, HostUnavailable
 from labels import extract_labels, screen
 
 # USPTO's own grant PDFs are page scans with no text layer -- pdftotext returns a
@@ -188,15 +188,15 @@ def main():
 
     fetcher = Fetcher(USER_AGENT)
     results = []
-    refused = None
+    unavailable = None
     for number in numbers:
         try:
             result = harvest_one(fetcher, number, out_root, render=not args.no_render)
-        # A refusal is the run's problem, not this patent's: taking the next number
-        # is the same knock on the same closed door, and it is what turns a short
-        # block into a long one. Stop, and keep what was already harvested.
-        except HostRefusing as error:
-            refused = error
+        # The fetcher has already waited this out and asked again. A host still not
+        # serving is the run's problem, not this patent's: the next number is the
+        # same request with a different name in it. Stop, keep what was harvested.
+        except HostUnavailable as error:
+            unavailable = error
             break
         except (urllib.error.URLError, ValueError, subprocess.CalledProcessError) as error:
             result = {"number": number, "kept": False, "reason": f"{type(error).__name__}: {error}",
@@ -208,9 +208,9 @@ def main():
     (out_root / "manifest.json").write_text(json.dumps(results, indent=2) + "\n")
     kept = sum(1 for r in results if r["kept"])
     print(f"\n{kept}/{len(results)} kept. Manifest: {out_root / 'manifest.json'}")
-    if refused is not None:
+    if unavailable is not None:
         remaining = len(numbers) - len(results)
-        print(f"\nSTOPPED: {refused}", file=sys.stderr)
+        print(f"\nSTOPPED: {unavailable}", file=sys.stderr)
         print(f"{remaining} number(s) not attempted. Re-run later; what is on disk is kept.",
               file=sys.stderr)
         return 2

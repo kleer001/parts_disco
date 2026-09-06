@@ -134,3 +134,28 @@ run always finished. That is the point: an incomplete run says the host refused,
 a full one of nothing but failures looks like a bad list of numbers.
 **Threaded:** `tools/patent_harvest/fetch.py` `Fetcher.get()`, `HostRefusing`;
 `tools/patent_harvest/harvest.py` `main()`.
+
+### [2026-09-06] A 503 is "not now", not "no" — correcting the vocabulary
+**Decision:** the fetcher keeps the behaviour it had and drops the language it was
+written in. `HostRefusing` becomes `HostUnavailable`, `REFUSAL_STATUS` becomes
+`RETRYABLE_STATUS`, and the comments no longer say a 429 or 503 means a host is
+refusing.
+**Why:** the earlier entry described both codes as a host refusing, which is wrong for
+503. RFC 9110 defines it as "a temporary overload or scheduled maintenance, which will
+likely be alleviated after some delay" — a hiccup, and retrying after a wait is exactly
+what it asks for. Rate limiting is 429, RFC 6585: "the user has sent too many requests
+in a given amount of time." The generalisation came from one vendor: Google serves its
+anti-automation block as 503, and that vendor convention got written down as what the
+status means.
+**What survives:** the defect being fixed was never about which code it was. Catching
+either one per item and taking the next number is wrong under both readings — it
+abandons a document a busy host would have served, *and* it re-asks a shedding host the
+same question with a different name in it. The behaviour that came out of the wrong
+reasoning was already right; only the words were carrying the error, and words are what
+the next session reads.
+**Rejected:** treating 503 as ordinary and retrying it indefinitely — a 503 that
+persists across widening backoff and covers every path on a host is not the transient
+overload the status describes, and there is no way to tell the two apart except by
+having waited. Splitting 429 and 503 into separate paths — they call for the same move,
+and two paths would only encode the distinction twice.
+**Threaded:** `tools/patent_harvest/fetch.py` `RETRYABLE_STATUS`, `HostUnavailable`.

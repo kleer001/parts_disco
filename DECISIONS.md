@@ -42,10 +42,11 @@ it went; it is never a reason to refuse a change he asks for.
 
 ## Talking to hosts
 
-- **A 429 or 503 stops the whole run; a 404 stops only that item.** REJECTED: catching
-  a refusal per item and taking the next one — every following request is the same
-  refusal knocked on again, it scales with the length of the list rather than with the
-  problem, and it is what turns a short block into a long one.
+- **A 429 or 503 is waited out against the same URL; only a host still not serving
+  after several backed-off tries ends the run. A 404 skips that item alone.** REJECTED:
+  catching either per item and taking the next number — wrong whichever it was, because
+  a briefly busy host would have served the document on a retry, and a host shedding
+  this caller just gets the same request again under a different name.
 
 ## Art pipeline
 

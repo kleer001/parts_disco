@@ -1,4 +1,4 @@
-"""Tests for the fetcher's pacing and its behaviour when a host refuses.
+"""Tests for the fetcher's pacing and its behaviour when a host says "not now".
 
 The clock, the sleep and the transport are all injected, so these run instantly and
 touch no network.
@@ -7,7 +7,7 @@ touch no network.
 import unittest
 import urllib.error
 
-from fetch import Fetcher, HostRefusing, MAX_ATTEMPTS, MIN_GAP
+from fetch import Fetcher, HostUnavailable, MAX_ATTEMPTS, MIN_GAP
 
 
 class FakeClock:
@@ -25,9 +25,9 @@ class FakeClock:
         return self.now
 
 
-def refusal(code, retry_after=None):
+def http_error(code, retry_after=None):
     headers = {"Retry-After": retry_after} if retry_after is not None else {}
-    return urllib.error.HTTPError("http://host/x", code, "refused", headers, None)
+    return urllib.error.HTTPError("http://host/x", code, "not now", headers, None)
 
 
 def fetcher(clock, responses):
@@ -65,46 +65,46 @@ class Pacing(unittest.TestCase):
         self.assertEqual(clock.slept, [])
 
 
-class Refusal(unittest.TestCase):
-    def test_a_refusal_that_clears_is_waited_out_and_the_body_returned(self):
+class NotNow(unittest.TestCase):
+    def test_a_busy_host_is_waited_out_and_the_body_returned(self):
         clock = FakeClock()
-        body = fetcher(clock, [refusal(503), b"body"]).get("http://a.example/x")
+        body = fetcher(clock, [http_error(503), b"body"]).get("http://a.example/x")
         self.assertEqual(body, b"body")
         self.assertTrue(clock.slept, "should have backed off before retrying")
 
-    def test_a_host_that_keeps_refusing_ends_the_run(self):
+    def test_a_host_still_not_serving_after_several_tries_ends_the_run(self):
         clock = FakeClock()
-        f = fetcher(clock, [refusal(503)] * MAX_ATTEMPTS)
-        with self.assertRaises(HostRefusing):
+        f = fetcher(clock, [http_error(503)] * MAX_ATTEMPTS)
+        with self.assertRaises(HostUnavailable):
             f.get("http://a.example/x")
 
     def test_the_backoff_widens_between_attempts(self):
         clock = FakeClock()
-        f = fetcher(clock, [refusal(429)] * MAX_ATTEMPTS)
-        with self.assertRaises(HostRefusing):
+        f = fetcher(clock, [http_error(429)] * MAX_ATTEMPTS)
+        with self.assertRaises(HostUnavailable):
             f.get("http://a.example/x")
         backoffs = [s for s in clock.slept if s > MIN_GAP]
         self.assertEqual(backoffs, sorted(backoffs))
-        self.assertTrue(backoffs, "a refused host should be waited out, not retried flat")
+        self.assertTrue(backoffs, "a busy host should be waited out, not retried flat")
 
     def test_the_server_is_obeyed_when_it_says_how_long_to_wait(self):
         clock = FakeClock()
-        f = fetcher(clock, [refusal(503, retry_after="45"), b"body"])
+        f = fetcher(clock, [http_error(503, retry_after="45"), b"body"])
         f.get("http://a.example/x")
         self.assertIn(45.0, clock.slept)
 
     def test_a_retry_after_date_falls_through_to_the_computed_backoff(self):
         clock = FakeClock()
-        f = fetcher(clock, [refusal(503, retry_after="Wed, 21 Oct 2026 07:28:00 GMT"),
+        f = fetcher(clock, [http_error(503, retry_after="Wed, 21 Oct 2026 07:28:00 GMT"),
                             b"body"])
         f.get("http://a.example/x")
         self.assertTrue(clock.slept)
 
-    def test_a_missing_document_is_not_a_refusal(self):
-        # 404 is this item's problem, not the run's: it must reach the caller as
-        # itself so the next patent is still tried.
+    def test_a_missing_document_is_not_waited_out(self):
+        # 404 is this item's problem, and waiting will not change the answer. It
+        # must reach the caller as itself so the next patent is still tried.
         clock = FakeClock()
-        f = fetcher(clock, [refusal(404)])
+        f = fetcher(clock, [http_error(404)])
         with self.assertRaises(urllib.error.HTTPError) as caught:
             f.get("http://a.example/x")
         self.assertEqual(caught.exception.code, 404)
