@@ -16,6 +16,23 @@ game's runtime keeps zero dependencies.
 Needs `pdftotext`, `pdfinfo` and `pdftoppm` (poppler-utils) on PATH; it exits rather
 than producing empty extractions if they are missing.
 
+Exit codes: 0 when something was kept, 1 when nothing was, and 2 when a host refused
+and the run stopped early. On a 2, the numbers already harvested are on disk and the
+rest were not attempted — re-run later with the same list.
+
+## When a host says stop
+
+`fetch.py` is the only way this tool talks to a host. It holds six seconds between
+requests to the same host, and it treats two failures differently on purpose. A
+document that is not there is that patent's problem: it is recorded and the next
+number is tried. A 429 or 503 is the run's problem — the host is refusing, and the
+next number is not a fresh attempt at a different document, it is the same refusal
+knocked on again. So a refusal is waited out on a widening delay, honouring
+`Retry-After` when the server sends one, and if the host keeps refusing the run stops.
+
+Walking a list of numbers through a refusal is what turns a short block into a long
+one, and it can cost access to more of the host than the endpoint that started it.
+
 Finding the numbers is a manual step — the Patent Public Search query strings are in
 `../../research/PATENT-METHOD.md`. That stays by hand until someone confirms an API's
 response shape; guessing at one would only push slop into the pipeline.

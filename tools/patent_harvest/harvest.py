@@ -27,11 +27,11 @@ import re
 import shutil
 import subprocess
 import sys
-import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
+from fetch import Fetcher, HostRefusing
 from labels import extract_labels, screen
 
 # USPTO's own grant PDFs are page scans with no text layer -- pdftotext returns a
@@ -47,9 +47,6 @@ from labels import extract_labels, screen
 PDF_URL = "https://patentimages.storage.googleapis.com/pdfs/US{number}.pdf"
 USER_AGENT = "trace_rom_studio-parts_disco/0.1 (https://github.com/kleer001/trace_rom_studio)"
 RENDER_DPI = 200
-
-# Minimum gap between two requests to the same host.
-HOST_DELAY = 6.0
 
 # A patent page is two columns with printed line numbers running down the gutter.
 # Read whole-page and the columns interleave: a phrase ends up beside a numeral it
@@ -93,14 +90,8 @@ def read_numbers(args):
     return list(dict.fromkeys(cleaned))
 
 
-def fetch(url):
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return response.read()
-
-
-def download_pdf(number, dest):
-    body = fetch(PDF_URL.format(number=number))
+def download_pdf(fetcher, number, dest):
+    body = fetcher.get(PDF_URL.format(number=number))
     # A politely-worded HTML error page is still a failure; catch it here rather than
     # letting pdftotext produce an empty extraction three steps later.
     if not body.startswith(b"%PDF"):
@@ -154,13 +145,13 @@ def description_only(text):
     return text[:end.start()] if end else text
 
 
-def harvest_one(number, out_root, render):
+def harvest_one(fetcher, number, out_root, render):
     target = out_root / f"US{number}"
     target.mkdir(parents=True, exist_ok=True)
     pdf = target / f"US{number}.pdf"
     txt = target / f"US{number}.txt"
 
-    download_pdf(number, pdf)
+    download_pdf(fetcher, number, pdf)
     text = pdf_text(pdf)
     txt.write_text(text)
 
@@ -195,12 +186,18 @@ def main():
     out_root = Path(args.out)
     out_root.mkdir(parents=True, exist_ok=True)
 
+    fetcher = Fetcher(USER_AGENT)
     results = []
-    for index, number in enumerate(numbers):
-        if index:
-            time.sleep(HOST_DELAY)
+    refused = None
+    for number in numbers:
         try:
-            result = harvest_one(number, out_root, render=not args.no_render)
+            result = harvest_one(fetcher, number, out_root, render=not args.no_render)
+        # A refusal is the run's problem, not this patent's: taking the next number
+        # is the same knock on the same closed door, and it is what turns a short
+        # block into a long one. Stop, and keep what was already harvested.
+        except HostRefusing as error:
+            refused = error
+            break
         except (urllib.error.URLError, ValueError, subprocess.CalledProcessError) as error:
             result = {"number": number, "kept": False, "reason": f"{type(error).__name__}: {error}",
                       "parts": 0, "dir": None}
@@ -211,6 +208,12 @@ def main():
     (out_root / "manifest.json").write_text(json.dumps(results, indent=2) + "\n")
     kept = sum(1 for r in results if r["kept"])
     print(f"\n{kept}/{len(results)} kept. Manifest: {out_root / 'manifest.json'}")
+    if refused is not None:
+        remaining = len(numbers) - len(results)
+        print(f"\nSTOPPED: {refused}", file=sys.stderr)
+        print(f"{remaining} number(s) not attempted. Re-run later; what is on disk is kept.",
+              file=sys.stderr)
+        return 2
     return 0 if kept else 1
 
 

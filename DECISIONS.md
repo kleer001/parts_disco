@@ -40,6 +40,13 @@ it went; it is never a reason to refuse a change he asks for.
   that move together read as one object, and it is differing motion that lets a player
   pull one outline out of a pile.
 
+## Talking to hosts
+
+- **A 429 or 503 stops the whole run; a 404 stops only that item.** REJECTED: catching
+  a refusal per item and taking the next one — every following request is the same
+  refusal knocked on again, it scales with the length of the list rather than with the
+  problem, and it is what turns a short block into a long one.
+
 ## Art pipeline
 
 - **Patent PDFs come from Google's mirror, by its flat `pdfs/US<number>.pdf` path.**

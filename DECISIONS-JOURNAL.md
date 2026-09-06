@@ -111,3 +111,26 @@ moved the file size by 5%, so it buys nothing and only costs fidelity. Going bel
 scale — at a third, two of the five figures on a test sheet merged into one.
 **Threaded:** `tools/figure_trace/segment.py` `PAGE_SCALE`, `tools/figure_trace/trace.py`
 `FIRST_DRAWING_PAGE`.
+
+### [2026-09-06] A refused host ends the run
+**Decision:** `fetch.py` is the only way the harvester talks to a host. It holds the
+six-second per-host gap, waits out a 429 or 503 on a widening delay honouring
+`Retry-After`, and raises `HostRefusing` when the host keeps refusing — which no
+per-item handler catches, so the run stops with what it already has.
+**Why:** `urllib`'s `HTTPError` subclasses `URLError`, so the harvester's per-patent
+handler caught a 503 as that patent's failure and moved to the next number. Measured
+against a host that always refuses: the old loop made one request per number — eight
+for eight, and a hundred for a hundred — while the new one makes four and stops. The
+pacing was never the bug; every request was six seconds apart. Continuing through a
+refusal is what extends it, and it cost access to a whole host mid-run rather than to
+the one endpoint that started it.
+**Rejected:** raising the gap instead — the requests were already correctly spaced, so
+a wider gap would only have made the same walk slower. Retrying the failed numbers at
+the end of the run — same knocks, later. Catching `HostRefusing` per patent to record
+it in the manifest — it would read as eight failures rather than one, and the manifest
+is not worth another request to the host.
+**Cost:** an exit code of 2 and an incomplete run to re-issue by hand, where before the
+run always finished. That is the point: an incomplete run says the host refused, where
+a full one of nothing but failures looks like a bad list of numbers.
+**Threaded:** `tools/patent_harvest/fetch.py` `Fetcher.get()`, `HostRefusing`;
+`tools/patent_harvest/harvest.py` `main()`.
