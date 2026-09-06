@@ -47,6 +47,29 @@ RENDER_DPI = 200
 # Minimum gap between two requests to the same host.
 HOST_DELAY = 6.0
 
+# A patent page is two columns with printed line numbers running down the gutter.
+# Read whole-page and the columns interleave: a phrase ends up beside a numeral it
+# has nothing to do with, and every fifth line donates its margin number to the
+# table. Each column is extracted on its own instead, from its half of the page.
+COLUMNS = 2
+
+# Line numbers are printed every fifth line, counting down a column, so a column's
+# worth of them is an ascending run of multiples of five. Nothing shorter than this
+# is taken for one, and a patent column does not run past this many lines.
+MIN_MARGIN_RUN = 3
+MAX_MARGIN_NUMBER = 70
+
+PAGE_SIZE = re.compile(r"Page size:\s+([\d.]+) x ([\d.]+)")
+PAGE_COUNT = re.compile(r"Pages:\s+(\d+)")
+TRAILING_NUMBER = re.compile(r"\s(\d{1,2})\s*$")
+
+# The detailed description is the part that names parts in the open. The front page
+# contributes classification codes and cited patent numbers, the claims contribute
+# claim numbers, and both read as reference numerals.
+DESCRIPTION_START = re.compile(r"DE(?:TAILED|SCRIPTION OF THE)[^\n]*", re.IGNORECASE)
+CLAIMS_START = re.compile(r"\n\s*(?:What is claimed|We claim|I claim|The invention claimed)",
+                          re.IGNORECASE)
+
 
 def require(tool):
     if shutil.which(tool) is None:
@@ -86,6 +109,52 @@ def download_pdf(number, dest):
     dest.write_bytes(body)
 
 
+def strip_margin_numbers(column):
+    """Drop the printed line numbers from one column of a patent page."""
+    lines = column.splitlines()
+    marked = [(index, int(match.group(1)))
+              for index, line in enumerate(lines)
+              if (match := TRAILING_NUMBER.search(line)) and int(match.group(1)) % 5 == 0]
+    values = [value for _, value in marked]
+    # A real reference numeral can also end a line, and it repeats in no order. Only
+    # strip these when they climb the page the way a printed line-number column does.
+    if (len(marked) < MIN_MARGIN_RUN
+            or max(values) > MAX_MARGIN_NUMBER
+            or any(later <= earlier for earlier, later in zip(values, values[1:]))):
+        return column
+    for index, _ in marked:
+        lines[index] = TRAILING_NUMBER.sub("", lines[index])
+    return "\n".join(lines)
+
+
+def pdf_text(pdf):
+    """Extract the PDF a column at a time, in reading order."""
+    info = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True,
+                          check=True).stdout
+    width, height = (float(value) for value in PAGE_SIZE.search(info).groups())
+    pages = int(PAGE_COUNT.search(info).group(1))
+    span = width / COLUMNS
+
+    out = []
+    for page in range(1, pages + 1):
+        for column in range(COLUMNS):
+            text = subprocess.run(
+                ["pdftotext", "-layout", "-f", str(page), "-l", str(page),
+                 "-x", str(int(column * span)), "-y", "0",
+                 "-W", str(int(span)), "-H", str(int(height)), str(pdf), "-"],
+                capture_output=True, text=True, check=True).stdout
+            out.append(strip_margin_numbers(text))
+    return "\n".join(out)
+
+
+def description_only(text):
+    """The slice of the specification that names parts beside their numerals."""
+    start = DESCRIPTION_START.search(text)
+    text = text[start.end():] if start else text
+    end = CLAIMS_START.search(text)
+    return text[:end.start()] if end else text
+
+
 def harvest_one(number, out_root, render):
     target = out_root / f"US{number}"
     target.mkdir(parents=True, exist_ok=True)
@@ -93,9 +162,10 @@ def harvest_one(number, out_root, render):
     txt = target / f"US{number}.txt"
 
     download_pdf(number, pdf)
-    subprocess.run(["pdftotext", "-layout", str(pdf), str(txt)], check=True)
+    text = pdf_text(pdf)
+    txt.write_text(text)
 
-    labels = extract_labels(txt.read_text(errors="replace"))
+    labels = extract_labels(description_only(text))
     kept, reason = screen(labels)
     (target / "labels.json").write_text(json.dumps(labels, indent=2) + "\n")
 
@@ -118,6 +188,7 @@ def main():
     args = parser.parse_args()
 
     require("pdftotext")
+    require("pdfinfo")
     if not args.no_render:
         require("pdftoppm")
 

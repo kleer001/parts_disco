@@ -13,8 +13,8 @@ game's runtime keeps zero dependencies.
     ./harvest.py 4530318 5052355
     ./harvest.py --from numbers.txt --out ../../assets/raw
 
-Needs `pdftotext` and `pdftoppm` (poppler-utils) on PATH; it exits rather than
-producing empty extractions if they are missing.
+Needs `pdftotext`, `pdfinfo` and `pdftoppm` (poppler-utils) on PATH; it exits rather
+than producing empty extractions if they are missing.
 
 Finding the numbers is a manual step — the Patent Public Search query strings are in
 `../../research/PATENT-METHOD.md`. That stays by hand until someone confirms an API's
@@ -27,6 +27,18 @@ response shape; guessing at one would only push slop into the pipeline.
 Covers `labels.py`, which is the part with an algorithm in it. `harvest.py`'s network
 path is unexercised — the authoring session's egress proxy blocks uspto.gov, so the
 PDF endpoint has never been called.
+
+## How the text is read
+
+A patent page is two columns with line numbers printed every fifth line down the
+gutter. Read whole-page, the columns interleave and a numeral ends up beside a phrase
+from the other column, while every fifth line donates its margin number to the table
+as a part that does not exist. So each column is extracted from its own half of the
+page, and a run of line-end multiples of five that climbs the page is dropped.
+
+Only the detailed description is fed to `labels.py`. The front page contributes
+classification codes and cited patent numbers, the claims contribute claim numbers,
+and all of them read as reference numerals.
 
 ## How naming works
 
