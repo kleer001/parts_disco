@@ -25,6 +25,17 @@ MIN_SUPPORT = 0.5
 # A figure with fewer distinct numerals than this is a diagram, not a board.
 MIN_NUMERALS_FOR_BOARD = 12
 
+# An applicant may assert copyright in a patent's disclosure, and MPEP 608.01(w)
+# makes them say so in these words. When they do, the only thing granted is
+# "facsimile reproduction ... as it appears in the Patent and Trademark Office patent
+# files or records" -- all other rights reserved. Tracing a figure into an SVG is a
+# derivative work, not a facsimile, so a patent carrying this notice is not a source
+# for the game whatever its date. It is rare, and it is cheap to check.
+COPYRIGHT_NOTICE = re.compile(
+    r"(?:copyright|mask\s*work)\s+(?:or\s+mask\s*work\s+)?(?:protection|owner)"
+    r"|no\s+objection\s+to\s+the\s+facsimile\s+reproduction",
+    re.IGNORECASE)
+
 # Words that end a noun phrase when scanning backwards from a numeral.
 BOUNDARY_WORDS = frozenset("""
 a an the said and or of in on at to for with from by as is are was were be been
@@ -159,8 +170,15 @@ def extract_labels(text):
     return {k: labels[k] for k in sorted(labels, key=int)}
 
 
-def screen(labels):
-    """Is this figure dense enough to be a board? Reason is for the run log."""
+def claims_copyright(text):
+    """Does the specification assert copyright in its own disclosure?"""
+    return COPYRIGHT_NOTICE.search(text) is not None
+
+
+def screen(labels, text=""):
+    """Is this patent usable as a board? Reason is for the run log."""
+    if text and claims_copyright(text):
+        return False, "asserts copyright in its disclosure"
     count = len(labels)
     if count < MIN_NUMERALS_FOR_BOARD:
         return False, f"{count} named parts, want {MIN_NUMERALS_FOR_BOARD}"

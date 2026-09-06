@@ -156,7 +156,7 @@ def harvest_one(fetcher, number, out_root, render):
     txt.write_text(text)
 
     labels = extract_labels(description_only(text))
-    kept, reason = screen(labels)
+    kept, reason = screen(labels, text)
     (target / "labels.json").write_text(json.dumps(labels, indent=2) + "\n")
 
     if kept and render:

@@ -77,3 +77,21 @@ class Screen(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CopyrightNotice(unittest.TestCase):
+    def test_a_patent_asserting_copyright_is_not_a_source(self):
+        spec = ("A portion of the disclosure of this patent document contains material "
+                "which is subject to copyright protection. The copyright owner has no "
+                "objection to the facsimile reproduction by anyone of the patent "
+                "disclosure, as it appears in the Patent and Trademark Office patent "
+                "files or records, but otherwise reserves all copyright rights "
+                "whatsoever. The flywheel 1 carries a holder 5.")
+        kept, reason = screen({str(n): {} for n in range(20)}, spec)
+        self.assertFalse(kept)
+        self.assertIn("copyright", reason)
+
+    def test_an_ordinary_specification_passes(self):
+        spec = "The flywheel 1 carries a magnet element holder 5 secured by rivets 3."
+        kept, _ = screen({str(n): {} for n in range(20)}, spec)
+        self.assertTrue(kept)

@@ -41,6 +41,25 @@ MIN_INK = 400
 HEADER_BAND = 0.11
 HEADER_HEIGHT = 0.07
 
+# Set type and line art separate on two measurements together.
+#
+# A drawing is mostly ONE stroke: its outline connects to itself, so the largest
+# connected component holds most of the ink. Type has no such component -- every
+# glyph is its own island, and the biggest is one letter out of hundreds. Measured
+# on real sheets, that share ran 0.31-0.84 for figures and 0.002-0.044 for text.
+#
+# Alone it is not enough: a heavily hatched figure is many separate strokes and can
+# drop to 0.13. So height decides those. The marks in a drawing are fragments of a
+# line, a pixel or two tall; the marks in type are glyphs, 3-8px. A block is type
+# only when it is short of a dominant stroke AND its marks are glyph-sized.
+#
+# This is what keeps title blocks, reference tables and inventor signatures off the
+# board. They sit on drawing pages as often as text pages, so page number is no
+# guide -- a 1952 grant put its title block on page 4 and its foreign-references
+# table on page 11.
+TYPE_MIN_MEDIAN_HEIGHT = 3.0
+TYPE_MAX_DOMINANT_SHARE = 0.10
+
 
 def read_ink(image, scale=PAGE_SCALE):
     """A boolean array, true where the sheet is inked."""
@@ -65,18 +84,33 @@ def figure_boxes(ink, grow=GROW):
     boxes = []
     for rows, cols in ndimage.find_objects(labels):
         box = (cols.start, rows.start, cols.stop - cols.start, rows.stop - rows.start)
-        if keep_box(box, ink[rows, cols].sum(), width, height):
+        if keep_box(box, ink[rows, cols], width, height):
             boxes.append(box)
     return sorted(boxes, key=lambda b: (b[1], b[0]))
 
 
-def keep_box(box, inked, width, height):
-    """Is this blob a figure, rather than a speck or the sheet's header line?"""
-    x, y, w, h = box
-    if w < MIN_SIDE or h < MIN_SIDE or inked < MIN_INK:
+def looks_like_type(piece):
+    """Is this block set type rather than line art?"""
+    labels, count = ndimage.label(piece)
+    if not count:
         return False
-    is_header = y < height * HEADER_BAND and h < height * HEADER_HEIGHT
-    return not is_header
+    heights = np.array([rows.stop - rows.start
+                        for rows, _ in ndimage.find_objects(labels)])
+    if float(np.median(heights)) < TYPE_MIN_MEDIAN_HEIGHT:
+        return False  # marks are line fragments, not glyphs
+    sizes = ndimage.sum_labels(piece, labels, range(1, count + 1))
+    dominant = sizes.max() / sizes.sum()
+    return dominant < TYPE_MAX_DOMINANT_SHARE
+
+
+def keep_box(box, piece, width, height):
+    """Is this blob a figure, rather than a speck, a header, or a block of type?"""
+    x, y, w, h = box
+    if w < MIN_SIDE or h < MIN_SIDE or piece.sum() < MIN_INK:
+        return False
+    if y < height * HEADER_BAND and h < height * HEADER_HEIGHT:
+        return False
+    return not looks_like_type(piece)
 
 
 def crop(ink, box, pad=8):
