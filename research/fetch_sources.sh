@@ -5,8 +5,9 @@
 # hardcoding filenames — so re-running with the same seed gives the same four, and a
 # moved or renamed file surfaces as a failure instead of a silent miss.
 #
-# NEVER RUN FROM A SESSION CONTAINER: the egress proxy denies archive.org,
-# commons.wikimedia.org and loc.gov. Run it on a machine with open outbound HTTPS.
+# The HAER block needs a host loc.gov will serve. loc.gov sits behind a bot challenge
+# that answers 403 to curl and to a headless browser alike, on the JSON API as well as
+# the page, so that block ends the run under set -e.
 #
 # Usage: ./fetch_sources.sh [seed]
 

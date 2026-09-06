@@ -70,17 +70,22 @@ Verified subclass titles:
 | `B60K` | Arrangement or mounting of propulsion units or transmissions in vehicles |
 | `B60T` | Vehicle brake control systems or parts thereof |
 | `B62D` | Motor vehicles; trailers |
+| `F01L` | Cyclically operating valves for machines or engines |
+| `F01M` | Lubricating of machines or engines in general; lubricating internal combustion engines; crankcase ventilating |
+| `F16C` | Shafts; flexible shafts; elements or crankshaft mechanisms; rotary bodies other than gearing elements; bearings |
 
-Unconfirmed, check before use: `F01L` and `F01M` — one search result conflated valve-gear
-with lubrication, so the pair needs verifying. `F16C` (shafts, bearings) appeared only as
-a cross-reference, title unconfirmed.
+`F01L` and `F01M` are separate drawers — valve-gear and lubrication — read from the CPC
+scheme itself. A search result that ran the two together was wrong about it.
 
 ## Harvest loop
 
 1. **Query** a phrase × CPC pair, collect patent numbers.
-2. **Fetch** the document. Search results surfaced a direct-PDF endpoint of the form
-   `https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/<number>` — seen in
-   live result URLs, never called from here. Confirm it before relying on it.
+2. **Fetch** the document from Google's patent mirror, not from USPTO. USPTO's endpoint
+   `https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/<number>` does serve
+   a PDF for a bare patent number, but it is a page scan with no text layer, so there is
+   nothing to read numerals out of. The mirror carries the same pages with OCR text; its
+   URL is content-hashed, so it is read off the `citation_pdf_url` meta tag on
+   `https://patents.google.com/patent/US<number>/en`. `harvest.py` does both hops.
 3. **Screen** — most hits are junk for our purposes. Cheap automatic rejections:
    fewer than ~12 distinct reference numerals in the figure's description paragraph;
    ink coverage on the traced figure outside a sane band (a flowchart is too sparse, a
@@ -109,11 +114,17 @@ silhouette and signature-region tagging, not a substitute for it.
 
 ## Open items
 
-- Does PatentsView need an API key? Sources conflict — one says no key required, the
-  current docs at <https://search.patentsview.org/docs/> imply otherwise. Check before
-  designing around it.
-- Confirm the `image-ppubs` PDF endpoint and whatever rate limit it carries.
-- Confirm `F01L` / `F01M` / `F16C`.
+- The PatentsView PatentSearch API is gone. `search.patentsview.org/api` now redirects to
+  a USPTO transition guide: PatentsView moved to the Open Data Portal at
+  <https://data.uspto.gov>, the search API is interrupted with no announced return date,
+  and old API keys do not carry over. Bulk PatentsView tables are on ODP behind an ODP key
+  and a USPTO.gov account. So searching by API is not merely unconfirmed, it is
+  unavailable — which is why finding numbers stays a manual step.
+- What a patent's OCR still costs the label table: a margin line number that does not sit
+  at the end of its line survives, and words hyphenated across a line break come back
+  split ("lubri cating hole"). Both land as one- or two-mention entries.
+- Sub-numerals (`5a`, `5b`, `5c` — the features hanging off part 5) are drawn in the
+  figures and named in the description, but the label table only reads bare numerals.
 
 ## Sources
 
@@ -122,6 +133,8 @@ silhouette and signature-region tagging, not a substitute for it.
 - Advanced search QRG — <https://www.uspto.gov/sites/default/files/documents/Advanced-search-overview-QRG-Patent-Public-Search.pdf>
 - Search overview QRG — <https://www.uspto.gov/sites/default/files/documents/Patent-Public-Search-Search-overview-QRG.pdf>
 - MPEP 608.01(f), Brief Description of Drawings — <https://www.bitlaw.com/source/mpep/608-01-f.html>
+- CPC scheme, authoritative — <https://www.cooperativepatentclassification.org/sites/default/files/cpc/scheme/F/scheme-F01L.pdf> and siblings under `/cpc/scheme/<section>/scheme-<subclass>.pdf>`
+- PatentsView transition to ODP — <https://data.uspto.gov/support/transition-guide/patentsview>
 - CPC schemes and definitions — <https://www.uspto.gov/web/patents/classification/cpc/html/cpc-F02F.html>, <https://www.uspto.gov/web/patents/classification/cpc/html/defF02P.html>, <https://www.uspto.gov/web/patents/classification/cpc/pdf/cpc-scheme-F16H.pdf>, <https://www.uspto.gov/web/patents/classification/cpc/pdf/cpc-scheme-F16D.pdf>, <https://www.uspto.gov/web/patents/classification/cpc/html/defB60K.html>, <https://www.uspto.gov/web/patents/classification/cpc/html/defB60T.html>, <https://www.uspto.gov/web/patents/classification/cpc/html/defB62D.html>
 - Full-text coverage dates — <https://libguides.princeton.edu/c.php?g=84225&p=543458>, <https://libguides.nypl.org/patents/historical-patents>
 

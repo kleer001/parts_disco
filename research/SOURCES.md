@@ -125,3 +125,23 @@ chosen by hand.
 
 Downloads land in `downloads/`, which is git-ignored: nothing gets committed until its
 licence is confirmed per file.
+
+## What a sample run returned
+
+`fetch_sources.sh` was run end to end; four pages of Dyke's and four Commons files
+landed in `downloads/`.
+
+- **Dyke's** pages come down clean at `w1200`, but a page is a page: figures share it
+  with two columns of body text on toned stock, and the callouts are letters (A, B, C)
+  keyed to the prose, not numerals. A board costs a crop and a background knock-out.
+- **Patent sheets** beat it on both counts — a full sheet of line art on white, callout
+  numerals with leader lines, and a description that names each numeral. `US4137884`
+  sheet 1 carries five figures of one part family.
+- **Commons** `Category:Automotive diagrams` holds 185 files, but they are photographs,
+  treemaps and signage as often as schematics, and most carry CC BY-SA rather than a
+  public-domain mark — attribution per asset, tracked in `downloads/commons_licences.tsv`.
+- **TM 9-1005-319-23** has no `imagecount` in its Internet Archive metadata: the item is
+  15 files, not a page-image scan, so the BookReader page path does not reach it. Another
+  item id or a direct PDF would be needed. It is also a rifle manual, not a car.
+- **HAER** did not run. loc.gov answers 403 from a bot challenge, to curl and to a
+  headless browser, on the JSON API as well as the page.
