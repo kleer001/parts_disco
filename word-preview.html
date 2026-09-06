@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>outlined words — field</title>
+<style>
+  body { background:#e7e2d8; color:#1a1a1a; font:13px system-ui, sans-serif; margin:20px; }
+  h2 { font-size:14px; font-weight:600; margin:20px 0 6px; }
+  .note { color:#555; margin:0 0 12px; max-width:80ch; }
+  canvas { background:#f4f1ea; box-shadow:0 1px 3px rgba(0,0,0,.2); display:block; }
+  .row { display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
+  label { display:inline-flex; gap:6px; align-items:center; margin-right:16px; }
+  input[type=range] { width:150px; }
+  code { background:#ddd8cc; padding:0 3px; }
+</style>
+</head>
+<body>
+
+<h2>100 words on an 800&times;800 field</h2>
+<p class="note">Font height 25% of the field (200px). Anchors on a 10&times;10 grid at 80px pitch,
+so edge words hang off by up to half. Stroke only, no fill.</p>
+
+<div class="note">
+  <label>font % of field <input id="fontPct" type="range" min="5" max="40" value="25"><span id="fontOut">25%</span></label>
+  <label>stroke <input id="stroke" type="range" min="1" max="6" step="0.5" value="1"><span id="strokeOut">1px</span></label>
+  <label>jitter <input id="jitter" type="range" min="0" max="40" value="0"><span id="jitterOut">0px</span></label>
+</div>
+
+<div class="row">
+  <canvas id="field" width="800" height="800"></canvas>
+  <div>
+    <h2 style="margin-top:0">Detail &mdash; top-left quarter at 2&times;</h2>
+    <canvas id="detail" width="700" height="700"></canvas>
+  </div>
+</div>
+
+<script type="module">
+import { makeWords } from '/src/words.js';
+import { mulberry32 } from '/src/rng.js';
+
+const SIZE = 800;
+const COUNT = 100;
+const COLS = 10;              // 10 x 10 anchors over the field = 80px pitch
+const WORDS = makeWords(1983, COUNT);
+const INK = '#1a1a1a';
+
+const field = document.getElementById('field');
+const detail = document.getElementById('detail');
+
+function draw() {
+  const fontPct = +document.getElementById('fontPct').value;
+  const lineWidth = +document.getElementById('stroke').value;
+  const jitter = +document.getElementById('jitter').value;
+  document.getElementById('fontOut').textContent = fontPct + '%';
+  document.getElementById('strokeOut').textContent = lineWidth + 'px';
+  document.getElementById('jitterOut').textContent = jitter + 'px';
+
+  const ctx = field.getContext('2d');
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  ctx.fillStyle = '#f4f1ea';
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
+  ctx.font = `${(SIZE * fontPct) / 100}px sans-serif`;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = lineWidth;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.lineJoin = 'round';
+
+  // Even spacing: one word per cell of a square grid laid over the whole field.
+  // A word is centred on its cell, so a word in an edge cell hangs off the edge --
+  // at this font size, by about half.
+  const rand = mulberry32(1983);
+  const pitch = SIZE / COLS;
+  WORDS.forEach((word, i) => {
+    const cx = (i % COLS) * pitch + pitch / 2 + (rand() - 0.5) * 2 * jitter;
+    const cy = Math.floor(i / COLS) * pitch + pitch / 2 + (rand() - 0.5) * 2 * jitter;
+    ctx.strokeText(word, cx, cy);
+  });
+
+  const d = detail.getContext('2d');
+  d.imageSmoothingEnabled = false;
+  d.fillStyle = '#f4f1ea';
+  d.fillRect(0, 0, 700, 700);
+  d.drawImage(field, 0, 0, 350, 350, 0, 0, 700, 700);
+}
+
+for (const id of ['fontPct', 'stroke', 'jitter']) {
+  document.getElementById(id).addEventListener('input', draw);
+}
+draw();
+</script>
+</body>
+</html>
