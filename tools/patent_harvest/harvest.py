@@ -36,11 +36,15 @@ from labels import extract_labels, screen
 
 # USPTO's own grant PDFs are page scans with no text layer -- pdftotext returns a
 # handful of form feeds from them, so labels.py has nothing to vote on. Google's
-# mirror carries the same pages plus an OCR text layer, back through the 1940s.
-# Its PDF path is content-hashed and unguessable, so the patent page is fetched
-# first and the canonical URL read off its citation_pdf_url meta tag.
-PATENT_URL = "https://patents.google.com/patent/US{number}/en"
-PDF_META = re.compile(rb'citation_pdf_url"\s+content="([^"]+)"')
+# mirror carries the same pages plus an OCR text layer, back through the 1930s.
+#
+# This flat path is one hop and needs no HTML parsed. The mirror also serves each
+# PDF under a content-hashed path that patents.google.com advertises in a
+# citation_pdf_url meta tag, but that host rate-limits hard and answers 503 for a
+# while once it does, and the hashed path cannot be derived without asking it.
+# Checked against grants from 1936 to 1977; a modern grant carries its kind code in
+# the filename (US6318332B1.pdf), so this shape is the pre-1980 one.
+PDF_URL = "https://patentimages.storage.googleapis.com/pdfs/US{number}.pdf"
 USER_AGENT = "trace_rom_studio-parts_disco/0.1 (https://github.com/kleer001/trace_rom_studio)"
 RENDER_DPI = 200
 
@@ -96,12 +100,7 @@ def fetch(url):
 
 
 def download_pdf(number, dest):
-    page = fetch(PATENT_URL.format(number=number))
-    match = PDF_META.search(page)
-    if match is None:
-        raise ValueError(f"no PDF link on the patent page for {number}")
-    time.sleep(HOST_DELAY)
-    body = fetch(match.group(1).decode())
+    body = fetch(PDF_URL.format(number=number))
     # A politely-worded HTML error page is still a failure; catch it here rather than
     # letting pdftotext produce an empty extraction three steps later.
     if not body.startswith(b"%PDF"):

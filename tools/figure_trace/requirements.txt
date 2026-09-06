@@ -1,0 +1,6 @@
+# Offline asset tooling. Nothing here ships with the game.
+#   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+potracer
+pillow
+numpy
+scipy

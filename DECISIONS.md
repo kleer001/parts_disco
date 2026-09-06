@@ -42,9 +42,11 @@ it went; it is never a reason to refuse a change he asks for.
 
 ## Art pipeline
 
-- **Patent PDFs come from Google's mirror.** REJECTED: USPTO's `image-ppubs` endpoint —
-  it serves a PDF for a bare patent number, but the pages are scans with no text layer,
-  so there is nothing to read part names out of.
+- **Patent PDFs come from Google's mirror, by its flat `pdfs/US<number>.pdf` path.**
+  REJECTED: USPTO's `image-ppubs` endpoint — its pages are scans with no text layer, so
+  there is nothing to read part names out of. REJECTED: resolving the mirror's
+  content-hashed path from `patents.google.com` — that host rate-limits hard and then
+  answers 503 for a while, taking the whole art pipeline down with it.
 - **Each patent column is extracted from its own half of the page.** REJECTED:
   `pdftotext -raw` — it gets the reading order right, but drops inter-word spaces, and
   "firstside ring" costs more than the margin numbers it saves.

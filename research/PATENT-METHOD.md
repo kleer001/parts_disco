@@ -83,9 +83,11 @@ scheme itself. A search result that ran the two together was wrong about it.
 2. **Fetch** the document from Google's patent mirror, not from USPTO. USPTO's endpoint
    `https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/<number>` does serve
    a PDF for a bare patent number, but it is a page scan with no text layer, so there is
-   nothing to read numerals out of. The mirror carries the same pages with OCR text; its
-   URL is content-hashed, so it is read off the `citation_pdf_url` meta tag on
-   `https://patents.google.com/patent/US<number>/en`. `harvest.py` does both hops.
+   nothing to read numerals out of. The mirror carries the same pages with OCR text, at
+   `https://patentimages.storage.googleapis.com/pdfs/US<number>.pdf` — checked against
+   grants from 1936 to 1977. `patents.google.com` advertises a content-hashed path for
+   the same file, but it rate-limits hard and then answers 503 for a while, so the flat
+   path is the one `harvest.py` uses.
 3. **Screen** — most hits are junk for our purposes. Cheap automatic rejections:
    fewer than ~12 distinct reference numerals in the figure's description paragraph;
    ink coverage on the traced figure outside a sane band (a flowchart is too sparse, a
@@ -111,6 +113,19 @@ content and the answer key in one pass.
 The leader lines in the figure connect each numeral to its part, so the numeral positions
 also give a first approximation of each part's location — a starting point for the
 silhouette and signature-region tagging, not a substitute for it.
+
+## What the hosts tolerate
+
+Six seconds between requests to a host is the studio's floor, and it is enough for the
+document hosts: `patentimages` served a run of grants at that pace without complaint,
+and `harvest.py` holds to it.
+
+It is not enough for a search endpoint. `patents.google.com`'s query endpoint answered
+503 partway through ten queries spaced six seconds apart, and once it starts refusing it
+refuses everything on that host — the patent pages too, not just the queries — for a
+good while. Continuing at a fixed interval through a 503 only extends it; the answer is
+to stop and back off, and the PDF CDN stays up throughout, which is what makes the flat
+mirror path worth having.
 
 ## Open items
 

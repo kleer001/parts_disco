@@ -79,3 +79,35 @@ a layer at runtime to make a buried part reachable would read as the world cheat
 **Rejected:** integrating velocity each frame — it accumulates float drift, so two runs
 of one seed diverge, and there is nothing to sample without running the simulation.
 **Threaded:** `src/drift.js` `fold()`, `driftAt()`.
+
+### [2026-09-06] The mirror is addressed by its flat path, not through its patent pages
+**Decision:** `harvest.py` fetches `patentimages.storage.googleapis.com/pdfs/US<number>.pdf`
+directly, one hop, with no HTML parsed.
+**Why:** resolving the content-hashed path meant asking `patents.google.com` for each
+patent page first. That host rate-limits hard and then answers 503 to everything for a
+while — including the patent pages themselves, which took the art pipeline down entirely
+while the PDF CDN stayed up and serving. The flat path was checked against grants from
+1936 to 1977 and answered for all of them.
+**Rejected:** the `citation_pdf_url` route — it is the advertised path and it is exact,
+but it costs a request to a host that blocks, to learn something the flat path does not
+need. Keeping both as a primary and a fallback was rejected too: a fallback would have
+hidden the block behind a slow path rather than showing it.
+**Cost of the flat path:** it is not documented as an alias, and it carries the pre-1980
+filename shape — a modern grant's file has its kind code in the name
+(`US6318332B1.pdf`), so a run reaching into recent patents would fail loudly on the
+first one and want the shape widened.
+**Threaded:** `tools/patent_harvest/harvest.py` `PDF_URL`, `download_pdf()`.
+
+### [2026-09-06] Figures are traced at half the rendered page
+**Decision:** `segment.py` halves a sheet before thresholding, and the drawings are taken
+from page 2 on.
+**Why:** sheets render at print resolution, an order of magnitude more detail than a
+figure drawn a couple of hundred pixels wide can show. Halving took 44% off the path data
+with nothing visible lost. Page 1 of a grant is the front page: its only original marks
+are lines of type, which segmentation read as a figure captioned "15 Claims, 8 Drawing
+Figures", and the figure it does carry repeats off a drawing sheet.
+**Rejected:** loosening potrace's `opttolerance` instead — measured across 0.35 to 1.5 it
+moved the file size by 5%, so it buys nothing and only costs fidelity. Going below half
+scale — at a third, two of the five figures on a test sheet merged into one.
+**Threaded:** `tools/figure_trace/segment.py` `PAGE_SCALE`, `tools/figure_trace/trace.py`
+`FIRST_DRAWING_PAGE`.
