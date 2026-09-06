@@ -23,19 +23,29 @@ nothing here ships with the game.
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 from labels import extract_labels, screen
 
-# Seen in live search-result URLs; never called from the authoring session.
-PDF_URL = "https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/{number}"
+# USPTO's own grant PDFs are page scans with no text layer -- pdftotext returns a
+# handful of form feeds from them, so labels.py has nothing to vote on. Google's
+# mirror carries the same pages plus an OCR text layer, back through the 1940s.
+# Its PDF path is content-hashed and unguessable, so the patent page is fetched
+# first and the canonical URL read off its citation_pdf_url meta tag.
+PATENT_URL = "https://patents.google.com/patent/US{number}/en"
+PDF_META = re.compile(rb'citation_pdf_url"\s+content="([^"]+)"')
 USER_AGENT = "trace_rom_studio-parts_disco/0.1 (https://github.com/kleer001/trace_rom_studio)"
 RENDER_DPI = 200
+
+# Minimum gap between two requests to the same host.
+HOST_DELAY = 6.0
 
 
 def require(tool):
@@ -56,12 +66,19 @@ def read_numbers(args):
     return list(dict.fromkeys(cleaned))
 
 
-def download_pdf(number, dest):
-    request = urllib.request.Request(
-        PDF_URL.format(number=number), headers={"User-Agent": USER_AGENT}
-    )
+def fetch(url):
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=60) as response:
-        body = response.read()
+        return response.read()
+
+
+def download_pdf(number, dest):
+    page = fetch(PATENT_URL.format(number=number))
+    match = PDF_META.search(page)
+    if match is None:
+        raise ValueError(f"no PDF link on the patent page for {number}")
+    time.sleep(HOST_DELAY)
+    body = fetch(match.group(1).decode())
     # A politely-worded HTML error page is still a failure; catch it here rather than
     # letting pdftotext produce an empty extraction three steps later.
     if not body.startswith(b"%PDF"):
@@ -109,7 +126,9 @@ def main():
     out_root.mkdir(parents=True, exist_ok=True)
 
     results = []
-    for number in numbers:
+    for index, number in enumerate(numbers):
+        if index:
+            time.sleep(HOST_DELAY)
         try:
             result = harvest_one(number, out_root, render=not args.no_render)
         except (urllib.error.URLError, ValueError, subprocess.CalledProcessError) as error:
