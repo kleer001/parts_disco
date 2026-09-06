@@ -1,0 +1,29 @@
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Tests use Node's built-in runner, so a game with no dependencies needs no
+      # install step. One that grew a devDependency (a headless audio renderer,
+      # say) has a lockfile, and CI must install from it or the run fails on an
+      # import the machine cannot resolve.
+      - if: hashFiles('package-lock.json') != ''
+        run: npm ci
+      - run: npm test
+      # The review panel is a chat-time lens. A file that quotes one turns a
+      # thinking tool into a constraint nobody chose and nobody can renegotiate —
+      # so the check lives here, in a tracked file that survives budding, rather
+      # than in a brief that stops applying the moment the game leaves the studio.
+      - name: no panel voice on disk
+        run: |
+          if git grep -nEi "the (Shipper|Critic|Archivist|Superfan)'?s?\b" \
+               -- . ':!.github/workflows/test.yml' ':!CLAUDE.md'; then
+            echo "::error::The panel is a chat-time lens. Nothing tracked cites it."
+            echo "State the reason on its own merits and drop the name."
+            exit 1
+          fi

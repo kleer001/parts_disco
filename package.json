@@ -1,0 +1,11 @@
+{
+  "name": "parts-disco",
+  "version": "0.0.1",
+  "description": "Find the named car part in a drifting pile of schematics",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test",
+    "start": "./run.sh"
+  }
+}
