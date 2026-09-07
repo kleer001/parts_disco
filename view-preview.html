@@ -37,6 +37,7 @@ fleet with <code>tools/model_views/render_views.py</code> first, then write a
   <label>models <input id="models" type="range" min="2" max="12" value="12"><span id="modelsOut"></span></label>
   <label>seed <input id="seed" type="range" min="1" max="60" value="7"><span id="seedOut"></span></label>
   <label><input id="onebit" type="checkbox" checked> 1-bit</label>
+  <label><input id="opaque" type="checkbox"> opaque</label>
   <label><input id="reveal" type="checkbox"> show answers</label>
 </div>
 
@@ -111,6 +112,7 @@ function draw() {
   const modelCount = +control('models').value;
   const seed = +control('seed').value;
   const onebit = control('onebit').checked;
+  const opaque = control('opaque').checked;
   const reveal = control('reveal').checked;
 
   control('countOut').textContent = count;
@@ -144,14 +146,21 @@ function draw() {
 
   const trace = ({ slot, cx, cy }) => {
     const view = views.get(`${slot.model}/${String(slot.angle).padStart(3, '0')}`);
-    for (const stroke of view.strokes) {
+    const path = (stroke) => {
       ctx.beginPath();
       ctx.moveTo(cx + (stroke[0][0] - 0.5) * span, cy + (stroke[0][1] - 0.5) * span);
       for (let p = 1; p < stroke.length; p++) {
         ctx.lineTo(cx + (stroke[p][0] - 0.5) * span, cy + (stroke[p][1] - 0.5) * span);
       }
-      ctx.stroke();
+    };
+    // Paper poured into the car's own loops before its lines go down, so the ones
+    // under it stop showing through. Line Art gives no silhouette to fill, but it
+    // outlines every face, and filling those covers the same ground.
+    if (opaque) {
+      ctx.fillStyle = PAPER;
+      for (const stroke of view.strokes) { path(stroke); ctx.fill(); }
     }
+    for (const stroke of view.strokes) { path(stroke); ctx.stroke(); }
   };
 
   ctx.strokeStyle = INK;
@@ -197,7 +206,7 @@ function threshold(ctx) {
   ctx.putImageData(image, 0, 0);
 }
 
-for (const id of ['count', 'size', 'jitter', 'stroke', 'models', 'seed', 'onebit', 'reveal']) {
+for (const id of ['count', 'size', 'jitter', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'reveal']) {
   control(id).addEventListener('input', draw);
 }
 draw();
