@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>outlined cars — field</title>
+<style>
+  body { background:#e7e2d8; color:#1a1a1a; font:13px system-ui, sans-serif; margin:20px; }
+  h2 { font-size:14px; font-weight:600; margin:20px 0 6px; }
+  .note { color:#555; margin:0 0 12px; max-width:80ch; }
+  canvas { background:#f4f1ea; box-shadow:0 1px 3px rgba(0,0,0,.2); display:block; }
+  .row { display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
+  label { display:inline-flex; gap:6px; align-items:center; margin-right:16px; }
+  input[type=range] { width:130px; }
+  code { background:#ddd8cc; padding:0 3px; }
+  .panel { width:300px; }
+  .panel img { width:300px; image-rendering:pixelated; background:#f4f1ea; }
+  .kicker { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#4b5563; }
+  .name { font-size:26px; font-weight:600; margin:2px 0 10px; }
+  .stat { color:#4b5563; }
+</style>
+</head>
+<body>
+
+<h2>Cars on an 800&times;800 field</h2>
+<p class="note">Every view is drawn at one scale, so a van reads bigger than a sedan and a
+front view reads narrower than a side. The prompt is the target rendered solid at an angle
+that is <em>not</em> on the board, so no view can be matched by its shape alone.</p>
+<p class="note">Reads its views from <code>tmp/fleet1b/</code>, which is not in the repo. Render a
+fleet with <code>tools/model_views/render_views.py</code> first, then write a
+<code>manifest.json</code> beside them listing each model and the angles it was rendered at.</p>
+
+<div class="note">
+  <label>count <input id="count" type="range" min="4" max="60" value="24"><span id="countOut"></span></label>
+  <label>size % <input id="size" type="range" min="8" max="60" value="28"><span id="sizeOut"></span></label>
+  <label>jitter <input id="jitter" type="range" min="0" max="60" value="0"><span id="jitterOut"></span></label>
+  <label>stroke <input id="stroke" type="range" min="0.5" max="4" step="0.5" value="1"><span id="strokeOut"></span></label>
+  <label>models <input id="models" type="range" min="2" max="12" value="12"><span id="modelsOut"></span></label>
+  <label>seed <input id="seed" type="range" min="1" max="60" value="7"><span id="seedOut"></span></label>
+  <label><input id="onebit" type="checkbox" checked> 1-bit</label>
+  <label><input id="reveal" type="checkbox"> show answers</label>
+</div>
+
+<div class="row">
+  <canvas id="field" width="800" height="800"></canvas>
+  <div class="panel">
+    <div class="kicker">Find</div>
+    <div class="name" id="targetName">—</div>
+    <img id="prompt" alt="">
+    <p class="stat" id="stat"></p>
+    <h2>Detail &mdash; top-left quarter at 2&times;</h2>
+    <canvas id="detail" width="300" height="300"></canvas>
+  </div>
+</div>
+
+<script type="module">
+import { mulberry32 } from '/src/rng.js';
+
+const SIZE = 800;
+const PAPER = '#f4f1ea';
+const INK = '#1a1a1a';
+const ANSWER = '#b91c1c';
+
+const manifest = await (await fetch('/tmp/fleet1b/manifest.json')).json();
+
+// Every view up front: the whole fleet is a couple of megabytes and this page exists
+// to drag sliders on, so paying the load once beats fetching during a redraw.
+const views = new Map();
+await Promise.all(manifest.models.flatMap((model) =>
+  model.angles.map(async (angle) => {
+    const key = `${model.name}/${String(angle).padStart(3, '0')}`;
+    views.set(key, await (await fetch(`${manifest.root}/${key}.json`)).json());
+  })));
+
+const control = (id) => document.getElementById(id);
+const field = control('field');
+
+/** Choose what is on the board, and what the panel asks for. Seeded. */
+function layout(seed, count, modelCount) {
+  const rand = mulberry32(seed);
+  const pick = (list) => list[Math.floor(rand() * list.length)];
+
+  const fleet = manifest.models.slice();
+  // Fisher-Yates, so which models are in play is a function of the seed alone.
+  for (let i = fleet.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [fleet[i], fleet[j]] = [fleet[j], fleet[i]];
+  }
+  const inPlay = fleet.slice(0, modelCount);
+
+  const placed = [];
+  for (let i = 0; i < count; i++) {
+    const model = pick(inPlay);
+    placed.push({ model: model.name, angle: pick(model.angles) });
+  }
+
+  // The target is a model the board actually holds, asked for at an angle it does
+  // not. A prompt showing an angle that is on the board is a shape to match; this
+  // one has to be rotated.
+  const target = pick(placed).model;
+  const onBoard = new Set(placed.filter((p) => p.model === target).map((p) => p.angle));
+  const spare = manifest.models.find((m) => m.name === target)
+    .angles.filter((a) => !onBoard.has(a));
+  return { placed, target, promptAngle: spare.length ? pick(spare) : null };
+}
+
+function draw() {
+  const count = +control('count').value;
+  const sizePct = +control('size').value;
+  const jitter = +control('jitter').value;
+  const lineWidth = +control('stroke').value;
+  const modelCount = +control('models').value;
+  const seed = +control('seed').value;
+  const onebit = control('onebit').checked;
+  const reveal = control('reveal').checked;
+
+  control('countOut').textContent = count;
+  control('sizeOut').textContent = sizePct + '%';
+  control('jitterOut').textContent = jitter + 'px';
+  control('strokeOut').textContent = lineWidth + 'px';
+  control('modelsOut').textContent = modelCount;
+  control('seedOut').textContent = seed;
+
+  const { placed, target, promptAngle } = layout(seed, count, modelCount);
+  const span = (SIZE * sizePct) / 100;
+
+  // Anchors on the squarest grid that holds the count, so the field stays evenly
+  // covered as the count is dragged rather than banding into rows.
+  const cols = Math.ceil(Math.sqrt(count));
+  const pitch = SIZE / cols;
+  const rand = mulberry32(seed + 1);
+
+  const ctx = field.getContext('2d');
+  ctx.fillStyle = PAPER;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.lineWidth = lineWidth;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  const anchors = placed.map((slot, i) => ({
+    slot,
+    cx: (i % cols) * pitch + pitch / 2 + (rand() - 0.5) * 2 * jitter,
+    cy: Math.floor(i / cols) * pitch + pitch / 2 + (rand() - 0.5) * 2 * jitter,
+  }));
+
+  const trace = ({ slot, cx, cy }) => {
+    const view = views.get(`${slot.model}/${String(slot.angle).padStart(3, '0')}`);
+    for (const stroke of view.strokes) {
+      ctx.beginPath();
+      ctx.moveTo(cx + (stroke[0][0] - 0.5) * span, cy + (stroke[0][1] - 0.5) * span);
+      for (let p = 1; p < stroke.length; p++) {
+        ctx.lineTo(cx + (stroke[p][0] - 0.5) * span, cy + (stroke[p][1] - 0.5) * span);
+      }
+      ctx.stroke();
+    }
+  };
+
+  ctx.strokeStyle = INK;
+  anchors.forEach(trace);
+
+  // Canvas antialiases every path it draws, so a board of thin outlines lands as a
+  // spread of greys. Thresholding afterwards is what makes the drawn board match the
+  // one-bit renders it sits beside.
+  if (onebit) threshold(ctx);
+
+  // After the threshold, not before: the answer colour is darker than the cut and
+  // would be flattened to ink along with everything else.
+  if (reveal) {
+    ctx.strokeStyle = ANSWER;
+    anchors.filter((a) => a.slot.model === target).forEach(trace);
+  }
+
+  const answers = placed.filter((p) => p.model === target).length;
+  control('targetName').textContent = target;
+  control('prompt').src = promptAngle === null ? ''
+    : `${manifest.root}/${target}/${String(promptAngle).padStart(3, '0')}.png`;
+  control('stat').textContent =
+    `${count} views, ${new Set(placed.map((p) => p.model)).size} models on the board`
+    + ` — ${answers} of them are ${target}`
+    + (promptAngle === null ? ' (every angle is on the board)' : ` · prompt at ${promptAngle}°`);
+
+  const d = control('detail').getContext('2d');
+  d.imageSmoothingEnabled = false;
+  d.fillStyle = PAPER;
+  d.fillRect(0, 0, 300, 300);
+  d.drawImage(field, 0, 0, 400, 400, 0, 0, 300, 300);
+}
+
+function threshold(ctx) {
+  const image = ctx.getImageData(0, 0, SIZE, SIZE);
+  const px = image.data;
+  for (let i = 0; i < px.length; i += 4) {
+    const ink = px[i] * 0.2126 + px[i + 1] * 0.7152 + px[i + 2] * 0.0722 < 200;
+    px[i] = ink ? 0x1a : 0xf4;
+    px[i + 1] = ink ? 0x1a : 0xf1;
+    px[i + 2] = ink ? 0x1a : 0xea;
+  }
+  ctx.putImageData(image, 0, 0);
+}
+
+for (const id of ['count', 'size', 'jitter', 'stroke', 'models', 'seed', 'onebit', 'reveal']) {
+  control(id).addEventListener('input', draw);
+}
+draw();
+</script>
+</body>
+</html>
