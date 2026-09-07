@@ -30,6 +30,8 @@ fleet with <code>tools/model_views/render_views.py</code> first, then write a
 <code>manifest.json</code> beside them listing each model and the angles it was rendered at.</p>
 
 <div class="note">
+  <label>cols <input id="cols" type="range" min="1" max="7" value="5"><span id="colsOut"></span></label>
+  <label>rows <input id="rows" type="range" min="1" max="7" value="7"><span id="rowsOut"></span></label>
   <label>size % <input id="size" type="range" min="8" max="60" value="30"><span id="sizeOut"></span></label>
   <label>jitter <input id="jitter" type="range" min="0" max="60" value="0"><span id="jitterOut"></span></label>
   <label>stroke <input id="stroke" type="range" min="0.5" max="4" step="0.5" value="1"><span id="strokeOut"></span></label>
@@ -56,12 +58,6 @@ fleet with <code>tools/model_views/render_views.py</code> first, then write a
 import { mulberry32 } from '/src/rng.js';
 
 const SIZE = 800;
-
-// What a view's ink actually fills of its square frame, averaged over the fleet.
-// A car is wide and shallow, so a square grid leaves the rows gapping while the
-// columns already overlap. Measured, not guessed: mean 0.755 by 0.525 over 96 views.
-const INK_W = 0.755;
-const INK_H = 0.525;
 
 const PAPER = '#f4f1ea';
 const INK = '#1a1a1a';
@@ -111,6 +107,8 @@ function layout(seed, count, modelCount) {
 }
 
 function draw() {
+  const cols = +control('cols').value;
+  const rows = +control('rows').value;
   const sizePct = +control('size').value;
   const jitter = +control('jitter').value;
   const lineWidth = +control('stroke').value;
@@ -120,6 +118,8 @@ function draw() {
   const opaque = control('opaque').checked;
   const reveal = control('reveal').checked;
 
+  control('colsOut').textContent = cols;
+  control('rowsOut').textContent = rows;
   control('sizeOut').textContent = sizePct + '%';
   control('jitterOut').textContent = jitter + 'px';
   control('strokeOut').textContent = lineWidth + 'px';
@@ -128,12 +128,10 @@ function draw() {
 
   const span = (SIZE * sizePct) / 100;
 
-  // The board sets the count, not the other way round: lay a grid whose cells are
-  // the shape a car's ink actually is, then fill every one of them. Asking for a
-  // number of views instead leaves whatever does not divide as bare paper in the
-  // corner.
-  const cols = Math.max(1, Math.ceil(SIZE / (span * INK_W)));
-  const rows = Math.max(1, Math.ceil(SIZE / (span * INK_H)));
+  // Every cell of the grid gets a view, so the board is always full: the count is
+  // what the grid comes to, never a number laid onto it that leaves a bare corner.
+  // Columns and rows are set apart because a car is wider than it is tall, and how
+  // much wider is a thing to tune rather than a thing to derive.
   const count = cols * rows;
   const pitchX = SIZE / cols;
   const pitchY = SIZE / rows;
@@ -216,7 +214,7 @@ function threshold(ctx) {
   ctx.putImageData(image, 0, 0);
 }
 
-for (const id of ['size', 'jitter', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'reveal']) {
+for (const id of ['cols', 'rows', 'size', 'jitter', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'reveal']) {
   control(id).addEventListener('input', draw);
 }
 draw();
