@@ -13,12 +13,33 @@ the player is asked to match something the renderer never promised.
 import argparse
 import json
 import math
+import struct
 import sys
+import zlib
 from pathlib import Path
 
 import bpy
+import numpy as np
 from mathutils import Vector
 from bpy_extras.object_utils import world_to_camera_view
+
+
+# An 8x8 ordered dither. Ordered rather than error-diffused: a regular screen is a
+# halftone and error diffusion is noise, and the board is meant to read as a
+# screenprint. It also compresses far better -- noise has no runs in it.
+BAYER8 = np.array([
+    [0, 32, 8, 40, 2, 34, 10, 42],
+    [48, 16, 56, 24, 50, 18, 58, 26],
+    [12, 44, 4, 36, 14, 46, 6, 38],
+    [60, 28, 52, 20, 62, 30, 54, 22],
+    [3, 35, 11, 43, 1, 33, 9, 41],
+    [51, 19, 59, 27, 49, 17, 57, 25],
+    [15, 47, 7, 39, 13, 45, 5, 37],
+    [63, 31, 55, 23, 61, 29, 53, 21],
+], dtype=np.float32) / 64.0
+
+# Rec. 709 luma, to flatten the shaded view to one channel before screening it.
+LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 
 
 # The ring the board's views are taken from. Kept shallow: a steep camera looks down
@@ -189,9 +210,50 @@ def write_view(path, model, azimuth, strokes):
     }))
 
 
+def screen(rgba):
+    """Composite the shaded view over paper and threshold it against the dither."""
+    lit = rgba[..., :3] * rgba[..., 3:4] + (1.0 - rgba[..., 3:4])
+    grey = lit @ LUMA
+    height, width = grey.shape
+    tile = np.tile(BAYER8, (height // 8 + 1, width // 8 + 1))[:height, :width]
+    return grey > tile
+
+
+def write_bilevel_png(path, mask):
+    """Write a 1-bit greyscale PNG. True is paper, False is ink.
+
+    By hand because Blender writes eight bits a channel at the least, and a
+    screened view carries exactly one bit a pixel -- the other seven store a
+    gradient that is no longer there.
+    """
+    height, width = mask.shape
+    raw = b"".join(b"\x00" + row.tobytes() for row in np.packbits(mask, axis=1))
+
+    def chunk(tag, body):
+        return (struct.pack(">I", len(body)) + tag + body
+                + struct.pack(">I", zlib.crc32(tag + body)))
+
+    path.write_bytes(
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 1, 0, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw, 9))
+        + chunk(b"IEND", b""))
+
+
 def render_png(path):
+    """Render the shaded view, then store it screened down to one bit."""
     bpy.context.scene.render.filepath = str(path)
     bpy.ops.render.render(write_still=True)
+
+    image = bpy.data.images.load(str(path))
+    # Non-Color: the stored values are wanted as they are. Pulled through an sRGB
+    # transform first, the screen dithers against the wrong tones and the view
+    # comes out flat.
+    image.colorspace_settings.name = "Non-Color"
+    width, height = image.size
+    rgba = np.array(image.pixels[:], dtype=np.float32).reshape(height, width, 4)[::-1]
+    bpy.data.images.remove(image)
+    write_bilevel_png(path, screen(rgba))
 
 
 def main(argv):

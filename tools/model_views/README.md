@@ -24,7 +24,8 @@ Writes `views/<model>/<azimuth>.json` and `views/<model>/<azimuth>.png`.
   car at the same angle is a different shape depending on its distance.
 - **Traces** each angle with a scene Line Art modifier and **projects the baked
   strokes through the camera itself**, straight to JSON.
-- **Renders** each angle shaded, with the line art hidden.
+- **Renders** each angle shaded with the line art hidden, then **screens it down
+  to one bit** through an ordered dither and writes the PNG by hand.
 
 ## Two things that fail quietly
 
@@ -44,6 +45,11 @@ downstream measures it. The frame range is pinned to a single frame before bakin
 
 ## Output
 
+Two files an angle. The outline is vector and the shaded view is not, because they
+are asked different questions: the board scales its outlines with the canvas and
+hit-tests against their geometry, while the prompt panel only ever shows its render
+at one size.
+
 ```json
 {"model": "sedan", "azimuth": 45, "strokes": [[[0.31, 0.62], [0.34, 0.59]], ...]}
 ```
@@ -51,6 +57,17 @@ downstream measures it. The frame range is pinned to a single frame before bakin
 Coordinates are `0..1` across the camera frame with **y down**, which is the
 convention a canvas wants. Strokes are unsimplified: they carry every point Line Art
 emitted, collinear runs included.
+
+The PNG is **1-bit greyscale**, screened with an 8x8 ordered dither. Ordered rather
+than error-diffused: a regular screen is a halftone where diffusion is noise, and
+noise has no runs for the compressor to find. Measured over twelve bodies at eight
+angles, the shaded views come to 249KB against 19.7MB at eight bits a channel, with
+the shading still legible — the tonal information in a Workbench render survives one
+bit a pixel almost intact.
+
+Blender writes eight bits a channel at the least, so the file is encoded here from
+`numpy.packbits` and `zlib`. That is the whole reason this tool needs no dependency
+beyond Blender, which bundles numpy.
 
 ## Models
 
