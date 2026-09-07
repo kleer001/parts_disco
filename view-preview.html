@@ -25,7 +25,7 @@
 <p class="note">Every view is drawn at one scale, so a van reads bigger than a sedan and a
 front view reads narrower than a side. The prompt is the target rendered solid at an angle
 that is <em>not</em> on the board, so no view can be matched by its shape alone.</p>
-<p class="note">Reads its views from <code>tmp/fleet1b/</code>, which is not in the repo. Render a
+<p class="note">Reads its views from <code>tmp/fleet2/</code>, which is not in the repo. Render a
 fleet with <code>tools/model_views/render_views.py</code> first, then write a
 <code>manifest.json</code> beside them listing each model and the angles it was rendered at.</p>
 
@@ -62,7 +62,7 @@ const PAPER = '#f4f1ea';
 const INK = '#1a1a1a';
 const ANSWER = '#b91c1c';
 
-const manifest = await (await fetch('/tmp/fleet1b/manifest.json')).json();
+const manifest = await (await fetch('/tmp/fleet2/manifest.json')).json();
 
 // Every view up front: the whole fleet is a couple of megabytes and this page exists
 // to drag sliders on, so paying the load once beats fetching during a redraw.
@@ -274,12 +274,14 @@ function draw() {
         ctx.lineTo(cx + (stroke[p][0] - 0.5) * span, cy + (stroke[p][1] - 0.5) * span);
       }
     };
-    // Paper poured into the car's own loops before its lines go down, so the ones
-    // under it stop showing through. Line Art gives no silhouette to fill, but it
-    // outlines every face, and filling those covers the same ground.
+    // The car's own outline, filled with paper, so the cars under it stop showing
+    // through. This is the matte the render was made against -- where the shaded
+    // pass was opaque is exactly where the vehicle is. Filling the line art's own
+    // loops instead, which is all there was before it, guesses the body from
+    // whichever faces happen to be outlined, and leaks wherever a crease stops.
     if (opaque) {
       ctx.fillStyle = PAPER;
-      for (const stroke of view.strokes) { path(stroke); ctx.fill(); }
+      for (const ring of view.silhouette) { path(ring); ctx.fill(); }
     }
     for (const stroke of view.strokes) { path(stroke); ctx.stroke(); }
   };

@@ -41,6 +41,24 @@ BAYER8 = np.array([
 # Rec. 709 luma, to flatten the shaded view to one channel before screening it.
 LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 
+# The eight neighbours of a pixel, clockwise from due north. Used to walk a
+# silhouette's edge.
+NEIGHBOURS = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
+
+# The matte is traced at this resolution rather than the render's. The outline it
+# produces is simplified straight afterwards, so tracing finer only makes points
+# for the simplifier to throw away.
+MATTE_SIZE = 256
+
+# Specks this small are the odd stray polygon a wing mirror throws, not a part of
+# the vehicle worth filling.
+MIN_REGION = 40
+
+# How far a traced outline may stray from the pixels it came from, as a fraction of
+# the frame. A silhouette is a fill, so a point that moves half a pixel changes
+# nothing anyone can see.
+SIMPLIFY = 0.004
+
 
 # The ring the board's views are taken from. Kept shallow: a steep camera looks down
 # on a roof, and a roof is the one part of a car that carries no identity.
@@ -202,12 +220,117 @@ def trace_view(gp, camera, scene):
     return strokes
 
 
-def write_view(path, model, azimuth, strokes):
+def write_view(path, model, azimuth, strokes, rings):
     path.write_text(json.dumps({
         "model": model,
         "azimuth": azimuth,
         "strokes": [[[round(x, 5), round(y, 5)] for x, y in s] for s in strokes],
+        "silhouette": rings,
     }))
+
+
+def regions(mask):
+    """Every solid region in a binary mask, as its pixels' topmost-leftmost start."""
+    height, width = mask.shape
+    seen = np.zeros_like(mask)
+    starts = []
+    for y in range(height):
+        for x in range(width):
+            if not mask[y, x] or seen[y, x]:
+                continue
+            stack = [(y, x)]
+            seen[y, x] = True
+            size = 0
+            while stack:
+                cy, cx = stack.pop()
+                size += 1
+                for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
+                    if 0 <= ny < height and 0 <= nx < width and mask[ny, nx] and not seen[ny, nx]:
+                        seen[ny, nx] = True
+                        stack.append((ny, nx))
+            if size >= MIN_REGION:
+                starts.append((y, x))
+    return starts
+
+
+def walk_edge(mask, start):
+    """Moore-neighbour trace: walk a region's edge and come back to where it began."""
+    height, width = mask.shape
+    solid = lambda p: 0 <= p[0] < height and 0 <= p[1] < width and mask[p[0], p[1]]
+
+    ring = [start]
+    current = start
+    # The scan reached this pixel travelling left to right, so the pixel to its left
+    # is empty -- which is where the sweep starts from.
+    previous = (start[0], start[1] - 1)
+    for _ in range(4 * mask.size):
+        back = NEIGHBOURS.index((previous[0] - current[0], previous[1] - current[1]))
+        step = None
+        for k in range(1, 9):
+            direction = (back + k) % 8
+            candidate = (current[0] + NEIGHBOURS[direction][0],
+                         current[1] + NEIGHBOURS[direction][1])
+            if solid(candidate):
+                step = candidate
+                previous = (current[0] + NEIGHBOURS[(direction - 1) % 8][0],
+                            current[1] + NEIGHBOURS[(direction - 1) % 8][1])
+                break
+        if step is None or step == start:
+            break
+        ring.append(step)
+        current = step
+    return ring
+
+
+def simplify(points, tolerance):
+    """Ramer-Douglas-Peucker. Drops points that lie on the line their neighbours make."""
+    if len(points) < 3:
+        return points
+    first, last = points[0], points[-1]
+    dx, dy = last[0] - first[0], last[1] - first[1]
+    span = math.hypot(dx, dy)
+
+    worst, index = 0.0, 0
+    for i in range(1, len(points) - 1):
+        px, py = points[i]
+        if span == 0:
+            gap = math.hypot(px - first[0], py - first[1])
+        else:
+            gap = abs(dy * (px - first[0]) - dx * (py - first[1])) / span
+        if gap > worst:
+            worst, index = gap, i
+
+    if worst <= tolerance:
+        return [first, last]
+    return (simplify(points[:index + 1], tolerance)[:-1]
+            + simplify(points[index:], tolerance))
+
+
+def silhouette(rgba):
+    """The view's outline, as closed rings in the same 0..1 coordinates as the strokes.
+
+    Taken from the shaded render's own alpha rather than from a pass of its own: the
+    render is already made against nothing, so where it is opaque is exactly where
+    the vehicle is. Filling loops of line art instead -- which is what a renderer has
+    to do without this -- guesses at the body from the faces that happen to be
+    outlined, and a car with a gap in its creases leaks.
+    """
+    height, width = rgba.shape[0], rgba.shape[1]
+    step = max(1, height // MATTE_SIZE)
+    mask = rgba[::step, ::step, 3] > 0.5
+    rows, cols = mask.shape
+
+    rings = []
+    for start in regions(mask):
+        ring = walk_edge(mask, start)
+        if len(ring) < 3:
+            continue
+        # Pixel centres, in the same 0..1 frame the strokes are written in.
+        points = [((x + 0.5) / cols, (y + 0.5) / rows) for y, x in ring]
+        points.append(points[0])
+        rings.append([[round(x, 5), round(y, 5)]
+                      for x, y in simplify(points, SIMPLIFY)])
+    return rings
 
 
 def screen(rgba):
@@ -241,7 +364,7 @@ def write_bilevel_png(path, mask):
 
 
 def render_png(path):
-    """Render the shaded view, then store it screened down to one bit."""
+    """Render the shaded view, store it screened to one bit, and hand back its pixels."""
     bpy.context.scene.render.filepath = str(path)
     bpy.ops.render.render(write_still=True)
 
@@ -254,6 +377,7 @@ def render_png(path):
     rgba = np.array(image.pixels[:], dtype=np.float32).reshape(height, width, 4)[::-1]
     bpy.data.images.remove(image)
     write_bilevel_png(path, screen(rgba))
+    return rgba
 
 
 def main(argv):
@@ -274,12 +398,14 @@ def main(argv):
         bpy.context.view_layer.update()
         stem = f"{int(round(azimuth)):03d}"
         strokes = trace_view(gp, camera, bpy.context.scene)
-        write_view(out / f"{stem}.json", args.model.stem, int(round(azimuth)), strokes)
         # Hide the line art for the shaded pass: the prompt is the solid car, and
-        # the whole point of the asymmetry is that it carries no outline.
+        # the whole point of the asymmetry is that it carries no outline. Hiding it
+        # is also what leaves the render's alpha as a clean matte of the vehicle.
         gp.hide_render = True
-        render_png(out / f"{stem}.png")
+        rgba = render_png(out / f"{stem}.png")
         gp.hide_render = False
+        write_view(out / f"{stem}.json", args.model.stem, int(round(azimuth)),
+                   strokes, silhouette(rgba))
 
     print(f"RENDERED {args.model.stem} {args.angles} views -> {out}")
 

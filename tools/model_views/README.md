@@ -26,6 +26,8 @@ Writes `views/<model>/<azimuth>.json` and `views/<model>/<azimuth>.png`.
   strokes through the camera itself**, straight to JSON.
 - **Renders** each angle shaded with the line art hidden, then **screens it down
   to one bit** through an ordered dither and writes the PNG by hand.
+- **Traces the silhouette** off that render's own alpha and simplifies it to a
+  closed ring.
 
 ## Two things that fail quietly
 
@@ -51,8 +53,19 @@ hit-tests against their geometry, while the prompt panel only ever shows its ren
 at one size.
 
 ```json
-{"model": "sedan", "azimuth": 45, "strokes": [[[0.31, 0.62], [0.34, 0.59]], ...]}
+{"model": "sedan", "azimuth": 45,
+ "strokes": [[[0.31, 0.62], [0.34, 0.59]], ...],
+ "silhouette": [[[0.28, 0.61], [0.31, 0.55], ...]]}
 ```
+
+`silhouette` is the outline of the vehicle as closed rings, in the same
+coordinates. It costs no render of its own: the shaded pass is already made
+against nothing, so where it came back opaque is exactly where the vehicle is.
+A board that instead fills the loops of the line art -- which is all there is
+without this -- guesses the body from whichever faces happen to be outlined, and
+leaks wherever a crease stops short. The ring is traced at a coarser resolution
+than the render and simplified straight after, because a fill has no detail to
+lose: a point that moves half a pixel changes nothing anyone can see.
 
 Coordinates are `0..1` across the camera frame with **y down**, which is the
 convention a canvas wants. Strokes are unsimplified: they carry every point Line Art
