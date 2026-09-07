@@ -30,8 +30,7 @@ fleet with <code>tools/model_views/render_views.py</code> first, then write a
 <code>manifest.json</code> beside them listing each model and the angles it was rendered at.</p>
 
 <div class="note">
-  <label>count <input id="count" type="range" min="4" max="60" value="24"><span id="countOut"></span></label>
-  <label>size % <input id="size" type="range" min="8" max="60" value="28"><span id="sizeOut"></span></label>
+  <label>size % <input id="size" type="range" min="8" max="60" value="30"><span id="sizeOut"></span></label>
   <label>jitter <input id="jitter" type="range" min="0" max="60" value="0"><span id="jitterOut"></span></label>
   <label>stroke <input id="stroke" type="range" min="0.5" max="4" step="0.5" value="1"><span id="strokeOut"></span></label>
   <label>models <input id="models" type="range" min="2" max="12" value="12"><span id="modelsOut"></span></label>
@@ -57,6 +56,13 @@ fleet with <code>tools/model_views/render_views.py</code> first, then write a
 import { mulberry32 } from '/src/rng.js';
 
 const SIZE = 800;
+
+// What a view's ink actually fills of its square frame, averaged over the fleet.
+// A car is wide and shallow, so a square grid leaves the rows gapping while the
+// columns already overlap. Measured, not guessed: mean 0.755 by 0.525 over 96 views.
+const INK_W = 0.755;
+const INK_H = 0.525;
+
 const PAPER = '#f4f1ea';
 const INK = '#1a1a1a';
 const ANSWER = '#b91c1c';
@@ -105,7 +111,6 @@ function layout(seed, count, modelCount) {
 }
 
 function draw() {
-  const count = +control('count').value;
   const sizePct = +control('size').value;
   const jitter = +control('jitter').value;
   const lineWidth = +control('stroke').value;
@@ -115,20 +120,25 @@ function draw() {
   const opaque = control('opaque').checked;
   const reveal = control('reveal').checked;
 
-  control('countOut').textContent = count;
   control('sizeOut').textContent = sizePct + '%';
   control('jitterOut').textContent = jitter + 'px';
   control('strokeOut').textContent = lineWidth + 'px';
   control('modelsOut').textContent = modelCount;
   control('seedOut').textContent = seed;
 
-  const { placed, target, promptAngle } = layout(seed, count, modelCount);
   const span = (SIZE * sizePct) / 100;
 
-  // Anchors on the squarest grid that holds the count, so the field stays evenly
-  // covered as the count is dragged rather than banding into rows.
-  const cols = Math.ceil(Math.sqrt(count));
-  const pitch = SIZE / cols;
+  // The board sets the count, not the other way round: lay a grid whose cells are
+  // the shape a car's ink actually is, then fill every one of them. Asking for a
+  // number of views instead leaves whatever does not divide as bare paper in the
+  // corner.
+  const cols = Math.max(1, Math.ceil(SIZE / (span * INK_W)));
+  const rows = Math.max(1, Math.ceil(SIZE / (span * INK_H)));
+  const count = cols * rows;
+  const pitchX = SIZE / cols;
+  const pitchY = SIZE / rows;
+
+  const { placed, target, promptAngle } = layout(seed, count, modelCount);
   const rand = mulberry32(seed + 1);
 
   const ctx = field.getContext('2d');
@@ -140,8 +150,8 @@ function draw() {
 
   const anchors = placed.map((slot, i) => ({
     slot,
-    cx: (i % cols) * pitch + pitch / 2 + (rand() - 0.5) * 2 * jitter,
-    cy: Math.floor(i / cols) * pitch + pitch / 2 + (rand() - 0.5) * 2 * jitter,
+    cx: (i % cols) * pitchX + pitchX / 2 + (rand() - 0.5) * 2 * jitter,
+    cy: Math.floor(i / cols) * pitchY + pitchY / 2 + (rand() - 0.5) * 2 * jitter,
   }));
 
   const trace = ({ slot, cx, cy }) => {
@@ -183,7 +193,7 @@ function draw() {
   control('prompt').src = promptAngle === null ? ''
     : `${manifest.root}/${target}/${String(promptAngle).padStart(3, '0')}.png`;
   control('stat').textContent =
-    `${count} views, ${new Set(placed.map((p) => p.model)).size} models on the board`
+    `${cols}x${rows} = ${count} views, ${new Set(placed.map((p) => p.model)).size} models`
     + ` — ${answers} of them are ${target}`
     + (promptAngle === null ? ' (every angle is on the board)' : ` · prompt at ${promptAngle}°`);
 
@@ -206,7 +216,7 @@ function threshold(ctx) {
   ctx.putImageData(image, 0, 0);
 }
 
-for (const id of ['count', 'size', 'jitter', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'reveal']) {
+for (const id of ['size', 'jitter', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'reveal']) {
   control(id).addEventListener('input', draw);
 }
 draw();
