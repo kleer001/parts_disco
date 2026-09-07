@@ -30,10 +30,9 @@ fleet with <code>tools/model_views/render_views.py</code> first, then write a
 <code>manifest.json</code> beside them listing each model and the angles it was rendered at.</p>
 
 <div class="note">
-  <label>cols <input id="cols" type="range" min="1" max="7" value="5"><span id="colsOut"></span></label>
-  <label>rows <input id="rows" type="range" min="1" max="7" value="7"><span id="rowsOut"></span></label>
+  <label>cars <input id="cars" type="range" min="4" max="120" value="70"><span id="carsOut"></span></label>
   <label>size % <input id="size" type="range" min="8" max="60" value="30"><span id="sizeOut"></span></label>
-  <label>jitter <input id="jitter" type="range" min="0" max="60" value="0"><span id="jitterOut"></span></label>
+  <label>overlap <input id="overlap" type="range" min="0" max="85" value="58"><span id="overlapOut"></span></label>
   <label>stroke <input id="stroke" type="range" min="0.5" max="4" step="0.5" value="1"><span id="strokeOut"></span></label>
   <label>models <input id="models" type="range" min="2" max="12" value="12"><span id="modelsOut"></span></label>
   <label>seed <input id="seed" type="range" min="1" max="60" value="7"><span id="seedOut"></span></label>
@@ -74,6 +73,136 @@ await Promise.all(manifest.models.flatMap((model) =>
     views.set(key, await (await fetch(`${manifest.root}/${key}.json`)).json());
   })));
 
+const keyOf = (slot) => `${slot.model}/${String(slot.angle).padStart(3, '0')}`;
+
+// How many settling passes the pile gets. A pile of fifty circles has no
+// arrangement to solve for, only one to settle into.
+const RELAX_PASSES = 60;
+
+/**
+ * The circle that stands in for a view while the board is being packed: centred on
+ * the ink's box, with the box's SHORT edge for its diameter.
+ *
+ * It falls well short of the car along its long way, and that shortfall is the
+ * point rather than a fault in it. Two cars whose circles have just stopped
+ * touching are already well inside one another, which is the board this game wants.
+ * A proxy that covered the whole car would pack them to politeness and take the
+ * difficulty out.
+ */
+const proxies = new Map();
+for (const [key, view] of views) {
+  let minX = 1, minY = 1, maxX = 0, maxY = 0;
+  for (const stroke of view.strokes) {
+    for (const [x, y] of stroke) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  proxies.set(key, {
+    cx: (minX + maxX) / 2, cy: (minY + maxY) / 2,
+    halfW: (maxX - minX) / 2, halfH: (maxY - minY) / 2,
+    r: Math.min(maxX - minX, maxY - minY) / 2,
+  });
+}
+
+/**
+ * Settle the pile. Every pair is pushed apart until it sits at `k` of the distance
+ * that would have the two circles touching -- k of 1 is touching, and anything below
+ * leaves them interpenetrating by the remainder.
+ *
+ * @returns anchors in the shape the draw wants: where each view's frame goes.
+ */
+function settle(placed, seed, span, k) {
+  const rand = mulberry32(seed + 1);
+  // Seeded on a scattered grid rather than at random. The passes below only push
+  // cars apart, so nothing ever moves one into an empty stretch of paper -- start
+  // them at random and the pile keeps whatever knots and bare patches the draw
+  // happened to deal. A grid spreads them; the settling is what makes it organic.
+  const cols = Math.ceil(Math.sqrt(placed.length));
+  const rows = Math.ceil(placed.length / cols);
+  const cellW = SIZE / cols;
+  const cellH = SIZE / rows;
+
+  const bodies = placed.map((slot, i) => {
+    const proxy = proxies.get(keyOf(slot));
+    return {
+      slot,
+      x: (i % cols) * cellW + cellW / 2 + (rand() - 0.5) * cellW,
+      y: Math.floor(i / cols) * cellH + cellH / 2 + (rand() - 0.5) * cellH,
+      r: proxy.r * span,
+      ox: (proxy.cx - 0.5) * span,
+      oy: (proxy.cy - 0.5) * span,
+    };
+  });
+
+  for (let pass = 0; pass < RELAX_PASSES; pass++) {
+    for (let i = 0; i < bodies.length; i++) {
+      for (let j = i + 1; j < bodies.length; j++) {
+        const a = bodies[i];
+        const b = bodies[j];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let d = Math.hypot(dx, dy);
+        const want = (a.r + b.r) * k;
+        if (d >= want) continue;
+        if (d < 1e-6) { dx = 1; dy = 0; d = 1; } // dead centre: any axis will do
+        const push = (want - d) / 2 / d;
+        a.x -= dx * push; a.y -= dy * push;
+        b.x += dx * push; b.y += dy * push;
+      }
+    }
+    // Centres stay on the field; the ink is free to hang off it, the way a word
+    // in an edge cell always has.
+    for (const body of bodies) {
+      body.x = Math.min(SIZE, Math.max(0, body.x));
+      body.y = Math.min(SIZE, Math.max(0, body.y));
+    }
+  }
+
+  return bodies.map((body) => ({ slot: body.slot, cx: body.x - body.ox, cy: body.y - body.oy }));
+}
+
+// How coarsely a car is sampled when asking how much of it ended up covered.
+const BURIAL_STEPS = 8;
+
+/**
+ * What the overlap setting actually came to: the mean share of a car's ink box
+ * that cars drawn after it sit on top of. The setting is a distance between
+ * circles; this is the burial it buys.
+ */
+function burial(anchors, span) {
+  const boxes = anchors.map(({ slot, cx, cy }) => {
+    const proxy = proxies.get(keyOf(slot));
+    const x = cx + (proxy.cx - 0.5) * span;
+    const y = cy + (proxy.cy - 0.5) * span;
+    return {
+      left: x - proxy.halfW * span, right: x + proxy.halfW * span,
+      top: y - proxy.halfH * span, bottom: y + proxy.halfH * span,
+    };
+  });
+
+  let total = 0;
+  for (let i = 0; i < boxes.length; i++) {
+    const box = boxes[i];
+    let covered = 0;
+    for (let sy = 0; sy < BURIAL_STEPS; sy++) {
+      for (let sx = 0; sx < BURIAL_STEPS; sx++) {
+        const px = box.left + ((sx + 0.5) / BURIAL_STEPS) * (box.right - box.left);
+        const py = box.top + ((sy + 0.5) / BURIAL_STEPS) * (box.bottom - box.top);
+        for (let j = i + 1; j < boxes.length; j++) {
+          const other = boxes[j];
+          if (px >= other.left && px <= other.right
+              && py >= other.top && py <= other.bottom) { covered++; break; }
+        }
+      }
+    }
+    total += covered / (BURIAL_STEPS * BURIAL_STEPS);
+  }
+  return total / boxes.length;
+}
+
 const control = (id) => document.getElementById(id);
 const field = control('field');
 
@@ -107,10 +236,9 @@ function layout(seed, count, modelCount) {
 }
 
 function draw() {
-  const cols = +control('cols').value;
-  const rows = +control('rows').value;
+  const cars = +control('cars').value;
+  const overlapPct = +control('overlap').value;
   const sizePct = +control('size').value;
-  const jitter = +control('jitter').value;
   const lineWidth = +control('stroke').value;
   const modelCount = +control('models').value;
   const seed = +control('seed').value;
@@ -118,26 +246,17 @@ function draw() {
   const opaque = control('opaque').checked;
   const reveal = control('reveal').checked;
 
-  control('colsOut').textContent = cols;
-  control('rowsOut').textContent = rows;
+  control('carsOut').textContent = cars;
   control('sizeOut').textContent = sizePct + '%';
-  control('jitterOut').textContent = jitter + 'px';
+  control('overlapOut').textContent = overlapPct + '%';
   control('strokeOut').textContent = lineWidth + 'px';
   control('modelsOut').textContent = modelCount;
   control('seedOut').textContent = seed;
 
   const span = (SIZE * sizePct) / 100;
 
-  // Every cell of the grid gets a view, so the board is always full: the count is
-  // what the grid comes to, never a number laid onto it that leaves a bare corner.
-  // Columns and rows are set apart because a car is wider than it is tall, and how
-  // much wider is a thing to tune rather than a thing to derive.
-  const count = cols * rows;
-  const pitchX = SIZE / cols;
-  const pitchY = SIZE / rows;
-
-  const { placed, target, promptAngle } = layout(seed, count, modelCount);
-  const rand = mulberry32(seed + 1);
+  const { placed, target, promptAngle } = layout(seed, cars, modelCount);
+  const anchors = settle(placed, seed, span, 1 - overlapPct / 100);
 
   const ctx = field.getContext('2d');
   ctx.fillStyle = PAPER;
@@ -145,12 +264,6 @@ function draw() {
   ctx.lineWidth = lineWidth;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-
-  const anchors = placed.map((slot, i) => ({
-    slot,
-    cx: (i % cols) * pitchX + pitchX / 2 + (rand() - 0.5) * 2 * jitter,
-    cy: Math.floor(i / cols) * pitchY + pitchY / 2 + (rand() - 0.5) * 2 * jitter,
-  }));
 
   const trace = ({ slot, cx, cy }) => {
     const view = views.get(`${slot.model}/${String(slot.angle).padStart(3, '0')}`);
@@ -191,7 +304,8 @@ function draw() {
   control('prompt').src = promptAngle === null ? ''
     : `${manifest.root}/${target}/${String(promptAngle).padStart(3, '0')}.png`;
   control('stat').textContent =
-    `${cols}x${rows} = ${count} views, ${new Set(placed.map((p) => p.model)).size} models`
+    `${cars} views, ${new Set(placed.map((p) => p.model)).size} models`
+    + ` — ${Math.round(burial(anchors, span) * 100)}% of each car buried`
     + ` — ${answers} of them are ${target}`
     + (promptAngle === null ? ' (every angle is on the board)' : ` · prompt at ${promptAngle}°`);
 
@@ -214,7 +328,7 @@ function threshold(ctx) {
   ctx.putImageData(image, 0, 0);
 }
 
-for (const id of ['cols', 'rows', 'size', 'jitter', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'reveal']) {
+for (const id of ['cars', 'size', 'overlap', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'reveal']) {
   control(id).addEventListener('input', draw);
 }
 draw();
