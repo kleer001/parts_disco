@@ -22,7 +22,10 @@ export function createGame(board, seed) {
      * so any one of them answers it.
      */
     next() {
-      const remaining = board.parts.filter((part) => !game.found.includes(part.id));
+      // Only words the pile has left exposed. A buried one cannot be clicked, so
+      // asking for it would be a round with no answer.
+      const remaining = board.parts.filter(
+        (part) => part.reachable !== false && !game.found.includes(part.id));
       if (!remaining.length) {
         game.target = null;
         return null;
@@ -49,9 +52,11 @@ export function createGame(board, seed) {
       game.found.push(part.id);
       return { outcome: 'hit', part };
     },
-    /** Every part on the board has been found. */
+    /** Every word the player could reach has been found. */
     cleared() {
-      return game.found.length === board.parts.length;
+      return board.parts
+        .filter((part) => part.reachable !== false)
+        .every((part) => game.found.includes(part.id));
     },
   };
   return game;

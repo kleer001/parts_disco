@@ -2,10 +2,10 @@
 // Everything it calls is pure and takes what it needs as an argument.
 
 import { createCompositor } from './compositor.js';
-import { createBoard } from './board.js';
+import { createBoard, fontSizeFor, BOARD_DEFAULTS } from './board.js';
 import { createGame } from './game.js';
-import { SHAPES } from './shapes.js';
-import { createPaperLayer, createPartsLayer, createPanelLayer } from './layers.js';
+import { makeWords } from './words.js';
+import { createPaperLayer, createWordsLayer, createPanelLayer, FONT_FAMILY } from './layers.js';
 
 const SEED = 1983;
 const PANEL_WIDTH = 300;
@@ -13,9 +13,28 @@ const NOTICE_MS = 900;
 
 const NOTICES = {
   hit: (part) => ({ tone: 'hit', text: `${part.name} — found` }),
-  wrong: (part) => ({ tone: 'miss', text: `that is a ${part.name}` }),
-  empty: () => ({ tone: 'miss', text: 'nothing there' }),
+  wrong: (part) => ({ tone: 'miss', text: `that one is ${part.name}` }),
+  empty: () => ({ tone: 'miss', text: 'bare paper' }),
 };
+
+/**
+ * Measure each word at the size the board will draw it.
+ *
+ * The boundary: only a canvas knows how wide a string of glyphs is, so the widths
+ * are taken here and handed to the board as data. Height comes from the font's own
+ * ascent and descent rather than the point size, so the hit box matches the ink.
+ */
+function measureWords(ctx, words, fontSize) {
+  ctx.font = `${fontSize}px ${FONT_FAMILY}`;
+  return words.map((word) => {
+    const m = ctx.measureText(word);
+    return {
+      word,
+      width: m.width,
+      height: m.actualBoundingBoxAscent + m.actualBoundingBoxDescent,
+    };
+  });
+}
 
 /**
  * Wire a canvas to a run and start the loop.
@@ -30,13 +49,15 @@ export function start(canvas, seed = SEED) {
   if (!ctx) throw new Error('2D canvas context unavailable');
 
   const field = { width: canvas.width - PANEL_WIDTH, height: canvas.height };
-  const board = createBoard(seed, field, SHAPES);
+  const fontSize = fontSizeFor(field);
+  const words = makeWords(seed, BOARD_DEFAULTS.count);
+  const board = createBoard(seed, field, measureWords(ctx, words, fontSize));
   const game = createGame(board, seed);
   game.next();
 
   const scene = createCompositor()
     .add(createPaperLayer())
-    .add(createPartsLayer(board))
+    .add(createWordsLayer(board))
     .add(createPanelLayer());
 
   let notice = null;
@@ -64,10 +85,11 @@ export function start(canvas, seed = SEED) {
       width: field.width,
       height: canvas.height,
       panelWidth: PANEL_WIDTH,
+      fontSize,
       t: elapsed(now),
       target: game.target,
       found: game.found,
-      total: board.parts.length,
+      total: board.parts.filter((part) => part.reachable).length,
       misses: game.misses,
       notice: now < noticeUntil ? notice : null,
     });

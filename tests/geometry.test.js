@@ -1,23 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { place, contains, bounds } from '../src/geometry.js';
+import { contains, bounds } from '../src/geometry.js';
 
-const SQUARE = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-
-test('place moves and scales a unit outline onto the board', () => {
-  assert.deepEqual(
-    place(SQUARE, { x: 100, y: 50, scale: 10 }),
-    [[90, 40], [110, 40], [110, 60], [90, 60]],
-  );
-});
+const BOX = [[90, 40], [110, 40], [110, 60], [90, 60]];
 
 test('contains finds a point inside the outline', () => {
-  assert.ok(contains([100, 50], place(SQUARE, { x: 100, y: 50, scale: 10 })));
+  assert.ok(contains([100, 50], BOX));
 });
 
 test('contains rejects a point outside the outline', () => {
-  assert.ok(!contains([200, 50], place(SQUARE, { x: 100, y: 50, scale: 10 })));
+  assert.ok(!contains([200, 50], BOX));
 });
 
 test('contains rejects a point in the notch of a concave outline', () => {
@@ -28,7 +21,5 @@ test('contains rejects a point in the notch of a concave outline', () => {
 });
 
 test('bounds reports the box the outline occupies', () => {
-  assert.deepEqual(bounds(place(SQUARE, { x: 100, y: 50, scale: 10 })), {
-    minX: 90, minY: 40, maxX: 110, maxY: 60,
-  });
+  assert.deepEqual(bounds(BOX), { minX: 90, minY: 40, maxX: 110, maxY: 60 });
 });

@@ -1,25 +1,28 @@
 // Draw passes. Each honors the { name, draw(ctx, frame) } contract and reads the
 // frame it is handed — no layer reaches back into game state.
 //
-// The look is screenprint: patent line art is black ink on white paper, and the
-// board is that stack of impressions slightly out of register. So the parts are
-// drawn as strokes in a few flat inks on a paper ground, and nothing is filled.
-// Outlines do not occlude each other, which is what keeps a pile of twenty parts
-// readable; the cost is that occlusion cannot be a difficulty knob until some
-// layers are filled.
+// The look is a screenprint pulled out of register: outlined letterforms stacked
+// until the field is a thicket. Nothing is filled, so a word crossing five others
+// stays readable as a word; the moment they fill, the pile buries itself.
 
 import { boardAt } from './board.js';
 
 export const PALETTE = {
   paper: '#f4f1ea',
-  inks: ['#1a1a1a', '#1d4ed8', '#b91c1c', '#047857'],
-  found: '#9ca3af',
-  target: '#111827',
+  ink: '#1a1a1a',
+  found: '#b8b2a6',
   panel: '#ffffff',
   rule: '#d4d0c8',
+  hit: '#047857',
+  miss: '#b91c1c',
+  quiet: '#4b5563',
 };
 
-export const INK_WIDTH = 2;
+// Thin enough that the counters of a letter stay open at board size. A heavier
+// stroke closes them and the words read as solids.
+export const STROKE = 1;
+
+export const FONT_FAMILY = 'sans-serif';
 
 /** Ground: the paper every impression is pulled onto. */
 export function createPaperLayer(palette = PALETTE) {
@@ -32,21 +35,20 @@ export function createPaperLayer(palette = PALETTE) {
   };
 }
 
-/** The drifting pile. Later parts draw over earlier ones, matching partAt(). */
-export function createPartsLayer(board, palette = PALETTE) {
+/** The pile. Later words draw over earlier ones, matching partAt(). */
+export function createWordsLayer(board, palette = PALETTE) {
   return {
-    name: 'parts',
+    name: 'words',
     draw(ctx, frame) {
-      ctx.lineWidth = INK_WIDTH;
+      ctx.font = `${frame.fontSize}px ${FONT_FAMILY}`;
+      ctx.lineWidth = STROKE;
       ctx.lineJoin = 'round';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
       for (const part of boardAt(board, frame.t)) {
         const isFound = frame.found.includes(part.id);
-        ctx.strokeStyle = isFound ? palette.found : palette.inks[part.id % palette.inks.length];
-        ctx.globalAlpha = isFound ? 0.35 : 1;
-        ctx.beginPath();
-        part.outline.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-        ctx.closePath();
-        ctx.stroke();
+        ctx.strokeStyle = isFound ? palette.found : palette.ink;
+        ctx.strokeText(part.name, part.x, part.y);
       }
     },
   };
@@ -68,24 +70,25 @@ export function createPanelLayer(palette = PALETTE) {
       ctx.stroke();
 
       const left = frame.width + 24;
-      ctx.fillStyle = palette.target;
+      ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
 
+      ctx.fillStyle = palette.ink;
       ctx.font = '12px system-ui, sans-serif';
       ctx.fillText('FIND', left, 32);
 
-      ctx.font = '600 22px system-ui, sans-serif';
+      ctx.font = '600 30px system-ui, sans-serif';
       ctx.fillText(frame.target ?? 'board cleared', left, 52);
 
       ctx.font = '13px system-ui, sans-serif';
-      ctx.fillStyle = '#4b5563';
-      ctx.fillText(`found ${frame.found.length} of ${frame.total}`, left, 104);
-      ctx.fillText(`misses ${frame.misses}`, left, 124);
+      ctx.fillStyle = palette.quiet;
+      ctx.fillText(`found ${frame.found.length} of ${frame.total}`, left, 106);
+      ctx.fillText(`misses ${frame.misses}`, left, 126);
 
       if (frame.notice) {
-        ctx.fillStyle = frame.notice.tone === 'hit' ? '#047857' : '#b91c1c';
+        ctx.fillStyle = frame.notice.tone === 'hit' ? palette.hit : palette.miss;
         ctx.font = '600 13px system-ui, sans-serif';
-        ctx.fillText(frame.notice.text, left, 156);
+        ctx.fillText(frame.notice.text, left, 158);
       }
     },
   };

@@ -1,20 +1,7 @@
 // Polygon math. Pure: no canvas, no DOM, no clock.
 //
-// A part is one closed polygon of points in its own unit space, placed on the board
-// by a scale and an offset. Keeping placement a transform rather than baked-in
-// coordinates means the same outline can appear twice on a board at two sizes, and
-// the drift code only ever moves an offset.
-
-/**
- * Move and scale a unit polygon onto the board.
- * @param {Array<[number, number]>} points
- * @param {{x: number, y: number, scale: number}} placement
- * @returns {Array<[number, number]>}
- */
-export function place(points, placement) {
-  const { x, y, scale } = placement;
-  return points.map(([px, py]) => [x + px * scale, y + py * scale]);
-}
+// A word's hit area is the box its glyphs occupy, given as a closed polygon so the
+// same containment test would serve a shape that is not a rectangle.
 
 /**
  * Is the point inside the polygon? Crossing-number test.
