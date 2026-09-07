@@ -15,7 +15,7 @@ set -euo pipefail
 
 SEED="${1:-1}"
 OUT="$(cd "$(dirname "$0")" && pwd)/downloads"
-UA="trace_rom_studio-source-survey/0.1 (https://github.com/kleer001/trace_rom_studio)"
+UA="parts_disco-source-survey/0.1 (https://github.com/kleer001/parts_disco)"
 PER_SOURCE=4
 
 # Minimum seconds between any two requests this script makes.

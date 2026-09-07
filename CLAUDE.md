@@ -26,25 +26,25 @@ Five labels, not gates. You move between them by noticing you already have.
 the moment the design shelf is about, and it is the only moment it is cheap. A game
 that reaches alpha without it has skipped the rung, not passed it.
 
-## The shelves
+## The studio it came from
 
-The studio holds each rung's apparatus until this game grafts it. Nothing is copied
-in advance. Read the shelf's own README before grafting — several bring conventions
-that belong in this file, and one brings a step that is not a file.
+This game has budded: the shelves are not in this repo. They live in the mother, and
+`.trace_rom_studio.toml` records which version this game descends from and where to
+fetch it.
 
-| Shelf | Holds | Graft when |
+| Shelf | Holds | Read when |
 |---|---|---|
-| `shelves/L1` | `DESIGN.md` — what makes a loop good. Read, not grafted. | Shaping the game, and again when the slice plays |
-| `shelves/L2` | `GAME-SHEET.md`, the persona panel, `PLAYTEST.md` | Something plays and you can hand it to someone |
-| `shelves/L3` | `src/`, `tests/`, `package.json`, `test.yml` | You are writing real game code |
-| `shelves/L4` | `publishing/`, `fonts/`, `pages.yml`, `RELEASE-CHECKLIST.md`, the copy skills | Content-complete and heading for a store page |
+| `L1` | `DESIGN.md` — what makes a loop good | Shaping the game, and again when the slice plays |
+| `L2` | `GAME-SHEET.md`, the persona panel, `PLAYTEST.md` | Handing it to someone who is not you |
+| `L3` | `src/`, `tests/`, `package.json`, `test.yml` | Already grafted — this repo has them |
+| `L4` | `publishing/`, `RELEASE-CHECKLIST.md`, the copy skills | Content-complete and heading for a store page |
 
 The panel is **cast for this game** — its four lenses take their questions from what
 this game promises and what it descends from. A generic panel cannot catch a game
 breaking a promise it was never told about.
 
-The publishing tools stay in the studio and run against this game from there. They
-are developer-machine tools; nothing in CI and no player ever needs them.
+The publishing tools stay in the studio and run against this game from there. They are
+developer-machine tools; nothing in CI and no player ever needs them.
 
 ## Conventions that always apply
 

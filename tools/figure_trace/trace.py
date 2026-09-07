@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cut the figures out of harvested patent sheets and vectorize them.
 
-    ./trace.py --pages ../../../tmp/raw --out ../../assets/figures
+    ./trace.py --pages ../../tmp/raw --out ../../assets/figures
 
 Reads the page PNGs `patent_harvest` renders, finds each figure on each sheet, traces
 it, and writes one SVG per figure plus a `manifest.json` naming what came from where.

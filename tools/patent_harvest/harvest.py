@@ -45,7 +45,7 @@ from labels import extract_labels, screen
 # Checked against grants from 1936 to 1977; a modern grant carries its kind code in
 # the filename (US6318332B1.pdf), so this shape is the pre-1980 one.
 PDF_URL = "https://patentimages.storage.googleapis.com/pdfs/US{number}.pdf"
-USER_AGENT = "trace_rom_studio-parts_disco/0.1 (https://github.com/kleer001/trace_rom_studio)"
+USER_AGENT = "parts_disco/0.1 (https://github.com/kleer001/parts_disco)"
 RENDER_DPI = 200
 
 # A patent page is two columns with printed line numbers running down the gutter.

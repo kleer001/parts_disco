@@ -15,8 +15,8 @@ game — the SVGs it writes are the only thing the game ever sees.
 
 ## Run
 
-    ../patent_harvest/harvest.py --from numbers.txt --out ../../../tmp/raw
-    .venv/bin/python trace.py --pages ../../../tmp/raw --out ../../assets/figures
+    ../patent_harvest/harvest.py --from numbers.txt --out ../../tmp/raw
+    .venv/bin/python trace.py --pages ../../tmp/raw --out ../../assets/figures
 
 Writes one SVG per figure plus a `manifest.json` recording each figure's size and the
 patent and sheet it came off.
