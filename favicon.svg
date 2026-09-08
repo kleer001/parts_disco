@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Three flat inks from the board's own palette, overlapping and outlined:
+       what the game looks like, at 32 pixels. -->
+  <rect width="32" height="32" fill="#f4f1ea"/>
+  <g stroke="#1a1a1a" stroke-width="1.6" stroke-linejoin="round">
+    <rect x="3.5" y="6.5" width="17" height="10" rx="2.5" fill="#4a6b96"/>
+    <rect x="9.5" y="12.5" width="17" height="10" rx="2.5" fill="#c08a2e"/>
+    <rect x="5.5" y="18.5" width="17" height="9" rx="2.5" fill="#c4553d"/>
+  </g>
+</svg>
