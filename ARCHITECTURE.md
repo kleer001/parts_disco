@@ -33,6 +33,7 @@ clock or an event, which is what lets the whole board be tested without a browse
 | `src/levels.js` | The difficulty path. Data only. |
 | `src/juice.js` | How the board answers: the tuning, the envelopes, and the colours that carry meaning. Pure. |
 | `src/geometry.js` | Polygon containment, for hit-testing. |
+| `src/layout.js` | Where the board and the panel sit, given a viewport. Pure. |
 | `src/layers.js`, `src/compositor.js` | Ordered draw passes over one canvas. |
 | `src/rng.js` | `mulberry32`. Every draw in game logic comes from here, so a run reproduces from its seed. |
 | `src/main.js` | The only file with a DOM in it. Loads the fleet, wires the loop. |
@@ -61,6 +62,26 @@ This is also why the panel is coloured from a separate ramp. Every ink on the bo
 spent on the puzzle, so none of them is free to mean "found" or "wrong". Meaning lives
 off the board, in `SEMANTIC` in `src/juice.js`.
 
+## The board and the panel turn against each other
+
+`src/layout.js` takes the viewport and returns two rectangles. On a screen taller
+than it is wide the board takes the top and the panel runs full width beneath it; on
+a wider one the panel goes down the right-hand side. Nothing else in the game knows
+which — the panel lays itself out from the rectangle it is handed, in two columns
+beside the card when that rectangle is wide and in one column under it when it is
+tall.
+
+The canvas takes the screen's own device pixels, capped by a pixel budget, and CSS
+scales it the rest of the way. The cap is a repaint cost, not a sharpness choice: the
+board is painted a pixel at a time. Asking for fewer pixels than the screen has is
+what makes the panel's halftone render break up, because the browser then scales the
+canvas up and an upscale sharpens exactly the dither a downscale averages away.
+
+A vehicle's size comes off the field's **short** edge, so it looks the same in a tall
+field as a wide one. Turning the phone re-deals the stage rather than stretching it —
+the vehicles were thrown into a field of a particular shape, and there is no honest
+way to carry that arrangement into a different one.
+
 ## The board is held between frames
 
 Nothing on the board moves under its own steam, so the drawn board is kept and put
@@ -69,8 +90,10 @@ map changes or a vehicle is found. Everything that does move — the ground text
 pulse a found vehicle answers with — draws over the top in its own layer, which is why
 the hold survives.
 
-Measured at the densest stage, 120 vehicles: 0.22ms for a still frame, 5.8ms for a
-frame with one vehicle at the peak of its pulse.
+Measured at the densest stage, 120 vehicles, on an 800x800 field: 0.22ms for a still
+frame, 5.8ms for a frame with one vehicle at the peak of its pulse. Both scale with
+the field's pixel count, which the viewport now sets — the per-pixel repaint runs
+1.6ms over 0.64M pixels and 2.4ms over 0.96M.
 
 Do not trust frames per second measured in a headless browser. It throttles animation
 frames and will report single digits for a board that is working fine. Time the

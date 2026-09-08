@@ -478,7 +478,7 @@ function well(ctx, x, y, w, h, depth, fill) {
 export function createPanelLayer(range, settings = () => TUNING, palette = PALETTE) {
   const face = (px, s) => `${Math.round(px * s.typeScale)}px VT323, monospace`;
 
-  /** A number on a tinted slab. Returns the box it filled. */
+  /** A number on a tinted slab. Returns the height it filled. */
   const slab = (ctx, x, y, text, role, size, s, minWidth = 0) => {
     ctx.font = face(size, s);
     const w = Math.max(minWidth, ctx.measureText(text).width + s.slabPad * 2);
@@ -514,13 +514,23 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
     ctx.fillRect(x, track, Math.max(2, width * along), 4);
   };
 
+  const dialsOf = (level) => [
+    ['vehicles', `${level.cars}/${range.cars[1]}`, level.cars, range.cars],
+    ['size', `${Math.round(level.size * 100)}%`, level.size,
+     [range.size[1], range.size[0]]],
+    ['kinds', `${level.fleet.length}/${range.kinds[1]}`, level.fleet.length,
+     range.kinds],
+    ['inks', `${level.inks}/${range.inks[1]}`, level.inks,
+     [range.inks[1], range.inks[0]]],
+  ];
+
   // The card is the same picture every frame: a shadow, a rounded white ground and a
   // resampled render. Only where it sits changes. Baked once a level, because
   // shadowBlur is among the slowest things a canvas does and this one was paying it
   // sixty times a second to arrive at an identical bitmap.
   let card = null;
   let cardKey = null;
-  const bakeCard = (span, prompt, s, palette) => {
+  const bakeCard = (span, prompt, s) => {
     const pad = Math.ceil(s.cardBlur + s.cardShadow + 4);
     card = document.createElement('canvas');
     card.width = span + pad * 2;
@@ -545,16 +555,38 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
     c.drawImage(prompt, 6, 6, span - 12, span - 12);
   };
 
+  /** The card, drawn centred on a point and flinching. */
+  const drawCard = (ctx, cx, cy, span, prompt, shake, s) => {
+    if (!prompt || !prompt.complete) return;
+    const key = `${prompt.src}|${span}|${s.cardShadow}|${s.cardBlur}`;
+    if (cardKey !== key) {
+      bakeCard(span, prompt, s);
+      cardKey = key;
+    }
+    ctx.save();
+    ctx.translate(cx + shake.dx, cy + shake.dy);
+    ctx.rotate((shake.tilt * Math.PI) / 180);
+    ctx.drawImage(card, -card.width / 2, -card.height / 2);
+    ctx.restore();
+  };
+
+  const countRole = (round) =>
+    round.left() === 0 ? SEMANTIC.found
+      : round.left() === 1 ? SEMANTIC.last : SEMANTIC.quiet;
+
+  const countText = (round) => (round.left() ? `${round.left()} TO FIND` : 'ALL FOUND');
+
+  const countSize = (round) =>
+    26 + 14 * (round.total ? round.found.size / round.total : 0);
+
   return {
     name: 'panel',
     draw(ctx, frame) {
       const s = settings();
-      const { width, height, panelWidth, round, level, prompt, at } = frame;
-      const left = width + 22;
-      const span = panelWidth - 44;
+      const { panel, round, level, prompt, at } = frame;
 
       ctx.fillStyle = palette.panel;
-      ctx.fillRect(width, 0, panelWidth, height);
+      ctx.fillRect(panel.x, panel.y, panel.width, panel.height);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
 
@@ -565,57 +597,88 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
         ? { dx: 0, dy: 0, tilt: 0 }
         : cardShake(at - lastFind, s, round.found.size === round.total);
 
-      ctx.font = face(19, s);
-      ctx.fillStyle = SEMANTIC.quiet.ink;
-      ctx.fillText(`LEVEL ${level.level}:${level.stage}${level.last ? '  LAST' : ''}`,
-                   left, 22);
+      const pad = Math.round(Math.min(24, panel.width * 0.05, panel.height * 0.07));
+      const stage = `LEVEL ${level.level}:${level.stage}${level.last ? '  LAST' : ''}`;
 
-      ctx.font = face(17, s);
-      ctx.fillStyle = SEMANTIC.quiet.loud;
-      ctx.fillText('FIND', left, 48);
-      slab(ctx, left, 66, round.target.toUpperCase(), SEMANTIC.target, 32, s);
+      // Wider than it is tall: the card takes the left and the readout runs beside it
+      // in two columns. This is the shape a phone held upright gives the panel.
+      if (panel.width > panel.height) {
+        // The card is what you are matching against, so it takes as much of the
+        // panel's short edge as the readout beside it can spare.
+        const span = Math.round(
+          Math.min(panel.height - pad * 2, panel.width * 0.38));
+        drawCard(ctx, panel.x + pad + span / 2, panel.y + panel.height / 2,
+                 span, prompt, shake, s);
 
-      const cardTop = 112;
-      if (prompt && prompt.complete) {
-        const key = `${prompt.src}|${span}|${s.cardShadow}|${s.cardBlur}`;
-        if (cardKey !== key) {
-          bakeCard(span, prompt, s, palette);
-          cardKey = key;
+        const rest = panel.width - span - pad * 3;
+        const colX = panel.x + pad * 2 + span;
+        const colW = Math.round(rest * 0.46);
+        const dialsX = colX + colW + pad;
+        const dialsW = panel.x + panel.width - pad - dialsX;
+
+        // Both columns sit against the card, which is centred, so they are centred
+        // too. Starting them at the top leaves the panel bottom-heavy and empty.
+        const height = (px) => px * 0.86 + s.slabPad * 2;
+        const readout = 24 + 20 + height(30) + 10 + height(countSize(round))
+                        + 8 + height(22);
+        let y = panel.y + (panel.height - readout) / 2;
+
+        ctx.font = face(19, s);
+        ctx.fillStyle = SEMANTIC.quiet.ink;
+        ctx.fillText(stage, colX, y);
+        y += 24;
+        ctx.font = face(17, s);
+        ctx.fillStyle = SEMANTIC.quiet.loud;
+        ctx.fillText('FIND', colX, y);
+        y += 20;
+        y += slab(ctx, colX, y, round.target.toUpperCase(), SEMANTIC.target, 30, s) + 10;
+        y += slab(ctx, colX, y, countText(round), countRole(round),
+                  countSize(round), s, colW) + 8;
+        slab(ctx, colX, y, `MISSES ${round.misses}`,
+             round.misses ? SEMANTIC.miss : SEMANTIC.quiet, 22, s, colW);
+
+        const rows = dialsOf(level);
+        const step = Math.min(40, (panel.height - pad * 2) / rows.length);
+        const block = step * rows.length + 16;
+        const top = panel.y + (panel.height - block) / 2;
+        well(ctx, dialsX - 10, top, dialsW + 20, block, s.panelRecess,
+             SEMANTIC.quiet.tint);
+        let dy = top + 18;
+        for (const row of rows) {
+          dial(ctx, dialsX, dy, dialsW, ...row, s);
+          dy += step;
         }
-        ctx.save();
-        ctx.translate(left + span / 2 + shake.dx, cardTop + span / 2 + shake.dy);
-        ctx.rotate((shake.tilt * Math.PI) / 180);
-        ctx.drawImage(card, -card.width / 2, -card.height / 2);
-        ctx.restore();
+        return;
       }
 
-      // The count grows as the round fills, and turns amber on the last one.
-      let y = cardTop + span + 24;
-      const left_ = round.left();
-      const role = left_ === 0 ? SEMANTIC.found
-        : left_ === 1 ? SEMANTIC.last : SEMANTIC.quiet;
-      const grown = 26 + 14 * (round.total ? round.found.size / round.total : 0);
-      y += slab(ctx, left, y, left_ ? `${left_} TO FIND` : 'ALL FOUND',
-                role, grown, s, span) + 10;
-      slab(ctx, left, y, `MISSES ${round.misses}`,
-           round.misses ? SEMANTIC.miss : SEMANTIC.quiet, 24, s, span);
+      // Taller than it is wide: one column, the card above the readout.
+      const left = panel.x + pad;
+      const span = panel.width - pad * 2;
+      let y = panel.y + pad;
 
-      y += 46;
+      ctx.font = face(19, s);
+      ctx.fillStyle = SEMANTIC.quiet.ink;
+      ctx.fillText(stage, left, y);
+      y += 26;
+      ctx.font = face(17, s);
+      ctx.fillStyle = SEMANTIC.quiet.loud;
+      ctx.fillText('FIND', left, y);
+      y += 18;
+      y += slab(ctx, left, y, round.target.toUpperCase(), SEMANTIC.target, 32, s) + 14;
+
+      drawCard(ctx, left + span / 2, y + span / 2, span, prompt, shake, s);
+      y += span + 24;
+
+      y += slab(ctx, left, y, countText(round), countRole(round),
+                countSize(round), s, span) + 10;
+      y += slab(ctx, left, y, `MISSES ${round.misses}`,
+                round.misses ? SEMANTIC.miss : SEMANTIC.quiet, 24, s, span) + 22;
+
       well(ctx, left - 10, y - 8, span + 20, 4 * 34 + 22, s.panelRecess,
            SEMANTIC.quiet.tint);
       y += 16;
-      // Ranges run the way the dial does. Fewer inks and smaller vehicles are the
-      // harder board, so those two are handed their range back to front.
-      for (const [label, shown, value, span_] of [
-        ['vehicles', `${level.cars}/${range.cars[1]}`, level.cars, range.cars],
-        ['size', `${Math.round(level.size * 100)}%`, level.size,
-         [range.size[1], range.size[0]]],
-        ['kinds', `${level.fleet.length}/${range.kinds[1]}`, level.fleet.length,
-         range.kinds],
-        ['inks', `${level.inks}/${range.inks[1]}`, level.inks,
-         [range.inks[1], range.inks[0]]],
-      ]) {
-        dial(ctx, left, y, span, label, shown, value, span_, s);
+      for (const row of dialsOf(level)) {
+        dial(ctx, left, y, span, ...row, s);
         y += 34;
       }
     },

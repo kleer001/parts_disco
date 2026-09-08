@@ -11,9 +11,9 @@ import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
          rgbOf } from './layers.js';
 import { planBoard } from './paint.js';
 import { TUNING, createClock } from './juice.js';
+import { layoutFor } from './layout.js';
 
 const SEED = 1983;
-const PANEL_WIDTH = 300;
 
 /**
  * Wire a canvas to a run and start the loop.
@@ -33,8 +33,14 @@ export async function start(canvas, seed = SEED) {
   // face is kilobytes, so waiting for one before starting the other is a round trip
   // spent on nothing.
   const [views] = await Promise.all([loadViews(), document.fonts.load('16px VT323')]);
-  const field = { width: canvas.width - PANEL_WIDTH, height: canvas.height };
   const viewOf = (slot) => views.view(slot.model, slot.angle);
+
+  // The canvas is a shape, not a size: it takes the viewport's proportions and a
+  // fixed pixel budget, and CSS scales it the rest of the way.
+  const viewport = () =>
+    layoutFor(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
+  let place = viewport();
+  let field = place.board;
 
   // A view's proxy never changes, and the layout asks for it once per car per deal.
   const proxies = new Map();
@@ -47,13 +53,16 @@ export async function start(canvas, seed = SEED) {
   // The plan is read off a drawing nobody sees, so it is made on a canvas of its own
   // rather than by scribbling on the board and painting over it.
   const scratch = document.createElement('canvas');
-  scratch.width = field.width;
-  scratch.height = field.height;
   const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
-
   const held = document.createElement('canvas');
-  held.width = field.width;
-  held.height = field.height;
+
+  const resize = () => {
+    canvas.width = place.width;
+    canvas.height = place.height;
+    scratch.width = held.width = field.width;
+    scratch.height = held.height = field.height;
+  };
+  resize();
 
   let depth = 0;
   let level;
@@ -80,7 +89,8 @@ export async function start(canvas, seed = SEED) {
 
   const nextLevel = () => {
     level = stageAt(depth);
-    span = field.height * level.size;
+    // Off the short edge, so a vehicle is the same size in a tall field as a wide one.
+    span = Math.min(field.width, field.height) * level.size;
     const { placed, target, askedAt } = deal(seed + depth, level, views);
     round = createRound(layout(placed, seed + depth, span, field, proxyFor),
                         target, viewOf);
@@ -111,7 +121,8 @@ export async function start(canvas, seed = SEED) {
       ((event.clientX - box.left) / box.width) * canvas.width,
       ((event.clientY - box.top) / box.height) * canvas.height,
     ];
-    if (point[0] > field.width) return;
+    if (point[0] > field.width || point[1] > field.height) return;
+    event.preventDefault();
     const now = performance.now();
     const { outcome } = round.choose(point, span, clock.tick(now));
     if (outcome === 'found') clock.freeze(now, TUNING.hitStopMs);
@@ -132,7 +143,7 @@ export async function start(canvas, seed = SEED) {
     scene.render(ctx, {
       width: field.width,
       height: field.height,
-      panelWidth: PANEL_WIDTH,
+      panel: place.panel,
       standing,
       plan,
       shades,
@@ -145,6 +156,23 @@ export async function start(canvas, seed = SEED) {
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
+
+  // A turned phone is a different board, so the stage is dealt again rather than
+  // stretched. Only a change of shape counts: scaling within one orientation is
+  // what the CSS is already doing, and re-dealing on every pixel of a desktop drag
+  // would throw the yard away while it was being resized.
+  let settling = null;
+  window.addEventListener('resize', () => {
+    const next = viewport();
+    if (next.portrait === place.portrait) return;
+    clearTimeout(settling);
+    settling = setTimeout(() => {
+      place = next;
+      field = place.board;
+      resize();
+      nextLevel();
+    }, 150);
+  });
 }
 
 // Auto-start in the browser; skipped under `node --test`.
