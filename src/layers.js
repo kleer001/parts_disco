@@ -50,7 +50,34 @@ function flashInk(car, flash) {
   return ink;
 }
 
-const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+export const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+/** Trace one closed ring of a view, placed and sized. */
+function ring(ctx, anchor, points, span) {
+  ctx.beginPath();
+  ctx.moveTo(anchor.cx + (points[0][0] - 0.5) * span,
+             anchor.cy + (points[0][1] - 0.5) * span);
+  for (let k = 1; k < points.length; k++) {
+    ctx.lineTo(anchor.cx + (points[k][0] - 0.5) * span,
+               anchor.cy + (points[k][1] - 0.5) * span);
+  }
+}
+
+/**
+ * Draw each car in a flat colour that is only its number, for a plan to be read back
+ * off. Never seen: this is the question the colouring is the answer to.
+ */
+export function stampRegions(ctx, anchors, span, viewOf, width, height) {
+  ctx.fillStyle = 'rgb(255,255,255)';
+  ctx.fillRect(0, 0, width, height);
+  anchors.forEach((anchor, i) => {
+    ctx.fillStyle = `rgb(${i}, ${255 - i}, ${(i * 37) % 256})`;
+    for (const points of viewOf(anchor.slot).silhouette) {
+      ring(ctx, anchor, points, span);
+      ctx.fill();
+    }
+  });
+}
 
 /** Ground: the paper every impression is pulled onto. */
 export function createPaperLayer(palette = PALETTE) {
@@ -65,104 +92,87 @@ export function createPaperLayer(palette = PALETTE) {
 
 /**
  * The board: every car, the ground between them, and the colours both are painted in.
+ *
+ * The plan arrives already worked out -- which regions the board has, which of them
+ * touch, and what ink each was given. That is a fact about the placement and the
+ * placement does not move, so it is settled once when the board is laid rather than
+ * asked again sixty times a second. What is left here is a lookup and a fade.
  */
 export function createBoardLayer(viewOf, palette = PALETTE) {
+  let buffer = null;
+
   return {
     name: 'board',
     draw(ctx, frame) {
-      const { anchors, span, width, height, inks: palletteSize, round, at } = frame;
+      const { standing, plan, shades, span, width, height, round, at } = frame;
       const won = round.winning(at);
-
-      const ringsOf = (anchor) => viewOf(anchor.slot).silhouette;
-      const trace = (anchor, rings, paint) => {
-        for (const ring of rings) {
-          ctx.beginPath();
-          ctx.moveTo(anchor.cx + (ring[0][0] - 0.5) * span,
-                     anchor.cy + (ring[0][1] - 0.5) * span);
-          for (let k = 1; k < ring.length; k++) {
-            ctx.lineTo(anchor.cx + (ring[k][0] - 0.5) * span,
-                       anchor.cy + (ring[k][1] - 0.5) * span);
-          }
-          paint();
-        }
-      };
-
-      // Once the last one is found the losers clear off, so only the winners are on
-      // the board to be coloured and the map is a different map.
-      const standing = won > 0
-        ? anchors.filter((_, i) => round.found.has(i))
-        : anchors;
-
-      // First drawing: flat identifying colours, read back rather than looked at.
-      ctx.fillStyle = 'rgb(255,255,255)';
-      ctx.fillRect(0, 0, width, height);
-      standing.forEach((anchor, i) => {
-        ctx.fillStyle = `rgb(${i}, ${255 - i}, ${(i * 37) % 256})`;
-        trace(anchor, ringsOf(anchor), () => ctx.fill());
-      });
-
-      const pixels = ctx.getImageData(0, 0, width, height);
-      const { owner, regions } = labelRegions(
-        pixels.data, width, height, standing.length, PAPER_RGB);
-      const neighbours = borders(owner, regions, width, height);
-      const { ink } = assignInks(neighbours, palletteSize);
-      const shades = INKS.slice(0, palletteSize).map(rgbOf);
-
-      // Through the win the winners flash, faster and faster, through every ink the
-      // game has rather than the few this board was allowed. The ground whitens under
-      // them the whole time; they hold their colour until the last quarter and then
-      // go with it, so the board ends as paper with the answers left in outline.
-      const flash = won > 0 ? flashesBy(won) : 0;
-      const winnerInks = won > 0
-        ? standing.map((_, i) => rgbOf(INKS[flashInk(i, flash)]))
-        : null;
       const burn = Math.max(0, (won - BURN_OUT) / (1 - BURN_OUT));
 
+      // Through the win the winners flash, faster and faster, through every ink the
+      // game has rather than the few this board was allowed.
+      const flash = won > 0 ? flashesBy(won) : 0;
+      const flashing = won > 0
+        ? standing.map((_, i) => rgbOf(INKS[flashInk(i, flash)]))
+        : null;
+
       // A car found during play blinks, then holds a colour nothing beside it is
-      // wearing -- picked against its neighbours so that the answer cannot settle into
-      // the thing it was hiding against.
-      const playInks = won > 0 ? null : new Map();
-      if (playInks) {
-        for (const [index, at] of round.found) {
-          const step = blinkOf(frame.at - at);
+      // wearing -- picked against its neighbours so an answer cannot settle into the
+      // very thing it was hiding against.
+      const blinking = won > 0 ? null : new Map();
+      if (blinking) {
+        for (const [index, found] of round.found) {
+          const step = blinkOf(at - found);
           if (step < 1) {
-            playInks.set(index, rgbOf(INKS[flashInk(index, Math.floor(step * FIND_BLINKS))]));
+            blinking.set(index, rgbOf(INKS[flashInk(index, Math.floor(step * FIND_BLINKS))]));
           } else {
             const taken = new Set();
-            for (const j of neighbours[index]) if (ink[j] >= 0) taken.add(ink[j]);
+            for (const j of plan.neighbours[index]) taken.add(plan.ink[j]);
             let settled = flashInk(index, FIND_BLINKS);
             for (let n = 0; n < INKS.length && taken.has(settled); n++) {
               settled = (settled + 1) % INKS.length;
             }
-            playInks.set(index, rgbOf(INKS[settled]));
+            blinking.set(index, rgbOf(INKS[settled]));
           }
         }
       }
 
-      const out = pixels.data;
+      // One question, asked once a region: what colour, and how far gone to white.
+      // The ground whitens across the whole win; a winner holds its colour to the last
+      // quarter, so the flashes are still there to be seen at their fastest.
+      const paper = PAPER_RGB;
+      const inkOf = (region) => {
+        if (region < 0) return paper;
+        if (region >= standing.length) return shades[plan.ink[region]];
+        if (flashing) return flashing[region];
+        return blinking.get(region) ?? shades[plan.ink[region]];
+      };
+      const fadeOf = (region) => (
+        flashing && region >= 0 && region < standing.length ? burn : won);
+
+      if (!buffer) buffer = ctx.createImageData(width, height);
+      const out = buffer.data;
+      const owner = plan.owner;
       for (let p = 0, i = 0; p < owner.length; p++, i += 4) {
         const region = owner[p];
-        const winner = winnerInks && region >= 0 && region < standing.length;
-        const held = playInks && region >= 0 ? playInks.get(region) : undefined;
-        const base = region < 0 ? PAPER_RGB
-          : winner ? winnerInks[region]
-          : held ?? shades[ink[region]];
-        const fade = winner ? burn : won;
+        const base = inkOf(region);
+        const fade = fadeOf(region);
         out[i] = base[0] + (255 - base[0]) * fade;
         out[i + 1] = base[1] + (255 - base[1]) * fade;
         out[i + 2] = base[2] + (255 - base[2]) * fade;
         out[i + 3] = 255;
       }
-      ctx.putImageData(pixels, 0, 0);
+      ctx.putImageData(buffer, 0, 0);
 
-      // Second drawing: the linework, over the colours it was measured against.
+      // The linework, over the colours it was measured against.
       ctx.lineWidth = STROKE;
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
       ctx.strokeStyle = palette.ink;
       for (const anchor of standing) {
-        const view = viewOf(anchor.slot);
-        trace(anchor, view.strokes, () => ctx.stroke());
+        for (const points of viewOf(anchor.slot).strokes) {
+          ring(ctx, anchor, points, span);
+          ctx.stroke();
+        }
       }
     },
   };

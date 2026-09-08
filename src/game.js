@@ -67,9 +67,7 @@ export function pick(anchors, span, point, viewOf) {
  * @param {Function} viewOf - a slot's traced view
  */
 export function createRound(anchors, target, viewOf) {
-  const wanted = anchors
-    .map((anchor, index) => (anchor.slot.model === target ? index : -1))
-    .filter((index) => index >= 0);
+  const wanted = anchors.filter((anchor) => anchor.slot.model === target).length;
 
   const round = {
     anchors,
@@ -82,10 +80,10 @@ export function createRound(anchors, target, viewOf) {
 
     /** How many of the asked-for vehicle are still out there. */
     left() {
-      return wanted.length - round.found.size;
+      return wanted - round.found.size;
     },
 
-    total: wanted.length,
+    total: wanted,
 
     /**
      * Resolve a click.

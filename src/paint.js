@@ -5,9 +5,6 @@
 // one: find every region, find which regions share a border, and hand out inks so
 // that no border has the same ink on both sides.
 
-/** How far a pixel may sit from the paper and still count as bare ground. */
-const PAPER_TOLERANCE = 20;
-
 /** How far a region is pushed under whatever is drawn over it, in pixels. */
 const BLEED = 3;
 
@@ -28,7 +25,7 @@ const OPEN = -1;
  * @param {Uint8ClampedArray} px - RGBA of the identifying pass
  * @returns {{owner: Int32Array, regions: number, split: number}}
  */
-export function labelRegions(px, width, height, cars, paper) {
+export function labelRegions(px, width, height, cars) {
   const owner = new Int32Array(width * height).fill(UNKNOWN);
   for (let i = 0, p = 0; p < owner.length; i += 4, p++) {
     const r = px[i];
@@ -36,21 +33,25 @@ export function labelRegions(px, width, height, cars, paper) {
     if (px[i + 1] === 255 - r && px[i + 2] === (r * 37) % 256) owner[p] = r;
   }
 
+  let front = owner;
+  let back = new Int32Array(owner.length);
   for (let pass = 0; pass < BLEED; pass++) {
-    const before = owner.slice();
-    for (let at = 0; at < owner.length; at++) {
-      if (before[at] !== UNKNOWN) continue;
+    back.set(front);
+    for (let at = 0; at < front.length; at++) {
+      if (front[at] !== UNKNOWN) continue;
       const x = at % width;
       let take = UNKNOWN;
-      if (x > 0 && before[at - 1] !== UNKNOWN) take = before[at - 1];
-      else if (x < width - 1 && before[at + 1] !== UNKNOWN) take = before[at + 1];
-      else if (at >= width && before[at - width] !== UNKNOWN) take = before[at - width];
-      else if (at < owner.length - width && before[at + width] !== UNKNOWN) {
-        take = before[at + width];
+      if (x > 0 && front[at - 1] !== UNKNOWN) take = front[at - 1];
+      else if (x < width - 1 && front[at + 1] !== UNKNOWN) take = front[at + 1];
+      else if (at >= width && front[at - width] !== UNKNOWN) take = front[at - width];
+      else if (at < front.length - width && front[at + width] !== UNKNOWN) {
+        take = front[at + width];
       }
-      if (take !== UNKNOWN) owner[at] = take;
+      if (take !== UNKNOWN) back[at] = take;
     }
+    [front, back] = [back, front];
   }
+  owner.set(front);
 
   const stack = new Int32Array(owner.length);
   let regions = cars;
@@ -74,41 +75,7 @@ export function labelRegions(px, width, height, cars, paper) {
     }
   }
 
-  return { owner, regions, split: countSplit(owner, width, cars) };
-}
-
-/**
- * How many cars the board has cut into more than one visible piece.
- *
- * Four inks colour any flat map whose every region is in one piece. These are the
- * regions that are not, and so the reason a board can want a fifth.
- */
-function countSplit(owner, width, cars) {
-  const claimed = new Uint8Array(owner.length);
-  const walk = new Int32Array(owner.length);
-  const pieces = new Int32Array(cars);
-
-  for (let at = 0; at < owner.length; at++) {
-    const id = owner[at];
-    if (id < 0 || id >= cars || claimed[at]) continue;
-    pieces[id]++;
-    let top = 0;
-    walk[top++] = at;
-    claimed[at] = 1;
-    while (top) {
-      const q = walk[--top];
-      const x = q % width;
-      const near = [x > 0 ? q - 1 : -1, x < width - 1 ? q + 1 : -1,
-                    q >= width ? q - width : -1,
-                    q < owner.length - width ? q + width : -1];
-      for (const n of near) {
-        if (n >= 0 && !claimed[n] && owner[n] === id) { claimed[n] = 1; walk[top++] = n; }
-      }
-    }
-  }
-  let split = 0;
-  for (let i = 0; i < cars; i++) if (pieces[i] > 1) split++;
-  return split;
+  return { owner, regions };
 }
 
 /** Which regions share a border with which. */
@@ -186,4 +153,20 @@ export function assignInks(touching, palette) {
   return { ink, clashes };
 }
 
-export { PAPER_TOLERANCE };
+/**
+ * Everything about how a board is coloured, worked out once.
+ *
+ * A function of the placement alone, so it is settled when the board is laid and not
+ * asked again every frame -- the regions do not move, and neither does which of them
+ * touch. What changes between frames is only which regions are blinking, and that is
+ * a lookup against this.
+ *
+ * @param {Uint8ClampedArray} px - RGBA of a pass that drew each car in its own flat colour
+ * @returns {{owner: Int32Array, neighbours: Array<Set>, ink: Int32Array}}
+ */
+export function planBoard(px, width, height, cars, palette) {
+  const { owner, regions } = labelRegions(px, width, height, cars);
+  const neighbours = borders(owner, regions, width, height);
+  const { ink } = assignInks(neighbours, palette);
+  return { owner, neighbours, ink };
+}
