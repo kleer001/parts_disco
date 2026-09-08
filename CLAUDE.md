@@ -77,6 +77,37 @@ developer-machine tools; nothing in CI and no player ever needs them.
   future session could cite the sentence to refuse the owner, it is a rule you
   invented — rewrite it as a cost.
 
+## What pulls against the game
+
+Through prototype and alpha, each of these is a sound instinct aimed at the wrong stage.
+None of it is a reason a change can't be made; it is a set of costs to name before
+making one.
+
+**Difficulty is the product; confusion is the bug.** Legibility and the cost of retry
+are the cheap dials — the studio's `shelves/L1/DESIGN.md` Q5 has the standard for the
+first. Softening the lock spends the moment the player solves it, which is what they
+came for. Undo is the proof the dials are separate: two games from this studio landed on
+opposite policies, Glyph Tracer none and Treasure Trash unlimited, and neither is the
+easier game — the trade Baba Is You makes, undo free and the puzzle merciless. No
+feature is softening by its name. When a kindness is on the table — a hint on idle, an
+outcome preview, a move refused because it "would have been a mistake" — say which dial
+it turns and what that costs. The owner picks the dial.
+
+**The brief is the job.** Unasked-for work still has to be read, judged and often
+reverted. Research is where this costs most: asked what games in the wild do, measure
+them, not this one — an answer anchored on the current build confirms the design instead
+of testing it, and reads as evidence while carrying none. Drift is the same failure
+sideways: a substitute is not the thing that was asked for, and a rename is not a
+redesign. Say so in a sentence when the brief looks wrong, then do it or ask — don't
+quietly widen it.
+
+**Price the work honestly: yours is cheap, the owner's is not.** Priced as a human team
+a refactor reads as months and the quick path wins — then the estimate chose, not the
+architecture. The error runs backwards with questions: a game world has physics, and
+most questions about how a piece behaves have an answer you can derive from the fiction.
+Derive it, state it as the assumption you're proceeding on, and keep going.
+
+
 ## Writing game code
 
 - **Seeded randomness.** `mulberry32` for every draw in game logic; never

@@ -3,5 +3,5 @@
 # `version` is the studio release it was born from, or last pulled forward to.
 # `mother` is where to fetch that studio when it is not already on this machine —
 # recorded here so a fresh clone can resolve it without guessing at a sibling path.
-version = "0.28.0"
+version = "0.29.0"
 mother = "https://github.com/kleer001/trace_rom_studio.git"
