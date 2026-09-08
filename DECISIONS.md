@@ -39,6 +39,16 @@ it went; it is never a reason to refuse a change he asks for.
 - **Every part drifts on its own heading.** REJECTED: moving layers as groups — parts
   that move together read as one object, and it is differing motion that lets a player
   pull one outline out of a pile.
+- **A find is answered by a pulse drawn over the board, not by repainting the board.**
+  REJECTED: blinking the vehicle in the board's own pixels and repainting its box —
+  the answer then cannot leave the vehicle's bounds, and the board rebuilds on the one
+  frame the hit stop exists to make crisp.
+- **Meaning is coloured off the board.** REJECTED: giving "found" or "wrong" a board
+  ink — the map spends every ink on the puzzle, so a semantic ink would either break
+  the colouring or be mistaken for a vehicle.
+- **The panel's colours are separated by lightness, not hue.** REJECTED: an
+  equal-lightness ramp with hue carrying the meaning — measured, it puts green and red
+  0.021 apart in OKLab under simulated deuteranopia, which is the same colour.
 
 ## Talking to hosts
 
@@ -71,6 +81,13 @@ it went; it is never a reason to refuse a change he asks for.
 ## Content
 
 ## Tech
+
+- **Tuning lives as a module constant in `src/juice.js`.** REJECTED: a JSON file the
+  bench writes directly — nothing else in this game loads data at runtime, and a fetch
+  on the critical path buys an edit round trip the bench's copy-out already covers.
+- **A hit stop belongs to the clock.** REJECTED: each effect holding its own timer —
+  a hold has to stop the whole board, and effects that each freeze themselves drift
+  apart the moment two overlap.
 
 ## Open questions
 

@@ -159,3 +159,85 @@ overload the status describes, and there is no way to tell the two apart except 
 having waited. Splitting 429 and 503 into separate paths — they call for the same move,
 and two paths would only encode the distinction twice.
 **Threaded:** `tools/patent_harvest/fetch.py` `RETRYABLE_STATUS`, `HostUnavailable`.
+
+### [2026-09-08] The blink gave way to a pulse over the board
+
+**Decision:** A found vehicle is answered by a `find` layer drawn over the board — a
+scale overshoot, a shake and a colour strobe — and the board layer no longer blinks or
+repaints anything per vehicle. The box-repaint machinery added the day before
+(`repaint(box)`, `missesBox`, the clipped stroke) is deleted.
+
+**Why:** Two answers over the same pixels fight. Once the pulse existed, the blink was
+a second, quieter statement of the same event, and the pulse won on every count: it can
+leave the vehicle's bounds, which a box repaint by definition cannot, and it leaves the
+kept board untouched so the hold survives the frame. The box repaint was a good answer
+to the question "how do we repaint one moving vehicle cheaply"; the pulse removes the
+question.
+
+**Rejected:** Keeping both and suppressing one — that is a flag deciding which of two
+implementations of one idea runs. Keeping the blink and letting the pulse scale within
+the box — the overshoot is most of the effect and the box would clip it.
+
+**What it costs:** the still frame is unchanged, but a frame with a vehicle at the peak
+of its pulse fills and strokes that vehicle at up to 2.25× its size. Measured at the
+densest stage, 120 vehicles: 0.22ms still, 5.8ms at the peak.
+
+**Threaded:** `src/layers.js` `createBoardLayer`, `createFindLayer`; `src/juice.js`
+`findPulse`.
+
+### [2026-09-08] Meaning is coloured off the board
+
+**Decision:** The panel carries a five-role semantic ramp (`SEMANTIC` in
+`src/juice.js`); no board ink means anything.
+
+**Why:** `paint.js` assigns inks by graph colouring so that no two touching regions
+share one. Every ink is therefore spoken for by the puzzle, and an ink that also meant
+"found" would either force a clash or be read as another vehicle. Every `loud` in the
+ramp was solved to sit at least 0.074 from the nearest board ink in OKLab for that
+second reason.
+
+**Rejected:** Reserving one board ink for feedback — it costs the colouring a colour
+at exactly the stages where the ink count is the difficulty. Marking a found vehicle
+with a symbol instead of a colour — a mark sits on top of the board, and what a find
+changes is the board.
+
+**Threaded:** `src/juice.js` `SEMANTIC`; `research/semantic_ramp.py`.
+
+### [2026-09-08] Lightness carries the valence, hue only confirms it
+
+**Decision:** The semantic roles are separated in lightness first. `found` is a bright
+green at OKLCH L 0.62; `miss` is a dark red at L 0.38.
+
+**Why:** The obvious ramp — five roles at one lightness, told apart by hue — was built
+and measured, and it fails: `found` and `miss` land 0.021 apart in OKLab under
+simulated deuteranopia, which is the same colour to roughly one man in twelve. Splitting
+them in lightness takes that to 0.231, and to 0.384 under protanopia.
+
+**Rejected:** Equal-lightness roles distinguished by hue. Also rejected: red as the
+"bad" colour on the strength of genre convention — in the games surveyed red is
+usually the multiplier, the most wanted number on the screen, so red was kept for the
+error counter only, which is a different register.
+
+**What it costs:** `found` and `last` still sit 0.056 apart under protanopia, where
+green and amber converge. They are never the same kind of element and `last` also
+grows, but that pair reads by position for a protanope.
+
+**Threaded:** `src/juice.js` `SEMANTIC`; `research/semantic_ramp.py`, which prints
+every figure above.
+
+### [2026-09-08] Tuning is a module constant, not a data file
+
+**Decision:** `TUNING` in `src/juice.js` is a plain exported object. The bench
+(`dev/juice.html`) drives the same layers with a live settings function and prints the
+block to paste back.
+
+**Why:** `levels.js` already holds the difficulty path as a module constant, so this is
+the shape the project already uses for tuning. Nothing in this game fetches data at
+runtime, and adding a fetch would put a round trip on the critical path to buy an edit
+loop the bench's copy-out already gives.
+
+**Rejected:** A `data/juice.json` the bench writes and the game loads — it makes the
+first frame wait on a network round trip, and introduces a second failure mode
+(missing or malformed file) for a value that cannot vary at runtime.
+
+**Threaded:** `src/juice.js` `TUNING`; every layer factory's `settings = () => TUNING`.
