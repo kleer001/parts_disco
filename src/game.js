@@ -6,6 +6,26 @@ import { contains } from './geometry.js';
 /** How long the board holds still after the last car is found, in seconds. */
 export const WIN_SECONDS = 2;
 
+// How long a winning vehicle holds each colour, at the start of the win and at the
+// end of it. It accelerates between the two, so the flashing reads as something
+// winding up rather than as a light left blinking.
+export const FLASH_FIRST = 0.150;
+export const FLASH_LAST = 0.050;
+
+/**
+ * How many times a winner has changed colour by this point in the win.
+ *
+ * The interval shortens steadily, so the count is not the elapsed time over an
+ * interval -- it is the integral of one over an interval that is itself moving.
+ * Solved rather than counted, so the colour a car is showing depends on nothing but
+ * how far through the win the board is, and a dropped frame cannot lose a flash.
+ */
+export function flashesBy(progress) {
+  const slope = (FLASH_FIRST - FLASH_LAST) / WIN_SECONDS;
+  const at = Math.min(progress, 1) * WIN_SECONDS;
+  return Math.floor(Math.log(FLASH_FIRST / (FLASH_FIRST - slope * at)) / slope);
+}
+
 /**
  * The car under a point, or null.
  *

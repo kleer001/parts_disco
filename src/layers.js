@@ -9,6 +9,7 @@
 // survives any test for either.
 
 import { labelRegions, borders, assignInks } from './paint.js';
+import { flashesBy } from './game.js';
 
 export const PALETTE = {
   paper: '#f4f1ea',
@@ -29,6 +30,25 @@ export const INKS = [
 ];
 
 export const STROKE = 1.5;
+
+// When a winner stops flashing and blows out to white. The ground whitens across the
+// whole win; a car holds its colour most of the way, so the flashes are still there
+// to be seen when they are at their fastest.
+const BURN_OUT = 0.75;
+
+/**
+ * The ink a winning vehicle is showing on its nth flash.
+ *
+ * Never the ink it showed last time. One in eight flashes would otherwise repeat and
+ * read as a flash that did not happen, which at fifty milliseconds is the difference
+ * between quick and stuttering.
+ */
+function flashInk(car, flash) {
+  const roll = (n) => Math.abs(Math.imul(car * 2654435761 + n * 40503, 2246822519)) % 7;
+  let ink = roll(0) % INKS.length;
+  for (let n = 1; n <= flash; n++) ink = (ink + 1 + roll(n)) % INKS.length;
+  return ink;
+}
 
 const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 
@@ -87,15 +107,26 @@ export function createBoardLayer(viewOf, palette = PALETTE) {
       const { ink } = assignInks(borders(owner, regions, width, height), palletteSize);
       const shades = INKS.slice(0, palletteSize).map(rgbOf);
 
-      // Every winner goes to white as the ground does, so the board ends as paper
-      // with the answers left standing on it in outline.
+      // Through the win the winners flash, faster and faster, through every ink the
+      // game has rather than the few this board was allowed. The ground whitens under
+      // them the whole time; they hold their colour until the last quarter and then
+      // go with it, so the board ends as paper with the answers left in outline.
+      const flash = won > 0 ? flashesBy(won) : 0;
+      const winnerInks = won > 0
+        ? standing.map((_, i) => rgbOf(INKS[flashInk(i, flash)]))
+        : null;
+      const burn = Math.max(0, (won - BURN_OUT) / (1 - BURN_OUT));
+
       const out = pixels.data;
       for (let p = 0, i = 0; p < owner.length; p++, i += 4) {
         const region = owner[p];
-        const base = region >= 0 ? shades[ink[region]] : PAPER_RGB;
-        out[i] = base[0] + (255 - base[0]) * won;
-        out[i + 1] = base[1] + (255 - base[1]) * won;
-        out[i + 2] = base[2] + (255 - base[2]) * won;
+        const winner = winnerInks && region >= 0 && region < standing.length;
+        const base = region < 0 ? PAPER_RGB
+          : winner ? winnerInks[region] : shades[ink[region]];
+        const fade = winner ? burn : won;
+        out[i] = base[0] + (255 - base[0]) * fade;
+        out[i + 1] = base[1] + (255 - base[1]) * fade;
+        out[i + 2] = base[2] + (255 - base[2]) * fade;
         out[i + 3] = 255;
       }
       ctx.putImageData(pixels, 0, 0);
