@@ -1,11 +1,12 @@
 {
   "name": "parts-disco",
   "version": "0.0.1",
-  "description": "Find the named car part in a drifting pile of schematics",
+  "description": "A yard full of vehicles. Find every copy of the one you were shown.",
   "type": "module",
   "license": "MIT",
   "scripts": {
     "test": "node --test",
     "start": "./run.sh"
-  }
+  },
+  "homepage": "https://kleer001.github.io/parts_disco/"
 }
