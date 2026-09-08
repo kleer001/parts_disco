@@ -38,6 +38,7 @@ fleet with <code>tools/model_views/render_views.py</code> first, then write a
   <label>seed <input id="seed" type="range" min="1" max="60" value="7"><span id="seedOut"></span></label>
   <label><input id="onebit" type="checkbox" checked> 1-bit</label>
   <label><input id="opaque" type="checkbox"> opaque</label>
+  <label><input id="colour" type="checkbox"> colour</label>
   <label><input id="poisson" type="checkbox"> poisson <span style="color:#888">(sets its own overlap)</span></label>
   <label><input id="reveal" type="checkbox"> show answers</label>
 </div>
@@ -62,6 +63,21 @@ const SIZE = 800;
 const PAPER = '#f4f1ea';
 const INK = '#1a1a1a';
 const ANSWER = '#b91c1c';
+
+// Flat inks to pull a car in, chosen to sit on this paper under black linework: all
+// held back from full saturation, because an ink that outshouts the outline turns the
+// drawing into a silhouette. A car takes one at random and keeps no relation to what
+// it is -- two sedans get different inks and a sedan and a taxi may get the same one.
+const INKS = [
+  '#c4553d', // vermilion
+  '#2f6b6a', // petrol
+  '#c08a2e', // ochre
+  '#4a6b96', // dusty blue
+  '#6d7f52', // sage
+  '#8c5a72', // plum
+  '#9c9384', // stone
+  '#3f4a58', // slate
+];
 
 const manifest = await (await fetch('/tmp/fleet2/manifest.json')).json();
 
@@ -346,6 +362,7 @@ function draw() {
   const onebit = control('onebit').checked;
   const opaque = control('opaque').checked;
   const poisson = control('poisson').checked;
+  const colour = control('colour').checked;
   const reveal = control('reveal').checked;
 
   control('carsOut').textContent = cars;
@@ -363,6 +380,11 @@ function draw() {
     ? scatter(placed, seed, span)
     : settle(placed, seed, span, separation);
 
+  // An ink a car, drawn after the board is laid so that moving a car does not repaint
+  // it. Seeded off the board's own seed, so a seed still reproduces the whole picture.
+  const inkFor = mulberry32(seed + 2);
+  for (const anchor of anchors) anchor.ink = INKS[Math.floor(inkFor() * INKS.length)];
+
   const ctx = field.getContext('2d');
   ctx.fillStyle = PAPER;
   ctx.fillRect(0, 0, SIZE, SIZE);
@@ -370,7 +392,7 @@ function draw() {
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  const trace = ({ slot, cx, cy }) => {
+  const trace = ({ slot, cx, cy, ink: slotInk }) => {
     const view = views.get(`${slot.model}/${String(slot.angle).padStart(3, '0')}`);
     const path = (stroke) => {
       ctx.beginPath();
@@ -385,7 +407,7 @@ function draw() {
     // loops instead, which is all there was before it, guesses the body from
     // whichever faces happen to be outlined, and leaks wherever a crease stops.
     if (opaque) {
-      ctx.fillStyle = PAPER;
+      ctx.fillStyle = colour ? slotInk : PAPER;
       for (const ring of view.silhouette) { path(ring); ctx.fill(); }
     }
     for (const stroke of view.strokes) { path(stroke); ctx.stroke(); }
@@ -396,8 +418,9 @@ function draw() {
 
   // Canvas antialiases every path it draws, so a board of thin outlines lands as a
   // spread of greys. Thresholding afterwards is what makes the drawn board match the
-  // one-bit renders it sits beside.
-  if (onebit) threshold(ctx);
+  // one-bit renders it sits beside -- and it can only run on a board that is ink and
+  // paper, because it has nowhere to put a third colour.
+  if (onebit && !colour) threshold(ctx);
 
   // After the threshold, not before: the answer colour is darker than the cut and
   // would be flattened to ink along with everything else.
@@ -438,7 +461,7 @@ function threshold(ctx) {
   ctx.putImageData(image, 0, 0);
 }
 
-for (const id of ['cars', 'size', 'overlap', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'poisson', 'reveal']) {
+for (const id of ['cars', 'size', 'overlap', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'colour', 'poisson', 'reveal']) {
   control(id).addEventListener('input', draw);
 }
 draw();
