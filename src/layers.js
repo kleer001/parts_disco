@@ -98,8 +98,10 @@ export function createPaperLayer(palette = PALETTE) {
  * placement does not move, so it is settled once when the board is laid rather than
  * asked again sixty times a second. What is left here is a lookup and a fade.
  */
-export function createBoardLayer(viewOf, palette = PALETTE) {
+export function createBoardLayer(viewOf, { cache = null, palette = PALETTE } = {}) {
   let buffer = null;
+  let heldPlan = null;
+  let heldFound = -1;
 
   return {
     name: 'board',
@@ -108,71 +110,129 @@ export function createBoardLayer(viewOf, palette = PALETTE) {
       const won = round.winning(at);
       const burn = Math.max(0, (won - BURN_OUT) / (1 - BURN_OUT));
 
-      // Through the win the winners flash, faster and faster, through every ink the
-      // game has rather than the few this board was allowed.
-      const flash = won > 0 ? flashesBy(won) : 0;
-      const flashing = won > 0
-        ? standing.map((_, i) => rgbOf(INKS[flashInk(i, flash)]))
-        : null;
+      /** The colour a car comes to rest in: never one its neighbours are wearing. */
+      const settledOf = (region) => {
+        const taken = new Set();
+        for (const j of plan.neighbours[region]) taken.add(plan.ink[j]);
+        let ink = flashInk(region, FIND_BLINKS);
+        for (let n = 0; n < INKS.length && taken.has(ink); n++) ink = (ink + 1) % INKS.length;
+        return rgbOf(INKS[ink]);
+      };
 
-      // A car found during play blinks, then holds a colour nothing beside it is
-      // wearing -- picked against its neighbours so an answer cannot settle into the
-      // very thing it was hiding against.
-      const blinking = won > 0 ? null : new Map();
-      if (blinking) {
-        for (const [index, found] of round.found) {
-          const step = blinkOf(at - found);
-          if (step < 1) {
-            blinking.set(index, rgbOf(INKS[flashInk(index, Math.floor(step * FIND_BLINKS))]));
-          } else {
-            const taken = new Set();
-            for (const j of plan.neighbours[index]) taken.add(plan.ink[j]);
-            let settled = flashInk(index, FIND_BLINKS);
-            for (let n = 0; n < INKS.length && taken.has(settled); n++) {
-              settled = (settled + 1) % INKS.length;
-            }
-            blinking.set(index, rgbOf(INKS[settled]));
+      // What the board looks like with nothing moving on it: every car in the ink the
+      // map gave it, or in the one it came to rest in after being found.
+      const restingOf = (region) => {
+        if (region < 0) return PAPER_RGB;
+        if (region < standing.length && round.found.has(region)) return settledOf(region);
+        return shades[plan.ink[region]];
+      };
+
+      const repaint = (colourOf, fadeOf, box) => {
+        if (!buffer) buffer = ctx.createImageData(width, height);
+        const out = buffer.data;
+        const owner = plan.owner;
+        const left = box ? box.left : 0;
+        const right = box ? box.right : width - 1;
+        const top = box ? box.top : 0;
+        const bottom = box ? box.bottom : height - 1;
+        for (let y = top; y <= bottom; y++) {
+          for (let x = left; x <= right; x++) {
+            const p = y * width + x;
+            const region = owner[p];
+            const base = colourOf(region);
+            if (!base) continue;
+            const fade = fadeOf(region);
+            const i = p * 4;
+            out[i] = base[0] + (255 - base[0]) * fade;
+            out[i + 1] = base[1] + (255 - base[1]) * fade;
+            out[i + 2] = base[2] + (255 - base[2]) * fade;
+            out[i + 3] = 255;
           }
         }
-      }
-
-      // One question, asked once a region: what colour, and how far gone to white.
-      // The ground whitens across the whole win; a winner holds its colour to the last
-      // quarter, so the flashes are still there to be seen at their fastest.
-      const paper = PAPER_RGB;
-      const inkOf = (region) => {
-        if (region < 0) return paper;
-        if (region >= standing.length) return shades[plan.ink[region]];
-        if (flashing) return flashing[region];
-        return blinking.get(region) ?? shades[plan.ink[region]];
+        if (box) ctx.putImageData(buffer, 0, 0, left, top, right - left + 1, bottom - top + 1);
+        else ctx.putImageData(buffer, 0, 0);
       };
-      const fadeOf = (region) => (
-        flashing && region >= 0 && region < standing.length ? burn : won);
 
-      if (!buffer) buffer = ctx.createImageData(width, height);
-      const out = buffer.data;
-      const owner = plan.owner;
-      for (let p = 0, i = 0; p < owner.length; p++, i += 4) {
-        const region = owner[p];
-        const base = inkOf(region);
-        const fade = fadeOf(region);
-        out[i] = base[0] + (255 - base[0]) * fade;
-        out[i + 1] = base[1] + (255 - base[1]) * fade;
-        out[i + 2] = base[2] + (255 - base[2]) * fade;
-        out[i + 3] = 255;
-      }
-      ctx.putImageData(buffer, 0, 0);
+      const missesBox = (i, box) => {
+        const b = plan.bounds[i];
+        return b.right < box.left || b.left > box.right
+            || b.bottom < box.top || b.top > box.bottom;
+      };
 
-      // The linework, over the colours it was measured against.
-      ctx.lineWidth = STROKE;
-      ctx.lineJoin = 'round';
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = palette.ink;
-      for (const anchor of standing) {
-        for (const points of viewOf(anchor.slot).strokes) {
-          ring(ctx, anchor, points, span);
-          ctx.stroke();
+      // Clipping stops a stroke landing outside the box, but the path is still built
+      // and handed over. Cars nowhere near it are skipped instead.
+      const stroke = (box) => {
+        if (box) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(box.left, box.top, box.right - box.left + 1, box.bottom - box.top + 1);
+          ctx.clip();
         }
+        ctx.lineWidth = STROKE;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = palette.ink;
+        for (let i = 0; i < standing.length; i++) {
+          if (box && missesBox(i, box)) continue;
+          for (const points of viewOf(standing[i].slot).strokes) {
+            ring(ctx, standing[i], points, span);
+            ctx.stroke();
+          }
+        }
+        if (box) ctx.restore();
+      };
+
+      // The still board is kept and put back down, because most frames are the same
+      // picture as the last one. It is rebuilt when the map changes or a car is found,
+      // and it always shows found cars already at rest -- what is blinking on top of it
+      // is painted over it afterwards.
+      if (cache && (heldPlan !== plan || heldFound !== round.found.size)) {
+        repaint(restingOf, () => 0, null);
+        stroke(null);
+        cache.getContext('2d').drawImage(ctx.canvas, 0, 0, width, height, 0, 0, width, height);
+        heldPlan = plan;
+        heldFound = round.found.size;
+      }
+
+      // The win repaints everything every frame: the winners flash through every ink
+      // the game has, and the ground whitens under all of them at once.
+      if (won > 0) {
+        const flash = flashesBy(won);
+        const flashing = standing.map((_, i) => rgbOf(INKS[flashInk(i, flash)]));
+        repaint(
+          (region) => (region < 0 ? PAPER_RGB
+            : region < standing.length ? flashing[region] : shades[plan.ink[region]]),
+          (region) => (region >= 0 && region < standing.length ? burn : won),
+          null);
+        stroke(null);
+        return;
+      }
+
+      // Anything still working through its blink. Almost always nothing, sometimes one.
+      const blinking = new Map();
+      for (const [region, found] of round.found) {
+        const step = blinkOf(at - found);
+        if (step < 1) {
+          blinking.set(region, rgbOf(INKS[flashInk(region, Math.floor(step * FIND_BLINKS))]));
+        }
+      }
+
+      if (!cache) {
+        repaint((region) => blinking.get(region) ?? restingOf(region), () => 0, null);
+        stroke(null);
+        return;
+      }
+
+      ctx.drawImage(cache, 0, 0);
+      if (!blinking.size) return;
+
+      // Put the held board back down and repaint only what is moving on it. A blinking
+      // car is one vehicle's worth of pixels; the rest of the board did not change and
+      // painting it again would be the whole point of keeping it thrown away.
+      for (const [region, colour] of blinking) {
+        const box = plan.bounds[region];
+        repaint((r) => (r === region ? colour : null), () => 0, box);
+        stroke(box);
       }
     },
   };

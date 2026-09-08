@@ -154,6 +154,27 @@ export function assignInks(touching, palette) {
 }
 
 /**
+ * The box each region occupies, so a region that changes can be repainted without
+ * repainting the board around it.
+ */
+function boundsOf(owner, regions, width) {
+  const box = Array.from({ length: regions },
+    () => ({ left: width, top: owner.length, right: -1, bottom: -1 }));
+  for (let at = 0; at < owner.length; at++) {
+    const region = owner[at];
+    if (region < 0) continue;
+    const x = at % width;
+    const y = (at - x) / width;
+    const b = box[region];
+    if (x < b.left) b.left = x;
+    if (x > b.right) b.right = x;
+    if (y < b.top) b.top = y;
+    if (y > b.bottom) b.bottom = y;
+  }
+  return box;
+}
+
+/**
  * Everything about how a board is coloured, worked out once.
  *
  * A function of the placement alone, so it is settled when the board is laid and not
@@ -168,5 +189,5 @@ export function planBoard(px, width, height, cars, palette) {
   const { owner, regions } = labelRegions(px, width, height, cars);
   const neighbours = borders(owner, regions, width, height);
   const { ink } = assignInks(neighbours, palette);
-  return { owner, neighbours, ink };
+  return { owner, neighbours, ink, bounds: boundsOf(owner, regions, width) };
 }

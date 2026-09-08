@@ -13,6 +13,12 @@ import { planBoard } from './paint.js';
 const SEED = 1983;
 const PANEL_WIDTH = 300;
 
+// Hold the drawn board and put it back down while nothing on it is moving. Worth it
+// for a board that mostly sits still; turn it off if the board starts animating in
+// its own right, when every frame is a different picture and the keeping is a copy
+// paid for nothing.
+const HOLD_STILL_BOARDS = true;
+
 /**
  * Wire a canvas to a run and start the loop.
  * @param {HTMLCanvasElement} canvas
@@ -43,6 +49,10 @@ export async function start(canvas, seed = SEED) {
   scratch.width = field.width;
   scratch.height = field.height;
   const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
+
+  const held = document.createElement('canvas');
+  held.width = field.width;
+  held.height = field.height;
 
   let depth = 0;
   let level;
@@ -81,7 +91,7 @@ export async function start(canvas, seed = SEED) {
 
   const scene = createCompositor()
     .add(createPaperLayer())
-    .add(createBoardLayer(viewOf))
+    .add(createBoardLayer(viewOf, { cache: HOLD_STILL_BOARDS ? held : null }))
     .add(createPanelLayer(RANGE));
 
   const started = performance.now();
