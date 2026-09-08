@@ -59,12 +59,17 @@ fleet with <code>tools/model_views/render_views.py</code> first, then write a
 
 <script type="module">
 import { mulberry32 } from '/src/rng.js';
+import { contains } from '/src/geometry.js';
 
 const SIZE = 800;
 
 const PAPER = '#f4f1ea';
 const INK = '#1a1a1a';
 const ANSWER = '#b91c1c';
+const FOUND = '#0f5f57';
+
+// What the last draw put on the board, so a click has something to ask about.
+const board = { anchors: [], span: 0, target: null };
 
 // Flat inks to pull a car in, chosen to sit on this paper under black linework: all
 // held back from full saturation, because an ink that outshouts the outline turns the
@@ -322,6 +327,34 @@ function burial(anchors, span) {
   return total / boxes.length;
 }
 
+/**
+ * The car under a point, or null.
+ *
+ * Walks the pile from the top down and stops at the first car whose outline holds the
+ * point, which is the one a player sees there: later cars are drawn over earlier ones,
+ * so the first hit going backwards is the visible one. Tested against the real
+ * outline rather than a box, because at this burial a car's box is mostly other cars.
+ *
+ * @param {number} span - the field size a view is drawn at
+ */
+function pick(anchors, span, x, y) {
+  for (let i = anchors.length - 1; i >= 0; i--) {
+    const { slot, cx, cy } = anchors[i];
+    const local = [(x - cx) / span + 0.5, (y - cy) / span + 0.5];
+    if (local[0] < 0 || local[0] > 1 || local[1] < 0 || local[1] > 1) continue;
+    for (const ring of views.get(keyOf(slot)).silhouette) {
+      if (contains(local, ring)) return { index: i, slot };
+    }
+  }
+  return null;
+}
+
+// What the player has picked out so far, and the board it was picked from. A board
+// dealt from different settings is a different board, so the tally starts again.
+let found = new Set();
+let foundOn = '';
+let lastPick = null;
+
 const control = (id) => document.getElementById(id);
 const field = control('field');
 
@@ -380,6 +413,9 @@ function draw() {
   const span = (SIZE * sizePct) / 100;
 
   const { placed, target, promptAngle } = layout(seed, cars, modelCount);
+
+  const signature = `${seed}/${cars}/${modelCount}/${sizePct}/${overlapPct}/${poisson}`;
+  if (signature !== foundOn) { found = new Set(); foundOn = signature; lastPick = null; }
   const separation = 1 - overlapPct / 100;
   const anchors = poisson
     ? scatter(placed, seed, span)
@@ -475,6 +511,21 @@ function draw() {
     anchors.filter((a) => a.slot.model === target).forEach(trace);
   }
 
+  // A found car gets a ring on it, drawn last so nothing covers the mark.
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = FOUND;
+  for (const index of found) {
+    const anchor = anchors[index];
+    if (!anchor) continue;
+    ctx.beginPath();
+    ctx.arc(anchor.cx, anchor.cy, span * 0.09, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  board.anchors = anchors;
+  board.span = span;
+  board.target = target;
+
   const answers = placed.filter((p) => p.model === target).length;
   control('targetName').textContent = target;
   control('prompt').src = promptAngle === null ? ''
@@ -487,6 +538,7 @@ function draw() {
         + (draw.clashes ? `, ${draw.clashes} forced to clash` : ', none clash')
         + ` · ${draw.split} cars cut in two`
       : '')
+    + (lastPick ? ` — ${lastPick}` : '')
     + (poisson
       ? ` · thrown, which came to ${Math.round((1 - scatter.separation) * 100)}% overlap`
       : ' · settled')
@@ -685,6 +737,22 @@ function threshold(ctx) {
   }
   ctx.putImageData(image, 0, 0);
 }
+
+field.addEventListener('pointerdown', (event) => {
+  const box = field.getBoundingClientRect();
+  const x = ((event.clientX - box.left) / box.width) * SIZE;
+  const y = ((event.clientY - box.top) / box.height) * SIZE;
+  const hit = pick(board.anchors, board.span, x, y);
+
+  if (!hit) lastPick = 'bare ground';
+  else if (found.has(hit.index)) lastPick = `${hit.slot.model}, already found`;
+  else if (hit.slot.model === board.target) {
+    found.add(hit.index);
+    const left = board.anchors.filter((a, i) => a.slot.model === board.target && !found.has(i)).length;
+    lastPick = left ? `${hit.slot.model} — ${left} to go` : `${hit.slot.model} — all found`;
+  } else lastPick = `that one is a ${hit.slot.model}`;
+  draw();
+});
 
 for (const id of ['cars', 'size', 'overlap', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'colour', 'ground', 'inks', 'poisson', 'reveal']) {
   control(id).addEventListener('input', draw);
