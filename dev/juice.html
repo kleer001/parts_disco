@@ -212,8 +212,11 @@ import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
          rgbOf } from '../src/layers.js';
 import { planBoard } from '../src/paint.js';
 import { TUNING, SEMANTIC, createClock, gridCellAt } from '../src/juice.js';
+import { layoutFor } from '../src/layout.js';
 
-const PANEL_WIDTH = 300;
+// The bench holds one shape on purpose: a slider is judged against a fixed picture,
+// and a panel that reflowed with the window would move while it was being tuned.
+const PLACE = layoutFor(1100, 800, 1);
 const KEYS = Object.keys(TUNING).filter((k) => typeof TUNING[k] === 'number');
 const FLAGS = ['gridGroundOnly'];
 
@@ -251,7 +254,9 @@ document.getElementById('swatches').innerHTML = Object.entries(SEMANTIC)
 /* ---- the board ------------------------------------------------------------ */
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
-const field = { width: canvas.width - PANEL_WIDTH, height: canvas.height };
+canvas.width = PLACE.width;
+canvas.height = PLACE.height;
+const field = PLACE.board;
 
 await document.fonts.load('16px VT323');
 const views = await loadViews('../assets/views');
@@ -286,7 +291,7 @@ const replan = (cars) => {
 
 const nextLevel = () => {
   level = stageAt(depth);
-  span = field.height * level.size;
+  span = Math.min(field.width, field.height) * level.size;
   const { placed, target, askedAt } = deal(seed + depth, level, views);
   round = createRound(layout(placed, seed + depth, span, field, proxyFor),
                       target, viewOf);
@@ -334,7 +339,7 @@ canvas.addEventListener('pointerdown', (event) => {
     ((event.clientX - box.left) / box.width) * canvas.width,
     ((event.clientY - box.top) / box.height) * canvas.height,
   ];
-  if (point[0] > field.width) return;
+  if (point[0] > field.width || point[1] > field.height) return;
   const at = clock.tick(scaled);
   const { outcome } = round.choose(point, span, at);
   if (outcome === 'found') clock.freeze(scaled, state.hitStopMs);
@@ -351,7 +356,7 @@ const frame = (now) => {
   }
   const t0 = performance.now();
   scene.render(ctx, {
-    width: field.width, height: field.height, panelWidth: PANEL_WIDTH,
+    width: field.width, height: field.height, panel: PLACE.panel,
     standing, plan, shades, span, round, level, prompt, at,
   });
   lastPaint = lastPaint * 0.9 + (performance.now() - t0) * 0.1;

@@ -29,11 +29,11 @@ wearing before. That colour is the only record you get. Miss, and the counter go
 
 ![A tractor mid-answer, swollen past its neighbours and lit bright green.](screens/found.png)
 
-![The panel: a found vehicle settled into a new colour, one left to find in amber, and one miss in red.](screens/panel.png)
+![The panel: one left to find in amber, three misses in red, and a sedan on the card — one of the four near-twins.](screens/panel.png)
 
 Find them all and the losers clear off, leaving yours flashing on a whitening yard.
 
-![Every vehicle but the eight SUVs has gone, and the ground is fading to white beneath them.](screens/win.png)
+![Every vehicle but the vans has gone, and the ground is fading to white beneath the ones that were found.](screens/win.png)
 
 ## Where it is
 

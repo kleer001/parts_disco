@@ -112,7 +112,7 @@ every dial against its range.
 | **how big** | Smaller is harder twice over — less of the detail that tells two shells apart, and more of them fitting on the field. |
 | **how many inks** | Five is enough for every two touching regions to differ. Below that they are forced to share, and a vehicle begins to merge into whatever it lies on. |
 
-![The first stage: ten large vehicles, well spaced, six inks.](screens/early.png)
+![The first stage: ten large vehicles, six inks, asking for a tractor.](screens/early.png)
 
 ## The bench
 
