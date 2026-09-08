@@ -38,6 +38,7 @@ fleet with <code>tools/model_views/render_views.py</code> first, then write a
   <label>seed <input id="seed" type="range" min="1" max="60" value="7"><span id="seedOut"></span></label>
   <label><input id="onebit" type="checkbox" checked> 1-bit</label>
   <label><input id="opaque" type="checkbox"> opaque</label>
+  <label><input id="poisson" type="checkbox"> poisson <span style="color:#888">(sets its own overlap)</span></label>
   <label><input id="reveal" type="checkbox"> show answers</label>
 </div>
 
@@ -164,6 +165,106 @@ function settle(placed, seed, span, k) {
   return bodies.map((body) => ({ slot: body.slot, cx: body.x - body.ox, cy: body.y - body.oy }));
 }
 
+// How many places a car will try before it gives up on a separation it cannot fit.
+const DART_TRIES = 30;
+
+// How finely the separation is searched for, and how far up the search may look.
+// Past this the cars are further apart than the field is wide and nothing fits.
+const FIT_STEPS = 14;
+const SPREAD_CEILING = 4.0;
+
+/**
+ * Scatter the cars by dart-throwing rather than by settling a pile.
+ *
+ * Bridson's method, with a radius per car rather than one for all of them: each car
+ * is thrown into the ring around a car already down, and kept only if it clears every
+ * one of them. Nothing is ever pushed, so nothing has to converge -- one pass places
+ * the board, where relaxation needs sixty and still leaves the spacing looser.
+ *
+ * The anchor is drawn from everything already placed rather than from an active
+ * front. At this many cars the difference is not worth the bookkeeping.
+ *
+ * @returns placements, or null when this separation will not fit them all.
+ */
+function dartThrow(bodies, seed, k) {
+  const rand = mulberry32(seed);
+  const down = [];
+  for (const body of bodies) {
+    let put = null;
+    if (!down.length) {
+      put = { body, x: rand() * SIZE, y: rand() * SIZE, r: body.r };
+    } else {
+      for (let attempt = 0; attempt < DART_TRIES && !put; attempt++) {
+        const anchor = down[Math.floor(rand() * down.length)];
+        // The ring runs from just clear of the anchor to twice that, which is what
+        // keeps the board even: too close is rejected, too far leaves a hole.
+        const reach = (anchor.r + body.r) * k;
+        const angle = rand() * Math.PI * 2;
+        const distance = reach * (1 + rand());
+        const x = anchor.x + Math.cos(angle) * distance;
+        const y = anchor.y + Math.sin(angle) * distance;
+        if (x < 0 || y < 0 || x > SIZE || y > SIZE) continue;
+        if (down.every((p) => Math.hypot(x - p.x, y - p.y) >= (p.r + body.r) * k)) {
+          put = { body, x, y, r: body.r };
+        }
+      }
+    }
+    // Nowhere against the cars already down. Try open ground instead, which is what
+    // reaches the corners: a throw only ever lands in the ring around a car that is
+    // already placed, so from a single first car the board grows as a circle and a
+    // square field keeps its corners bare.
+    for (let attempt = 0; attempt < DART_TRIES && !put; attempt++) {
+      const x = rand() * SIZE;
+      const y = rand() * SIZE;
+      if (down.every((q) => Math.hypot(x - q.x, y - q.y) >= (q.r + body.r) * k)) {
+        put = { body, x, y, r: body.r };
+      }
+    }
+
+    if (!put) return null;
+    down.push(put);
+  }
+  return down;
+}
+
+/**
+ * Place the board by dart-throwing, at the widest separation the field will take.
+ *
+ * The separation is searched for rather than set, and that is the difference between
+ * the two layouts rather than a detail of this one. Settling spreads whatever it is
+ * given across the whole field, because it shoves outward and the edges hold it in;
+ * the spacing is whatever that comes to. Dart-throwing holds its separation exactly
+ * and covers only the ground that separation reaches -- hand it a fixed one and it
+ * grows an island from its first car and leaves the far side of the board bare.
+ *
+ * So the overlap asked for is a ceiling here, not a setting: the widest spacing that
+ * still fits every car is the one that fills the board, and the overlap it comes to
+ * is reported rather than chosen. To bury the cars deeper, put more of them on.
+ */
+function scatter(placed, seed, span) {
+  const bodies = placed.map((slot) => ({ slot, r: proxies.get(keyOf(slot)).r * span }));
+
+  let out = null;
+  let used = 0;
+  let low = 0;
+  let high = SPREAD_CEILING;
+  for (let step = 0; step < FIT_STEPS; step++) {
+    const mid = (low + high) / 2;
+    const attempt = dartThrow(bodies, seed, mid);
+    if (attempt) { out = attempt; used = mid; low = mid; } else high = mid;
+  }
+  scatter.separation = used;
+
+  return out.map((p) => {
+    const proxy = proxies.get(keyOf(p.body.slot));
+    return {
+      slot: p.body.slot,
+      cx: p.x - (proxy.cx - 0.5) * span,
+      cy: p.y - (proxy.cy - 0.5) * span,
+    };
+  });
+}
+
 // How coarsely a car is sampled when asking how much of it ended up covered.
 const BURIAL_STEPS = 8;
 
@@ -244,6 +345,7 @@ function draw() {
   const seed = +control('seed').value;
   const onebit = control('onebit').checked;
   const opaque = control('opaque').checked;
+  const poisson = control('poisson').checked;
   const reveal = control('reveal').checked;
 
   control('carsOut').textContent = cars;
@@ -256,7 +358,10 @@ function draw() {
   const span = (SIZE * sizePct) / 100;
 
   const { placed, target, promptAngle } = layout(seed, cars, modelCount);
-  const anchors = settle(placed, seed, span, 1 - overlapPct / 100);
+  const separation = 1 - overlapPct / 100;
+  const anchors = poisson
+    ? scatter(placed, seed, span)
+    : settle(placed, seed, span, separation);
 
   const ctx = field.getContext('2d');
   ctx.fillStyle = PAPER;
@@ -308,6 +413,9 @@ function draw() {
   control('stat').textContent =
     `${cars} views, ${new Set(placed.map((p) => p.model)).size} models`
     + ` — ${Math.round(burial(anchors, span) * 100)}% of each car buried`
+    + (poisson
+      ? ` · thrown, which came to ${Math.round((1 - scatter.separation) * 100)}% overlap`
+      : ' · settled')
     + ` — ${answers} of them are ${target}`
     + (promptAngle === null ? ' (every angle is on the board)' : ` · prompt at ${promptAngle}°`);
 
@@ -330,7 +438,7 @@ function threshold(ctx) {
   ctx.putImageData(image, 0, 0);
 }
 
-for (const id of ['cars', 'size', 'overlap', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'reveal']) {
+for (const id of ['cars', 'size', 'overlap', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'poisson', 'reveal']) {
   control(id).addEventListener('input', draw);
 }
 draw();
