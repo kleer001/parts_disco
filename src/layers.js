@@ -478,10 +478,30 @@ function well(ctx, x, y, w, h, depth, fill) {
 export function createPanelLayer(range, settings = () => TUNING, palette = PALETTE) {
   const face = (px, s) => `${Math.round(px * s.typeScale)}px VT323, monospace`;
 
+  /**
+   * The largest of these sizes whose text fits the width, or the smallest if none
+   * does. A column is a fixed width and the text in it is not, so something has to
+   * give, and it is better that the type shrinks than that it runs into the column
+   * beside it.
+   */
+  const fitted = (ctx, text, size, room, s) => {
+    let px = size;
+    ctx.font = face(px, s);
+    while (px > 9 && ctx.measureText(text).width > room) {
+      px -= 1;
+      ctx.font = face(px, s);
+    }
+    return px;
+  };
+
   /** A number on a tinted slab. Returns the height it filled. */
-  const slab = (ctx, x, y, text, role, size, s, minWidth = 0) => {
-    ctx.font = face(size, s);
-    const w = Math.max(minWidth, ctx.measureText(text).width + s.slabPad * 2);
+  const slab = (ctx, x, y, text, role, size, s, minWidth = 0, maxWidth = Infinity) => {
+    const px = maxWidth === Infinity
+      ? size : fitted(ctx, text, size, maxWidth - s.slabPad * 2, s);
+    ctx.font = face(px, s);
+    size = px;
+    const w = Math.min(maxWidth,
+                       Math.max(minWidth, ctx.measureText(text).width + s.slabPad * 2));
     const h = size * 0.86 + s.slabPad * 2;
     roundRect(ctx, x, y, w, h, s.slabRadius);
     ctx.fillStyle = role.tint;
@@ -499,7 +519,8 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
   // which way is harder stays with the difficulty data and not in here.
   const dial = (ctx, x, y, width, label, shown, value, [low, high], s) => {
     const along = high === low ? 1 : (value - low) / (high - low);
-    ctx.font = face(17, s);
+    // A label and its value share one line, so they are sized against the pair.
+    ctx.font = face(fitted(ctx, `${label}  ${shown}`, 17, width, s), s);
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = SEMANTIC.quiet.ink;
     ctx.fillText(label, x, y);
@@ -612,7 +633,7 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
 
         const rest = panel.width - span - pad * 3;
         const colX = panel.x + pad * 2 + span;
-        const colW = Math.round(rest * 0.46);
+        const colW = Math.round(rest * 0.54);
         const dialsX = colX + colW + pad;
         const dialsW = panel.x + panel.width - pad - dialsX;
 
@@ -631,11 +652,12 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
         ctx.fillStyle = SEMANTIC.quiet.loud;
         ctx.fillText('FIND', colX, y);
         y += 20;
-        y += slab(ctx, colX, y, round.target.toUpperCase(), SEMANTIC.target, 30, s) + 10;
+        y += slab(ctx, colX, y, round.target.toUpperCase(), SEMANTIC.target, 30, s,
+                  0, colW) + 10;
         y += slab(ctx, colX, y, countText(round), countRole(round),
-                  countSize(round), s, colW) + 8;
+                  countSize(round), s, colW, colW) + 8;
         slab(ctx, colX, y, `MISSES ${round.misses}`,
-             round.misses ? SEMANTIC.miss : SEMANTIC.quiet, 22, s, colW);
+             round.misses ? SEMANTIC.miss : SEMANTIC.quiet, 22, s, colW, colW);
 
         const rows = dialsOf(level);
         const step = Math.min(40, (panel.height - pad * 2) / rows.length);
