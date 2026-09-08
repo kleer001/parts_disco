@@ -248,6 +248,19 @@ With seams included the two drawings agree: pixels present in the bake and absen
 the live render fall from 3,353 to 270, and what is left is line weight rather than
 missing lines.
 
+**Every car needs a depth of its own.** An orthographic camera does not care how far
+away a car is: depth changes neither where it lands on screen nor how big it is. The
+only thing it decides is who is in front. Give every car the same depth range -- which
+is what happens if depth comes from the model and not from the car -- and two
+overlapping cars interleave, a bumper coming through a roof rather than one car
+standing behind the other. It costs 9.1% of the ink on a board of thirty, and every
+wrong pixel is at an overlap, which at the burial this game wants is exactly where the
+player is looking.
+
+The fix needs no search. Because absolute depth is free, hand each car a slab as wide
+as a model's longest axis and shuffle which slab it gets. Non-interpenetrating by
+construction, in one pass, with the randomness deciding only the ordering.
+
 **Line shimmer is real, and it is not a WebGL problem.** Nudging the board a fraction
 of a pixel and counting the ink that changes: a quarter-pixel move relocates 28% of
 the ink, half a pixel 54%, a whole pixel effectively all of it. Total ink barely

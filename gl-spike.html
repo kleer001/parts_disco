@@ -48,9 +48,10 @@ import { mulberry32 } from '/src/rng.js';
 const SIZE = 800;
 const PAPER = [0xf4 / 255, 0xf1 / 255, 0xea / 255];
 const INK = [0x1a / 255, 0x1a / 255, 0x1a / 255];
-// Models are normalised to a 2-unit longest axis, so nothing reaches past this in
-// view space. Depth is mapped through it rather than through a near/far plane.
-const DEPTH_RANGE = 4.0;
+// A normalised model's longest axis is 2, so it never reaches further than this from
+// its own centre however it is turned. Standing each car this far behind the last
+// gives every one of them a slab of depth to itself.
+const SLAB = 2.0;
 
 const canvas = document.getElementById('gl');
 // No antialiasing, and not for speed: a smoothed edge is a grey pixel, and a board
@@ -64,12 +65,13 @@ const meshes = await Promise.all(
 
 const VERT = `#version 300 es
 in vec3 aPos;
-in vec2 iPos;      // where the car sits on the field, in pixels
+in vec3 iPos;      // xy where the car sits in pixels, z which slab it stands in
 in float iScale;   // pixels per model unit
 in float iAngle;   // turn about the model's own vertical
 
 uniform vec2 uField;
 uniform float uElev;
+uniform float uDepth;
 
 void main() {
   // The camera never moves, so a car's heading is a number rather than a matrix:
@@ -83,8 +85,8 @@ void main() {
   float ce = cos(uElev), se = sin(uElev);
   vec3 v = vec3(p.x, p.y * ce - p.z * se, p.y * se + p.z * ce);
 
-  vec2 px = iPos + vec2(v.x, -v.y) * iScale;
-  gl_Position = vec4(px / uField * 2.0 - 1.0, -v.z / ${DEPTH_RANGE.toFixed(1)}, 1.0);
+  vec2 px = iPos.xy + vec2(v.x, -v.y) * iScale;
+  gl_Position = vec4(px / uField * 2.0 - 1.0, (iPos.z - v.z) / uDepth, 1.0);
   gl_Position.y = -gl_Position.y;
 }`;
 
@@ -93,12 +95,13 @@ in vec3 aPos;
 in vec3 aNormA;    // the two faces this edge divides
 in vec3 aNormB;
 in float aCrease;  // 1 where the fold is sharp from every angle
-in vec2 iPos;
+in vec3 iPos;
 in float iScale;
 in float iAngle;
 
 uniform vec2 uField;
 uniform float uElev;
+uniform float uDepth;
 
 vec3 place(vec3 p, float c, float s, float ce, float se) {
   vec3 turned = vec3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c);
@@ -124,8 +127,8 @@ void main() {
   }
 
   vec3 v = place(aPos, c, s, ce, se);
-  vec2 px = iPos + vec2(v.x, -v.y) * iScale;
-  gl_Position = vec4(px / uField * 2.0 - 1.0, -v.z / ${DEPTH_RANGE.toFixed(1)}, 1.0);
+  vec2 px = iPos.xy + vec2(v.x, -v.y) * iScale;
+  gl_Position = vec4(px / uField * 2.0 - 1.0, (iPos.z - v.z) / uDepth, 1.0);
   gl_Position.y = -gl_Position.y;
 }`;
 
@@ -164,6 +167,7 @@ function link(vertexSource) {
     iAngle: gl.getAttribLocation(program, 'iAngle'),
     field: gl.getUniformLocation(program, 'uField'),
     elev: gl.getUniformLocation(program, 'uElev'),
+    depth: gl.getUniformLocation(program, 'uDepth'),
     color: gl.getUniformLocation(program, 'uColor'),
   };
 }
@@ -171,9 +175,9 @@ function link(vertexSource) {
 const solid = link(VERT);
 const lines = link(LINE_VERT);
 
-// Per instance: two floats of position, one of scale, one of heading. Sixteen bytes
+// Per instance: three floats of position, one of scale, one of heading. Twenty bytes
 // a car, which is why the count on the board costs nothing.
-const STRIDE = 4 * 4;
+const STRIDE = 5 * 4;
 
 /** Static attribute on the currently bound VAO. */
 function attach(where, values, size) {
@@ -190,7 +194,7 @@ function attach(where, values, size) {
 function attachInstances(prog, buffer) {
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   for (const [where, size, offset] of
-       [[prog.iPos, 2, 0], [prog.iScale, 1, 8], [prog.iAngle, 1, 12]]) {
+       [[prog.iPos, 3, 0], [prog.iScale, 1, 12], [prog.iAngle, 1, 16]]) {
     gl.enableVertexAttribArray(where);
     gl.vertexAttribPointer(where, size, gl.FLOAT, false, STRIDE, offset);
     gl.vertexAttribDivisor(where, 1);
@@ -255,6 +259,21 @@ function deal(count) {
       angle: rand() * Math.PI * 2, spin: (rand() - 0.5),
     });
   }
+
+  // One slab of depth each, handed out in a shuffled order. An orthographic camera
+  // does not care how far away a car is -- it changes neither where the car lands nor
+  // how big it is -- so the only thing depth decides here is who is in front. Sharing
+  // a slab is what lets two cars interleave, a bumper coming through a roof instead
+  // of one car simply standing behind the other.
+  const slots = [];
+  for (let i = 0; i < count; i++) slots.push(i);
+  for (let i = slots.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [slots[i], slots[j]] = [slots[j], slots[i]];
+  }
+  let next = 0;
+  for (const cars of fleet) for (const car of cars) car.depth = slots[next++] * SLAB;
+
   fleetSize = count;
 }
 
@@ -288,12 +307,13 @@ function draw(now) {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
   const radians = (elev * Math.PI) / 180;
+  const depthRange = count * SLAB + SLAB;
 
   models.forEach((model, m) => {
     const cars = fleet[m];
     if (!cars.length) return;
 
-    if (buffers[m].length !== cars.length * 4) buffers[m] = new Float32Array(cars.length * 4);
+    if (buffers[m].length !== cars.length * 5) buffers[m] = new Float32Array(cars.length * 5);
     const data = buffers[m];
     cars.forEach((car, i) => {
       if (running) {
@@ -307,10 +327,11 @@ function draw(now) {
         if (car.y > SIZE + scale) car.y = -scale;
         car.angle += car.spin * spin * dt;
       }
-      data[i * 4] = car.x;
-      data[i * 4 + 1] = car.y;
-      data[i * 4 + 2] = scale;
-      data[i * 4 + 3] = car.angle;
+      data[i * 5] = car.x;
+      data[i * 5 + 1] = car.y;
+      data[i * 5 + 2] = car.depth;
+      data[i * 5 + 3] = scale;
+      data[i * 5 + 4] = car.angle;
     });
 
     gl.bindBuffer(gl.ARRAY_BUFFER, model.instances);
@@ -322,6 +343,7 @@ function draw(now) {
     gl.useProgram(solid.program);
     gl.uniform2f(solid.field, SIZE, SIZE);
     gl.uniform1f(solid.elev, radians);
+    gl.uniform1f(solid.depth, depthRange);
     gl.uniform3f(solid.color, ...PAPER);
     gl.bindVertexArray(model.solidVao);
     gl.enable(gl.POLYGON_OFFSET_FILL);
@@ -333,6 +355,7 @@ function draw(now) {
     gl.useProgram(lines.program);
     gl.uniform2f(lines.field, SIZE, SIZE);
     gl.uniform1f(lines.elev, radians);
+    gl.uniform1f(lines.depth, depthRange);
     gl.uniform3f(lines.color, ...INK);
     gl.bindVertexArray(model.lineVao);
     gl.drawArraysInstanced(gl.LINES, 0, model.lineVerts, cars.length);
@@ -427,7 +450,7 @@ window.showOne = (name, azimuthDeg) => {
   fleet = models.map(() => []);
   fleet[index].push({
     x: SIZE / 2, y: SIZE / 2, vx: 0, vy: 0,
-    angle: (azimuthDeg * Math.PI) / 180, spin: 0,
+    angle: (azimuthDeg * Math.PI) / 180, spin: 0, depth: 0,
   });
   draw(performance.now());
   gl.finish();
