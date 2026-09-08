@@ -545,6 +545,34 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
      [range.inks[1], range.inks[0]]],
   ];
 
+  /**
+   * The asked-for vehicle, with its dither averaged back into greys.
+   *
+   * The renders are one bit deep: every grey in them is a halftone, not a value. Ask
+   * a canvas to scale that by anything other than a whole number and the dot grid
+   * beats against the pixel grid, which is what puts white diamonds across the
+   * render. Halving is the exception -- it averages an exact two-by-two block -- so
+   * the picture is halved down until the dots have become greys, and only then
+   * scaled to the size the card wants.
+   */
+  const GREY_AT = 128;
+  const flatten = (prompt) => {
+    let from = prompt;
+    let size = prompt.naturalWidth;
+    while (size > GREY_AT) {
+      size = Math.max(GREY_AT, Math.round(size / 2));
+      const half = document.createElement('canvas');
+      half.width = size;
+      half.height = size;
+      const c = half.getContext('2d');
+      c.imageSmoothingEnabled = true;
+      c.imageSmoothingQuality = 'high';
+      c.drawImage(from, 0, 0, size, size);
+      from = half;
+    }
+    return from;
+  };
+
   // The card is the same picture every frame: a shadow, a rounded white ground and a
   // resampled render. Only where it sits changes. Baked once a level, because
   // shadowBlur is among the slowest things a canvas does and this one was paying it
@@ -568,12 +596,9 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
     c.strokeStyle = palette.rule;
     c.lineWidth = 1;
     c.stroke();
-    // Smoothed, against every instinct about a one-bit picture. The render is a
-    // halftone, and point-sampling a halftone at half its size beats it against the
-    // pixel grid and returns a chequerboard. Averaging it back is what recovers the
-    // greys the dither was standing in for.
     c.imageSmoothingEnabled = true;
-    c.drawImage(prompt, 6, 6, span - 12, span - 12);
+    c.imageSmoothingQuality = 'high';
+    c.drawImage(flatten(prompt), 6, 6, span - 12, span - 12);
   };
 
   /** The card, drawn centred on a point and flinching. */
