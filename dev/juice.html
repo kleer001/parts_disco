@@ -1,0 +1,457 @@
+<meta charset="utf-8">
+<title>parts disco — juice sandbox</title>
+<style>
+@font-face {
+  font-family: VT323;
+  src: url("../assets/fonts/vt323-latin.woff2") format("woff2");
+  font-display: block;
+}
+:root{--paper:#E7E2D8;--panel:#F4F2ED;--sunk:#DCD7CB;--ink1:#1A1A1A;--ink2:#54514A;
+      --ink3:#8A857A;--rule:#C6C0B2}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink1);
+     font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px}
+.wrap{max-width:1560px;margin:0 auto;padding:26px 22px 70px}
+header{border-bottom:2px solid var(--ink1);padding-bottom:18px;margin-bottom:20px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.17em;text-transform:uppercase;
+         color:var(--ink3)}
+h1{font-family:VT323,ui-monospace,monospace;font-size:44px;font-weight:400;
+   letter-spacing:.01em;margin:6px 0 0;line-height:1}
+.lede{margin:10px 0 0;max-width:78ch;color:var(--ink2);line-height:1.55}
+h2{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+   margin:0 0 10px;color:var(--ink1)}
+.cols{display:grid;grid-template-columns:246px minmax(0,1fr) 236px;gap:18px;
+      align-items:start}
+@media (max-width:1320px){.cols{grid-template-columns:246px minmax(0,1fr)}}
+@media (max-width:900px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--rule);padding:14px 13px;
+       margin-bottom:14px}
+.row{display:grid;grid-template-columns:82px 1fr 46px;align-items:center;gap:7px;
+     margin-bottom:6px}
+.row label{font-size:11px;color:var(--ink2)}
+.row output{font-size:10.5px;text-align:right;font-variant-numeric:tabular-nums;
+            color:var(--ink2)}
+.row input[type=range]{width:100%}
+.grp{margin-bottom:16px}.grp:last-child{margin-bottom:0}
+.check{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink2);
+       margin:8px 0}
+button{font:inherit;font-size:11px;padding:5px 9px;background:#fff;
+       border:1px solid var(--rule);border-radius:3px;cursor:pointer}
+button:hover{border-color:var(--ink1)}
+button.on{background:var(--ink1);color:var(--paper);border-color:var(--ink1)}
+.bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.stage{background:var(--sunk);border:1px solid var(--rule);padding:16px;
+       display:flex;flex-direction:column;align-items:center;gap:11px}
+canvas{display:block;max-width:100%;height:auto;cursor:crosshair;
+       box-shadow:0 1px 4px rgba(0,0,0,.25)}
+pre{background:var(--sunk);border:1px solid var(--rule);padding:10px;
+    font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:10px;
+    line-height:1.55;overflow-x:auto;margin:0;max-height:270px}
+.hint{font-size:11px;color:var(--ink3);margin:7px 0 0;line-height:1.5}
+.readout{font-family:VT323,ui-monospace,monospace;font-size:16px;
+         color:var(--ink2);text-align:center;letter-spacing:.02em}
+.swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:4px}
+.sw{border:1px solid var(--rule);border-radius:3px;overflow:hidden;text-align:center;
+    font-size:9px;line-height:1.35}
+.sw .loud{height:22px}
+.sw .name{padding:2px 0;font-weight:700}
+.export{background:var(--panel);border:1px solid var(--rule);padding:15px 14px;
+        margin-top:18px}
+.export textarea{width:100%;height:340px;resize:vertical;background:var(--sunk);
+  border:1px solid var(--rule);padding:11px;font-family:ui-monospace,SFMono-Regular,
+  Consolas,monospace;font-size:11.5px;line-height:1.55;color:var(--ink1)}
+#copied{color:var(--ink2)}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">parts disco · dev</span>
+  <h1>Juice sandbox</h1>
+  <p class="lede">
+    A real board, dealt by <code>src/board.js</code> and coloured by
+    <code>src/paint.js</code>. Click a vehicle to find one. Every effect on the right
+    of this page draws <em>over</em> the board or replaces the panel, so the still-board
+    hold in <code>src/layers.js</code> keeps its blit. Every layer here is the game's
+    own, handed a live settings function instead of the tuning it reads on its own —
+    <code>src/juice.js</code> holds both. <strong>shipped</strong> is what the game is
+    running now; the block at the foot of this page is what would replace it.
+  </p>
+</header>
+
+<div class="cols">
+  <div>
+    <div class="panel">
+      <div class="grp">
+        <h2>Find pulse</h2>
+        <div class="row"><label for="pulseMs">length ms</label><input type="range" id="pulseMs" min="120" max="1200" step="20"><output id="pulseMs-o"></output></div>
+        <div class="row"><label for="pulseGrow">grow</label><input type="range" id="pulseGrow" min="1" max="1.6" step="0.01"><output id="pulseGrow-o"></output></div>
+        <div class="row"><label for="pulseShrink">shrink</label><input type="range" id="pulseShrink" min="0.7" max="1" step="0.01"><output id="pulseShrink-o"></output></div>
+        <div class="row"><label for="pulseShake">shake px</label><input type="range" id="pulseShake" min="0" max="14" step="0.2"><output id="pulseShake-o"></output></div>
+        <div class="row"><label for="pulseShakeHz">shake hz</label><input type="range" id="pulseShakeHz" min="4" max="60" step="1"><output id="pulseShakeHz-o"></output></div>
+        <div class="row"><label for="strobes">strobes</label><input type="range" id="strobes" min="0" max="14" step="1"><output id="strobes-o"></output></div>
+        <label class="check"><input type="checkbox" id="strobeMode"> strobe the ink rainbow, not the green</label>
+      </div>
+      <div class="grp">
+        <h2>Escalation</h2>
+        <div class="row"><label for="rampTo">last is ×</label><input type="range" id="rampTo" min="1" max="3.5" step="0.05"><output id="rampTo-o"></output></div>
+        <div class="row"><label for="rampCap">cap at find</label><input type="range" id="rampCap" min="1" max="14" step="1"><output id="rampCap-o"></output></div>
+        <p class="hint">The cap decides where more stops reading as more.</p>
+      </div>
+      <div class="grp">
+        <h2>Hit stop</h2>
+        <div class="row"><label for="hitStopMs">hold ms</label><input type="range" id="hitStopMs" min="0" max="300" step="5"><output id="hitStopMs-o"></output></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="grp">
+        <h2>The card</h2>
+        <div class="row"><label for="cardShake">shake px</label><input type="range" id="cardShake" min="0" max="20" step="0.5"><output id="cardShake-o"></output></div>
+        <div class="row"><label for="cardShakeLast">last one px</label><input type="range" id="cardShakeLast" min="0" max="50" step="1"><output id="cardShakeLast-o"></output></div>
+        <div class="row"><label for="cardTiltMax">max tilt &deg;</label><input type="range" id="cardTiltMax" min="0" max="20" step="0.2"><output id="cardTiltMax-o"></output></div>
+        <div class="row"><label for="cardShakeHz">frequency hz</label><input type="range" id="cardShakeHz" min="2" max="60" step="1"><output id="cardShakeHz-o"></output></div>
+        <div class="row"><label for="cardDecay">decay</label><input type="range" id="cardDecay" min="0.3" max="6" step="0.1"><output id="cardDecay-o"></output></div>
+        <div class="row"><label for="cardShakeMs">total ms</label><input type="range" id="cardShakeMs" min="80" max="1600" step="20"><output id="cardShakeMs-o"></output></div>
+        <div class="row"><label for="cardShadow">shadow y</label><input type="range" id="cardShadow" min="0" max="24" step="1"><output id="cardShadow-o"></output></div>
+        <div class="row"><label for="cardBlur">shadow blur</label><input type="range" id="cardBlur" min="0" max="40" step="1"><output id="cardBlur-o"></output></div>
+        <p class="hint">The card hangs straight at rest. Max tilt is the angle the
+        find that ends a round reaches; every other find gets the share its own
+        amplitude asks for. Decay 1 is a straight fade, higher snaps back sooner.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="screen" width="1100" height="800"></canvas>
+    <div class="bar">
+      <button type="button" id="findOne">find one</button>
+      <button type="button" id="findAllBut">leave one</button>
+      <button type="button" id="winIt">win it</button>
+      <button type="button" id="redeal">redeal</button>
+      <button type="button" id="prevStage">◀ stage</button>
+      <button type="button" id="nextStage">stage ▶</button>
+      <button type="button" id="slowmo">¼ speed</button>
+      <button type="button" id="shipped">panel at shipped values</button>
+    </div>
+    <div class="readout" id="readout"></div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <div class="grp">
+        <h2>The ground</h2>
+        <div class="row"><label for="gridCellFirst">cell at 1:1</label><input type="range" id="gridCellFirst" min="10" max="140" step="1"><output id="gridCellFirst-o"></output></div>
+        <div class="row"><label for="gridCellLast">cell at 4:4</label><input type="range" id="gridCellLast" min="2" max="60" step="1"><output id="gridCellLast-o"></output></div>
+        <div class="row"><label for="gridCellCurve">curve</label><input type="range" id="gridCellCurve" min="0.3" max="3" step="0.05"><output id="gridCellCurve-o"></output></div>
+        <div class="row"><label for="gridAlpha">rule</label><input type="range" id="gridAlpha" min="0" max="0.5" step="0.005"><output id="gridAlpha-o"></output></div>
+        <div class="row"><label for="gridNoise">noise</label><input type="range" id="gridNoise" min="0" max="0.4" step="0.005"><output id="gridNoise-o"></output></div>
+        <div class="row"><label for="gridNoiseScale">grain px</label><input type="range" id="gridNoiseScale" min="1" max="6" step="1"><output id="gridNoiseScale-o"></output></div>
+        <label class="check"><input type="checkbox" id="gridGroundOnly"> ground only, not the vehicles</label>
+        <p class="hint">The cell tightens across the sixteen stages, geometrically:
+        an even ratio per stage is what reads as an even tightening. Curve 1 is that
+        ratio; above 1 holds the wide cell longer.</p>
+      </div>
+      <div class="grp">
+        <h2>Wells</h2>
+        <div class="row"><label for="recess">board px</label><input type="range" id="recess" min="0" max="40" step="1"><output id="recess-o"></output></div>
+        <div class="row"><label for="recessAlpha">board dark</label><input type="range" id="recessAlpha" min="0" max="0.7" step="0.01"><output id="recessAlpha-o"></output></div>
+        <div class="row"><label for="panelRecess">panel px</label><input type="range" id="panelRecess" min="0" max="20" step="1"><output id="panelRecess-o"></output></div>
+      </div>
+      <div class="grp">
+        <h2>Type and slabs</h2>
+        <div class="row"><label for="typeScale">type ×</label><input type="range" id="typeScale" min="0.7" max="1.6" step="0.02"><output id="typeScale-o"></output></div>
+        <div class="row"><label for="slabRadius">radius</label><input type="range" id="slabRadius" min="0" max="16" step="1"><output id="slabRadius-o"></output></div>
+        <div class="row"><label for="slabPad">pad</label><input type="range" id="slabPad" min="2" max="18" step="1"><output id="slabPad-o"></output></div>
+      </div>
+      <div class="grp">
+        <h2>Presets</h2>
+        <div class="bar">
+          <button type="button" data-preset="shipped">shipped</button>
+          <button type="button" data-preset="off">all off</button>
+          <button type="button" data-preset="subtle">subtle</button>
+          <button type="button" data-preset="loud">loud</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Semantic ramp</h2>
+      <div class="swatches" id="swatches"></div>
+      <p class="hint">Lightness carries the valence, hue confirms it. Solved so
+      <strong>found</strong> and <strong>miss</strong> stay 0.231 apart in OKLab under
+      simulated deuteranopia — an equal-lightness ramp put them at 0.021.</p>
+    </div>
+
+  </div>
+</div>
+
+<section class="export">
+  <div class="bar" style="justify-content:space-between;margin-bottom:9px">
+    <h2 style="margin:0">Settings — copy this out</h2>
+    <div class="bar">
+      <button type="button" id="copy">copy JSON</button>
+      <button type="button" id="selectAll">select all</button>
+    </div>
+  </div>
+  <p class="hint" style="margin:0 0 9px">
+    Every knob on this page, as the block the game would be handed. It updates as you
+    drag. <code id="copied"></code>
+  </p>
+  <textarea id="dump" readonly spellcheck="false"></textarea>
+</section>
+</div>
+
+<script type="module">
+import { createCompositor } from '../src/compositor.js';
+import { loadViews, proxyOf } from '../src/views.js';
+import { deal, layout } from '../src/board.js';
+import { createRound } from '../src/game.js';
+import { stageAt, RANGE, PATH } from '../src/levels.js';
+import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
+         createRecessLayer, createPanelLayer, stampRegions, settledInk, INKS,
+         rgbOf } from '../src/layers.js';
+import { planBoard } from '../src/paint.js';
+import { TUNING, SEMANTIC, createClock, gridCellAt } from '../src/juice.js';
+
+const PANEL_WIDTH = 300;
+const KEYS = Object.keys(TUNING).filter((k) => typeof TUNING[k] === 'number');
+const FLAGS = ['gridGroundOnly'];
+
+// `shipped` is what src/juice.js holds now, so the page always opens on what the
+// game is doing. The others are places to compare it against.
+const PRESETS = {
+  shipped: { ...TUNING },
+  off: { ...TUNING, pulseGrow: 1, pulseShrink: 1, pulseShake: 0, strobes: 0,
+         rampTo: 1, hitStopMs: 0, cardShake: 0, cardShakeLast: 0,
+         cardShadow: 0, cardBlur: 0, cardTiltMax: 0, gridAlpha: 0, gridNoise: 0,
+         recess: 0, panelRecess: 0 },
+  subtle: { ...TUNING, pulseGrow: 1.06, pulseShrink: 0.98, pulseShake: 1.2,
+            strobes: 3, rampTo: 1.35, hitStopMs: 40, cardShake: 2,
+            cardShakeLast: 7, cardTiltMax: 1.6, cardDecay: 2.6, cardShadow: 4,
+            cardBlur: 9, gridAlpha: 0.05, gridNoise: 0.03, recess: 5,
+            recessAlpha: 0.2 },
+  loud: { ...TUNING, pulseGrow: 1.3, pulseShrink: 0.86, pulseShake: 7,
+          pulseShakeHz: 34, strobes: 9, rampTo: 2.6, hitStopMs: 130,
+          cardShake: 9, cardShakeLast: 34, cardTiltMax: 9, cardShakeHz: 26,
+          cardDecay: 1.4, cardShakeMs: 520, cardShadow: 11, cardBlur: 22,
+          gridAlpha: 0.14, gridNoise: 0.1, recess: 16, recessAlpha: 0.45,
+          panelRecess: 9 },
+};
+
+const state = { ...TUNING };
+const settings = () => state;
+
+/* ---- the swatch strip ----------------------------------------------------- */
+document.getElementById('swatches').innerHTML = Object.entries(SEMANTIC)
+  .map(([name, r]) => `<div class="sw">
+      <div class="loud" style="background:${r.loud}"></div>
+      <div class="name" style="background:${r.tint};color:${r.ink}">${name}</div>
+    </div>`).join('');
+
+/* ---- the board ------------------------------------------------------------ */
+const canvas = document.getElementById('screen');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const field = { width: canvas.width - PANEL_WIDTH, height: canvas.height };
+
+await document.fonts.load('16px VT323');
+const views = await loadViews('../assets/views');
+const viewOf = (slot) => views.view(slot.model, slot.angle);
+
+const proxies = new Map();
+const proxyFor = (slot) => {
+  const at = `${slot.model}/${slot.angle}`;
+  if (!proxies.has(at)) proxies.set(at, proxyOf(viewOf(slot)));
+  return proxies.get(at);
+};
+
+const scratch = document.createElement('canvas');
+scratch.width = field.width;
+scratch.height = field.height;
+const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
+const held = document.createElement('canvas');
+held.width = field.width;
+held.height = field.height;
+
+let seed = 1983;
+let depth = 0;
+let level, round, span, prompt, standing, plan, shades;
+
+const replan = (cars) => {
+  standing = cars;
+  stampRegions(scratchCtx, standing, span, viewOf, field.width, field.height);
+  const px = scratchCtx.getImageData(0, 0, field.width, field.height).data;
+  plan = planBoard(px, field.width, field.height, standing.length, level.inks,
+                   settledInk);
+};
+
+const nextLevel = () => {
+  level = stageAt(depth);
+  span = field.height * level.size;
+  const { placed, target, askedAt } = deal(seed + depth, level, views);
+  round = createRound(layout(placed, seed + depth, span, field, proxyFor),
+                      target, viewOf);
+  prompt = new Image();
+  prompt.src = views.promptFor(target, askedAt ?? views.anglesOf(target)[0]);
+  shades = INKS.slice(0, level.inks).map(rgbOf);
+  replan(round.anchors);
+};
+nextLevel();
+
+/* ---- layers --------------------------------------------------------------- */
+// Every layer is the game's own, handed a live settings function instead of the
+// tuning it would read on its own.
+const tuned = createPanelLayer(RANGE, settings);
+const asShipped = createPanelLayer(RANGE);
+let useShipped = false;
+
+const scene = createCompositor()
+  .add(createPaperLayer())
+  .add(createBoardLayer(viewOf, held))
+  .add(createGridLayer(settings))
+  .add(createFindLayer(viewOf, settings))
+  .add(createRecessLayer(settings))
+  .add({ name: 'panel', draw: (c, f) => (useShipped ? asShipped : tuned).draw(c, f) });
+
+/* ---- the clock ------------------------------------------------------------ */
+const clock = createClock();
+let rate = 1;
+
+// Slow motion scales the step, never the reading. Scaling the reading would move
+// every past timestamp the moment the rate changed, and every effect in flight
+// would jump.
+let scaled = 0;
+let realLast = null;
+const scaledNow = (now) => {
+  if (realLast === null) realLast = now;
+  scaled += (now - realLast) * rate;
+  realLast = now;
+  return scaled;
+};
+
+canvas.addEventListener('pointerdown', (event) => {
+  const box = canvas.getBoundingClientRect();
+  const point = [
+    ((event.clientX - box.left) / box.width) * canvas.width,
+    ((event.clientY - box.top) / box.height) * canvas.height,
+  ];
+  if (point[0] > field.width) return;
+  const at = clock.tick(scaled);
+  const { outcome } = round.choose(point, span, at);
+  if (outcome === 'found') clock.freeze(scaled, state.hitStopMs);
+});
+
+const readout = document.getElementById('readout');
+let lastPaint = 0;
+
+const frame = (now) => {
+  const at = clock.tick(scaledNow(now));
+  if (round.done(at)) { depth++; nextLevel(); }
+  if (round.wonAt !== null && standing.length === round.anchors.length) {
+    replan(round.anchors.filter((_, i) => round.found.has(i)));
+  }
+  const t0 = performance.now();
+  scene.render(ctx, {
+    width: field.width, height: field.height, panelWidth: PANEL_WIDTH,
+    standing, plan, shades, span, round, level, prompt, at,
+  });
+  lastPaint = lastPaint * 0.9 + (performance.now() - t0) * 0.1;
+  readout.textContent =
+    `stage ${level.level}:${level.stage} · ${level.cars} vehicles · ${level.inks} inks`
+    + ` · found ${round.found.size}/${round.total} · misses ${round.misses}`
+    + ` · cell ${gridCellAt(level.along, state).toFixed(1)}px`
+    + ` · paint ${lastPaint.toFixed(2)}ms`;
+  requestAnimationFrame(frame);
+};
+requestAnimationFrame(frame);
+
+/* ---- controls -------------------------------------------------------------- */
+const bind = (key) => {
+  const el = document.getElementById(key);
+  const out = document.getElementById(`${key}-o`);
+  if (!el) return;
+  if (el.type === 'checkbox') {
+    el.addEventListener('change', () => { state[key] = el.checked; dump(); });
+    return;
+  }
+  el.addEventListener('input', () => {
+    state[key] = parseFloat(el.value);
+    if (out) out.textContent = el.value;
+    dump();
+  });
+};
+KEYS.forEach(bind);
+FLAGS.forEach(bind);
+document.getElementById('strobeMode').addEventListener('change', (e) => {
+  state.strobeMode = e.target.checked ? 'inks' : 'semantic';
+  dump();
+});
+
+const show = () => {
+  for (const key of KEYS) {
+    const el = document.getElementById(key);
+    const out = document.getElementById(`${key}-o`);
+    if (!el) continue;
+    el.value = state[key];
+    if (out) out.textContent = String(state[key]);
+  }
+  for (const key of FLAGS) {
+    const el = document.getElementById(key);
+    if (el) el.checked = !!state[key];
+  }
+  document.getElementById('strobeMode').checked = state.strobeMode === 'inks';
+  dump();
+};
+
+const dumpEl = document.getElementById('dump');
+function dump() { dumpEl.value = JSON.stringify(state, null, 2); }
+
+for (const button of document.querySelectorAll('[data-preset]')) {
+  button.addEventListener('click', () => {
+    Object.assign(state, PRESETS[button.dataset.preset]);
+    show();
+  });
+}
+const copied = document.getElementById('copied');
+document.getElementById('copy').addEventListener('click', () => {
+  navigator.clipboard.writeText(dumpEl.value);
+  copied.textContent = 'copied';
+  setTimeout(() => { copied.textContent = ''; }, 1400);
+});
+document.getElementById('selectAll').addEventListener('click', () => {
+  dumpEl.focus();
+  dumpEl.select();
+});
+
+// Finding one by hand every time makes a slider unusable, so the round can be driven
+// from here: one more, all but one, or the whole thing.
+const find = (howMany) => {
+  const at = clock.tick(scaled);
+  const wanted = round.anchors
+    .map((anchor, i) => i)
+    .filter((i) => round.anchors[i].slot.model === round.target && !round.found.has(i));
+  for (const i of wanted.slice(0, howMany)) round.found.set(i, at);
+  if (!round.left()) round.wonAt = at;
+  clock.freeze(scaled, state.hitStopMs);
+};
+document.getElementById('findOne').addEventListener('click', () => find(1));
+document.getElementById('findAllBut')
+  .addEventListener('click', () => find(round.left() - 1));
+document.getElementById('winIt').addEventListener('click', () => find(round.left()));
+document.getElementById('redeal').addEventListener('click', () => { seed += 7; nextLevel(); });
+document.getElementById('prevStage').addEventListener('click', () => {
+  depth = Math.max(0, depth - 1); nextLevel();
+});
+document.getElementById('nextStage').addEventListener('click', () => {
+  depth = Math.min(PATH.length - 1, depth + 1); nextLevel();
+});
+document.getElementById('slowmo').addEventListener('click', (e) => {
+  rate = rate === 1 ? 0.25 : 1;
+  e.target.classList.toggle('on', rate !== 1);
+});
+document.getElementById('shipped').addEventListener('click', (e) => {
+  useShipped = !useShipped;
+  e.target.classList.toggle('on', useShipped);
+});
+
+show();
+</script>
