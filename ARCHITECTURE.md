@@ -1,5 +1,26 @@
 # How parts disco fits together
 
+Developer notes. If you came to play it, the game is at
+[kleer001.github.io/parts_disco](https://kleer001.github.io/parts_disco/).
+
+## Running it
+
+No build step and no dependencies. Clone it and serve the folder.
+
+```sh
+./run.sh          # serves http://localhost:8000
+./run.sh 9000     # pick a port; it scans upward if that one is busy
+npm test          # node --test, no framework
+```
+
+Open the address it prints. Do not double-click `index.html` — ES modules, `fetch`
+and relative paths all behave differently under `file://`.
+
+Every draw in game logic comes from `mulberry32`, so a board reproduces exactly from
+its seed. `dev/README.md` covers the tuning bench.
+
+## The modules
+
 Everything below the renderer is pure: no module but `main.js` touches the DOM, a
 clock or an event, which is what lets the whole board be tested without a browser.
 
@@ -58,12 +79,17 @@ operations directly instead.
 ## The difficulty path
 
 Sixteen stages, four to a level. A level is one idea about what is hard; within a
-level the numbers tighten. Four dials move: which vehicles are in play, how many, how
-big, and how many inks the board may use. `src/levels.js` is the whole of it, and the
-panel shows every dial against its range.
+level the numbers tighten. `src/levels.js` is the whole of it, and the panel shows
+every dial against its range.
 
-Which vehicles matters most by a distance. A tractor is found instantly however many
-cars surround it; a taxi is hard on an empty board.
+| dial | |
+|---|---|
+| **which vehicles** | The strongest by a distance. A tractor is found instantly however many cars surround it; a taxi is hard on an empty board. |
+| **how many** | Ten at the start, a hundred and twenty at the end. More to look at, and more burying each other. |
+| **how big** | Smaller is harder twice over — less of the detail that tells two shells apart, and more of them fitting on the field. |
+| **how many inks** | Five is enough for every two touching regions to differ. Below that they are forced to share, and a vehicle begins to merge into whatever it lies on. |
+
+![The first stage: ten large vehicles, well spaced, six inks.](screens/early.png)
 
 ## The bench
 
@@ -89,6 +115,10 @@ colour-vision figures that justify it.
 
 Both tool sets are offline and Python; nothing they produce ships except the views in
 `assets/`.
+
+## Where this came from
+
+Raised in [Trace ROM Studio](https://github.com/kleer001/trace_rom_studio).
 
 ## What is written down
 
