@@ -39,6 +39,7 @@ fleet with <code>tools/model_views/render_views.py</code> first, then write a
   <label><input id="onebit" type="checkbox" checked> 1-bit</label>
   <label><input id="opaque" type="checkbox"> opaque</label>
   <label><input id="colour" type="checkbox"> colour</label>
+  <label><input id="ground" type="checkbox"> fill gaps</label>
   <label><input id="poisson" type="checkbox"> poisson <span style="color:#888">(sets its own overlap)</span></label>
   <label><input id="reveal" type="checkbox"> show answers</label>
 </div>
@@ -68,6 +69,16 @@ const ANSWER = '#b91c1c';
 // held back from full saturation, because an ink that outshouts the outline turns the
 // drawing into a silhouette. A car takes one at random and keeps no relation to what
 // it is -- two sedans get different inks and a sedan and a taxi may get the same one.
+// How coarsely the bare paper is divided up. Small enough that a cell is not read as
+// a thing in its own right, large enough that the whole board is not a per-pixel
+// search through every car on it.
+const GROUND_CELL = 10;
+
+// How far the ground is pulled back toward paper. The gaps have to be quieter than
+// the cars standing on them or the board turns into a mosaic with vehicles somewhere
+// in it.
+const GROUND_WASH = 0.72;
+
 const INKS = [
   '#c4553d', // vermilion
   '#2f6b6a', // petrol
@@ -363,6 +374,7 @@ function draw() {
   const opaque = control('opaque').checked;
   const poisson = control('poisson').checked;
   const colour = control('colour').checked;
+  const ground = control('ground').checked;
   const reveal = control('reveal').checked;
 
   control('carsOut').textContent = cars;
@@ -413,6 +425,8 @@ function draw() {
     for (const stroke of view.strokes) { path(stroke); ctx.stroke(); }
   };
 
+  if (colour && ground) fillGround(ctx, anchors);
+
   ctx.strokeStyle = INK;
   anchors.forEach(trace);
 
@@ -449,6 +463,43 @@ function draw() {
   d.drawImage(field, 0, 0, 400, 400, 0, 0, 300, 300);
 }
 
+/** Mix an ink toward the paper. 0 is the ink, 1 is bare paper. */
+function wash(hex, amount) {
+  const ink = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const paper = [0xf4, 0xf1, 0xea];
+  const mix = ink.map((v, i) => Math.round(v + (paper[i] - v) * amount));
+  return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+}
+
+/**
+ * Colour the bare paper by which car is nearest it.
+ *
+ * The gaps are not regions the board has, they are the absence of one, so there is
+ * nothing there to colour until something divides it up. Nearest car is the division
+ * that costs nothing to explain: every patch of ground takes the ink of whatever
+ * stands closest to it, which makes the empty space read as the shadow of the layout
+ * rather than as a second pattern competing with it.
+ */
+function fillGround(ctx, anchors) {
+  const washed = anchors.map((a) => wash(a.ink, GROUND_WASH));
+  for (let y = 0; y < SIZE; y += GROUND_CELL) {
+    for (let x = 0; x < SIZE; x += GROUND_CELL) {
+      const cx = x + GROUND_CELL / 2;
+      const cy = y + GROUND_CELL / 2;
+      let best = Infinity;
+      let nearest = 0;
+      for (let i = 0; i < anchors.length; i++) {
+        const dx = cx - anchors[i].cx;
+        const dy = cy - anchors[i].cy;
+        const d = dx * dx + dy * dy;
+        if (d < best) { best = d; nearest = i; }
+      }
+      ctx.fillStyle = washed[nearest];
+      ctx.fillRect(x, y, GROUND_CELL, GROUND_CELL);
+    }
+  }
+}
+
 function threshold(ctx) {
   const image = ctx.getImageData(0, 0, SIZE, SIZE);
   const px = image.data;
@@ -461,7 +512,7 @@ function threshold(ctx) {
   ctx.putImageData(image, 0, 0);
 }
 
-for (const id of ['cars', 'size', 'overlap', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'colour', 'poisson', 'reveal']) {
+for (const id of ['cars', 'size', 'overlap', 'stroke', 'models', 'seed', 'onebit', 'opaque', 'colour', 'ground', 'poisson', 'reveal']) {
   control(id).addEventListener('input', draw);
 }
 draw();
