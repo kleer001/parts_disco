@@ -16,10 +16,6 @@ or out. That is what "make it an actual game" means from here.
 
 ### Parallel
 
-- [ ] #1 Cache the composed board between frames. The layer still repaints all
-  800x800 pixels and restrokes every car every frame; measured 36fps headless. The
-  plan is already cached — what is missing is a snapshot blitted when nothing is
-  animating. Invalidate on: a find, a blink still running, and the win.
 - [ ] #2 Sound. The win was specced as "we'll add winning sounds later"; also wants a
   click, a wrong-click, and a find. No audio module exists yet.
 - [ ] #3 A title screen and an end. The game starts mid-board on load and holds the
@@ -47,7 +43,11 @@ or out. That is what "make it an actual game" means from here.
   of a pixel. Options are pixel-snapping, accepting it, or giving up the hard edge.
 - [ ] #10 Write the new rulings into DECISIONS.md and DECISIONS-JOURNAL.md. Several
   calls were made this session and none are written down: poisson over relaxation,
-  colour as a difficulty dial, ground regions sharing the car palette, the fleet tiers.
+  colour as a difficulty dial, ground regions sharing the car palette, the fleet tiers,
+  and holding the still board.
+- [ ] #11 (needs: #7) If the board animates, turn the held board off, or teach it to
+  hold only the parts that are not moving. HOLD_STILL_BOARDS in main.js is the switch.
+  Drift moves everything, so the hold would miss every frame and cost a copy on top.
 
 ## Context
 
@@ -83,6 +83,19 @@ means dealing more. Nearest-neighbour spread 0.09 against relaxation's 0.24.
 2,548KB baked, and it does not grow when angles are added. Crease edges alone are not
 enough — both adjacent face normals ride on each edge and the vertex shader decides
 contour per frame.
+
+**The board is held between frames, and it adapts per frame.** Nothing moving: blit the
+kept board, ~0.00ms. One car blinking: blit, then repaint only that car's box, 0.17ms.
+The win: repaint everything, 4.70ms, because the ground whitens under all of them at
+once. The kept board always shows found cars already at rest and whatever is blinking is
+painted over it — that separation is what lets a car settle while another still blinks.
+Clipping a stroke to the dirty box saves nothing on its own; skipping cars whose bounds
+miss the box is the part that does.
+
+**Do not trust frames per second measured here.** A headless browser throttles animation
+frames and reported 1fps for a board barely working, and 2fps for the WebGL spike while
+it was submitting in 0.09ms. Time the operations directly instead — `gl.finish()` for
+GL, a loop around the call for canvas.
 
 **Verification habit worth keeping.** Nearly every finding this session came from
 measuring rather than looking: the diff of two renders found the missing UV seams, a
