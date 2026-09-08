@@ -27,7 +27,7 @@ renders.</p>
 
 <div class="note">
   <label>cars <input id="cars" type="range" min="1" max="300" value="70"><span id="carsOut"></span></label>
-  <label>size <input id="size" type="range" min="20" max="200" value="60"><span id="sizeOut"></span></label>
+  <label>size <input id="size" type="range" min="20" max="500" value="60"><span id="sizeOut"></span></label>
   <label>drift <input id="drift" type="range" min="0" max="60" value="14"><span id="driftOut"></span></label>
   <label>spin <input id="spin" type="range" min="0" max="60" value="8"><span id="spinOut"></span></label>
   <label>elevation <input id="elev" type="range" min="0" max="60" value="18"><span id="elevOut"></span></label>
@@ -409,6 +409,29 @@ window.probeShimmer = (nudge = 0.3) => {
     inkBefore, inkAfter,
     churn: +(flipped / Math.max(inkBefore, 1)).toFixed(3),
   };
+};
+
+/**
+ * Put one named model alone in the middle, at a known heading, framed the way
+ * render_views.py frames it -- a 2-unit model in a frame 1.15 times as wide. The
+ * only way to lay this renderer against the baked views and see what it misses.
+ */
+window.showOne = (name, azimuthDeg) => {
+  const index = models.findIndex((m) => m.name === name);
+  if (index < 0) throw new Error(`no model ${name}`); // boundary
+  const control = (id) => document.getElementById(id);
+  control('run').checked = false;
+  control('cars').value = 1;
+  control('size').value = Math.round(SIZE / 2.3);
+  fleetSize = 1;
+  fleet = models.map(() => []);
+  fleet[index].push({
+    x: SIZE / 2, y: SIZE / 2, vx: 0, vy: 0,
+    angle: (azimuthDeg * Math.PI) / 180, spin: 0,
+  });
+  draw(performance.now());
+  gl.finish();
+  return { model: name, azimuth: azimuthDeg };
 };
 
 window.bench = (passes = 60) => {

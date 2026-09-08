@@ -222,6 +222,32 @@ about them. It costs 39,673 edges carried where 5,286 are creases.
 **A screen-space silhouette pass is not needed.** The vertex-shader contour test
 covers what the crease list misses, on faceted models at least.
 
+**Most of the drawing is neither crease nor contour — it is UV seams.** Laid beside
+the baked view of the same vehicle at the same angle, a renderer drawing creases and
+contours produces a car with no windscreen, no side windows, no headlights, no grille,
+no door seam, no tyre tread and no wheel hubs. Every one of those is dead flat: at a
+crease threshold of one degree only 1,482 of the sedan's 3,048 edges qualify, and none
+of the missing ones do.
+
+The kit paints itself from a single palette image, so a windscreen is not a separate
+material and not a fold in the bodywork -- it is a patch of one flat panel pointing at
+a different swatch. glTF has to split the vertices around it to give them their own
+texture coordinates, and that split is the only trace of it left in the geometry.
+Welding, which is necessary before any fold can be read, closes those splits and takes
+the detail with it.
+
+The split cannot be found by position, because both faces sit in the same place and
+agree about the edge. It shows as a **disagreement between index adjacency and
+position adjacency**: by index each face believes it is on an open edge, by position
+they are neighbours. Reading the seams before welding and matching them back by
+position recovers them. It is what most of the ink turns out to be -- for the sedan,
+1,592 seams against 375 creases -- and it is the half that tells one body from another,
+which for four vehicles sharing a shell is the whole game.
+
+With seams included the two drawings agree: pixels present in the bake and absent from
+the live render fall from 3,353 to 270, and what is left is line weight rather than
+missing lines.
+
 **Line shimmer is real, and it is not a WebGL problem.** Nudging the board a fraction
 of a pixel and counting the ink that changes: a quarter-pixel move relocates 28% of
 the ink, half a pixel 54%, a whole pixel effectively all of it. Total ink barely
@@ -238,6 +264,9 @@ or to give up the hard threshold on the lines.
 
 - What polygon offset a low-poly vehicle wants before lines bleed or vanish. The
   spike exposes it as a slider and it has not been swept.
+- Whether seam detection holds up on a model that is not painted from a palette
+  atlas. A model with real materials or real textures splits its vertices along
+  different lines, and may not split them at all.
 - Whether pixel-snapping actually removes the shimmer, or only converts it into
   visible stepping.
 - Whether rotation shimmers worse than translation. Turning resamples the whole

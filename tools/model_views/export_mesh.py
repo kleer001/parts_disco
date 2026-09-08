@@ -39,7 +39,7 @@ def parse_args(argv):
 
 
 def load(path):
-    """Import a glTF, join it to one mesh, and weld the split vertices back together."""
+    """Import a glTF and join it to one mesh. Not yet welded."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=str(path))
 
@@ -51,12 +51,56 @@ def load(path):
     bpy.context.view_layer.objects.active = meshes[0]
     bpy.ops.object.join()
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return bpy.context.view_layer.objects.active
 
+
+def at(vertex):
+    """A vertex's position as a key, so the mesh can be matched to itself after welding."""
+    return tuple(round(v, 5) for v in vertex.co)
+
+
+def seams(mesh):
+    """The edges glTF split the mesh along, keyed by where they are rather than by index.
+
+    These are the lines the vehicle is coloured along. The kit paints itself from one
+    palette image, so a windscreen is not a separate material and not a fold in the
+    bodywork -- it is a patch of the same flat panel pointing at a different swatch,
+    and glTF has to split the vertices around it to give them their own texture
+    coordinates. That split is the only trace of it left in the geometry.
+
+    Welding closes those splits, which is necessary to find real folds and fatal on
+    its own: it takes the windows, headlights, grille and tyre tread with it, and
+    those are most of what tells one body from another.
+    """
+    by_index = {}
+    by_place = {}
+    for face in mesh.polygons:
+        for a, b in face.edge_keys:
+            place = frozenset((at(mesh.vertices[a]), at(mesh.vertices[b])))
+            by_index[(a, b)] = by_index.get((a, b), 0) + 1
+            by_place[place] = by_place.get(place, 0) + 1
+            by_place.setdefault("_", None)
+
+    # The split shows up as a disagreement: two faces meet here in space, but they
+    # do not share the vertices, so by index each of them thinks it is on an open
+    # edge. Where the mesh genuinely ends, both counts are one and there is nothing
+    # to notice -- that case is already handled as a boundary.
+    seams = set()
+    for face in mesh.polygons:
+        for a, b in face.edge_keys:
+            place = frozenset((at(mesh.vertices[a]), at(mesh.vertices[b])))
+            if by_index[(a, b)] == 1 and by_place.get(place, 0) > 1:
+                seams.add(place)
+    return seams
+
+
+def weld(model):
+    """Merge the vertices glTF split, so adjacent faces share edges and folds can be read."""
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
     bpy.ops.mesh.remove_doubles(threshold=WELD)
     bpy.ops.object.mode_set(mode="OBJECT")
-    return bpy.context.view_layer.objects.active
+    return model.data
 
 
 def normalize(model):
@@ -76,7 +120,7 @@ def normalize(model):
     bpy.ops.object.transform_apply(scale=True)
 
 
-def lines(mesh, threshold, positions):
+def lines(mesh, threshold, positions, seamset):
     """Every edge that could ever be drawn, with what the renderer needs to decide.
 
     Two kinds of line make a drawing of a solid, and only one of them is a property
@@ -105,7 +149,12 @@ def lines(mesh, threshold, positions):
         # drawn and its two normals are the same one.
         first = faces[0]
         second = faces[1] if len(faces) == 2 else faces[0]
-        crease = 1.0 if len(faces) == 1 or first.angle(second) > limit else 0.0
+        key = frozenset((at(mesh.vertices[a]), at(mesh.vertices[b])))
+        # Drawn from every angle if the bodywork folds here, if the mesh simply ends
+        # here, or if the paint changes here.
+        crease = 1.0 if (len(faces) == 1
+                         or first.angle(second) > limit
+                         or key in seamset) else 0.0
         for index in (a, b):
             out["positions"] += positions[index * 3:index * 3 + 3]
             out["normalA"] += [round(v, 5) for v in yup(first)]
@@ -123,7 +172,9 @@ def main(argv):
     args = parse_args(argv)
     model = load(args.model)
     normalize(model)
-    mesh = model.data
+    # Read the seams before welding closes them, and match them back by position.
+    seamset = seams(model.data)
+    mesh = weld(model)
     mesh.calc_loop_triangles()
 
     # Converting here keeps the axis swap out of the shader, where it would be
@@ -136,7 +187,7 @@ def main(argv):
     for tri in mesh.loop_triangles:
         triangles += list(tri.vertices)
 
-    edges = lines(mesh, args.crease, positions)
+    edges = lines(mesh, args.crease, positions, seamset)
 
     args.out.mkdir(parents=True, exist_ok=True)
     path = args.out / f"{args.model.stem}.json"
@@ -149,7 +200,7 @@ def main(argv):
     drawn = sum(edges["crease"]) / 2
     print(f"EXPORTED {args.model.stem} verts {len(positions) // 3} "
           f"tris {len(triangles) // 3} edges {len(edges['crease']) // 2} "
-          f"(creases {drawn:.0f}) -> {path}")
+          f"(always-on {drawn:.0f}, of which seams {len(seamset)}) -> {path}")
 
 
 if __name__ == "__main__":
