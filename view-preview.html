@@ -69,16 +69,6 @@ const ANSWER = '#b91c1c';
 // held back from full saturation, because an ink that outshouts the outline turns the
 // drawing into a silhouette. A car takes one at random and keeps no relation to what
 // it is -- two sedans get different inks and a sedan and a taxi may get the same one.
-// How coarsely the bare paper is divided up. Small enough that a cell is not read as
-// a thing in its own right, large enough that the whole board is not a per-pixel
-// search through every car on it.
-const GROUND_CELL = 10;
-
-// How far the ground is pulled back toward paper. The gaps have to be quieter than
-// the cars standing on them or the board turns into a mosaic with vehicles somewhere
-// in it.
-const GROUND_WASH = 0.72;
-
 const INKS = [
   '#c4553d', // vermilion
   '#2f6b6a', // petrol
@@ -425,10 +415,10 @@ function draw() {
     for (const stroke of view.strokes) { path(stroke); ctx.stroke(); }
   };
 
-  if (colour && ground) fillGround(ctx, anchors);
-
   ctx.strokeStyle = INK;
   anchors.forEach(trace);
+
+  if (colour && ground) fillGround(ctx, seed);
 
   // Canvas antialiases every path it draws, so a board of thin outlines lands as a
   // spread of greys. Thresholding afterwards is what makes the drawn board match the
@@ -450,6 +440,7 @@ function draw() {
   control('stat').textContent =
     `${cars} views, ${new Set(placed.map((p) => p.model)).size} models`
     + ` — ${Math.round(burial(anchors, span) * 100)}% of each car buried`
+    + (colour && ground ? ` · ${fillGround.regions} open spaces` : '')
     + (poisson
       ? ` · thrown, which came to ${Math.round((1 - scatter.separation) * 100)}% overlap`
       : ' · settled')
@@ -463,41 +454,77 @@ function draw() {
   d.drawImage(field, 0, 0, 400, 400, 0, 0, 300, 300);
 }
 
-/** Mix an ink toward the paper. 0 is the ink, 1 is bare paper. */
-function wash(hex, amount) {
-  const ink = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  const paper = [0xf4, 0xf1, 0xea];
-  const mix = ink.map((v, i) => Math.round(v + (paper[i] - v) * amount));
-  return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+/** How far a pixel may sit from the paper and still count as bare. */
+const PAPER_TOLERANCE = 20;
+
+const PAPER_RGB = [0xf4, 0xf1, 0xea];
+
+function inkRgb(hex) {
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 }
 
 /**
- * Colour the bare paper by which car is nearest it.
+ * Give every unbroken stretch of bare paper an ink of its own.
  *
- * The gaps are not regions the board has, they are the absence of one, so there is
- * nothing there to colour until something divides it up. Nearest car is the division
- * that costs nothing to explain: every patch of ground takes the ink of whatever
- * stands closest to it, which makes the empty space read as the shadow of the layout
- * rather than as a second pattern competing with it.
+ * Run after the cars are down, because what counts as one open space is a fact about
+ * the board as drawn and not about any car on it: two gaps are the same space when a
+ * player could walk between them without crossing a vehicle, and nothing but the
+ * finished picture knows that. So the paper is found by looking at it, flooded to its
+ * edges, and painted.
+ *
+ * The inks are the same ones the cars take, at the same strength. A stretch of ground
+ * is meant to be as loud as a vehicle and to be mistakable for one -- an open space
+ * with a car-shaped notch bitten out of it reads as a car until it is looked at
+ * twice, and looking twice is the game.
  */
-function fillGround(ctx, anchors) {
-  const washed = anchors.map((a) => wash(a.ink, GROUND_WASH));
-  for (let y = 0; y < SIZE; y += GROUND_CELL) {
-    for (let x = 0; x < SIZE; x += GROUND_CELL) {
-      const cx = x + GROUND_CELL / 2;
-      const cy = y + GROUND_CELL / 2;
-      let best = Infinity;
-      let nearest = 0;
-      for (let i = 0; i < anchors.length; i++) {
-        const dx = cx - anchors[i].cx;
-        const dy = cy - anchors[i].cy;
-        const d = dx * dx + dy * dy;
-        if (d < best) { best = d; nearest = i; }
-      }
-      ctx.fillStyle = washed[nearest];
-      ctx.fillRect(x, y, GROUND_CELL, GROUND_CELL);
-    }
+function fillGround(ctx, seed) {
+  const image = ctx.getImageData(0, 0, SIZE, SIZE);
+  const px = image.data;
+
+  const open = new Uint8Array(SIZE * SIZE);
+  for (let i = 0, p = 0; p < open.length; i += 4, p++) {
+    open[p] = Math.abs(px[i] - PAPER_RGB[0]) < PAPER_TOLERANCE
+           && Math.abs(px[i + 1] - PAPER_RGB[1]) < PAPER_TOLERANCE
+           && Math.abs(px[i + 2] - PAPER_RGB[2]) < PAPER_TOLERANCE ? 1 : 0;
   }
+
+  // Flood from every bare pixel not already claimed. Iterative, because a stretch of
+  // ground on this board runs to tens of thousands of pixels and a recursive fill
+  // would go through the stack.
+  const rand = mulberry32(seed + 3);
+  const stack = new Int32Array(SIZE * SIZE);
+  const region = new Int32Array(SIZE * SIZE);
+  let regions = 0;
+
+  for (let seedPixel = 0; seedPixel < open.length; seedPixel++) {
+    if (!open[seedPixel]) continue;
+    const ink = inkRgb(INKS[Math.floor(rand() * INKS.length)]);
+    let top = 0;
+    let found = 0;
+    stack[top++] = seedPixel;
+    open[seedPixel] = 0;
+    while (top) {
+      const at = stack[--top];
+      region[found++] = at;
+      const x = at % SIZE;
+      if (x > 0 && open[at - 1]) { open[at - 1] = 0; stack[top++] = at - 1; }
+      if (x < SIZE - 1 && open[at + 1]) { open[at + 1] = 0; stack[top++] = at + 1; }
+      if (at >= SIZE && open[at - SIZE]) { open[at - SIZE] = 0; stack[top++] = at - SIZE; }
+      if (at < open.length - SIZE && open[at + SIZE]) {
+        open[at + SIZE] = 0; stack[top++] = at + SIZE;
+      }
+    }
+    for (let k = 0; k < found; k++) {
+      const i = region[k] * 4;
+      px[i] = ink[0];
+      px[i + 1] = ink[1];
+      px[i + 2] = ink[2];
+    }
+    regions++;
+  }
+
+  ctx.putImageData(image, 0, 0);
+  fillGround.regions = regions;
 }
 
 function threshold(ctx) {
