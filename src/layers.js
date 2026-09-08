@@ -9,7 +9,7 @@
 // survives any test for either.
 
 import { labelRegions, borders, assignInks } from './paint.js';
-import { flashesBy } from './game.js';
+import { flashesBy, blinkOf, FIND_BLINKS } from './game.js';
 
 export const PALETTE = {
   paper: '#f4f1ea',
@@ -104,7 +104,8 @@ export function createBoardLayer(viewOf, palette = PALETTE) {
       const pixels = ctx.getImageData(0, 0, width, height);
       const { owner, regions } = labelRegions(
         pixels.data, width, height, standing.length, PAPER_RGB);
-      const { ink } = assignInks(borders(owner, regions, width, height), palletteSize);
+      const neighbours = borders(owner, regions, width, height);
+      const { ink } = assignInks(neighbours, palletteSize);
       const shades = INKS.slice(0, palletteSize).map(rgbOf);
 
       // Through the win the winners flash, faster and faster, through every ink the
@@ -117,12 +118,35 @@ export function createBoardLayer(viewOf, palette = PALETTE) {
         : null;
       const burn = Math.max(0, (won - BURN_OUT) / (1 - BURN_OUT));
 
+      // A car found during play blinks, then holds a colour nothing beside it is
+      // wearing -- picked against its neighbours so that the answer cannot settle into
+      // the thing it was hiding against.
+      const playInks = won > 0 ? null : new Map();
+      if (playInks) {
+        for (const [index, at] of round.found) {
+          const step = blinkOf(frame.at - at);
+          if (step < 1) {
+            playInks.set(index, rgbOf(INKS[flashInk(index, Math.floor(step * FIND_BLINKS))]));
+          } else {
+            const taken = new Set();
+            for (const j of neighbours[index]) if (ink[j] >= 0) taken.add(ink[j]);
+            let settled = flashInk(index, FIND_BLINKS);
+            for (let n = 0; n < INKS.length && taken.has(settled); n++) {
+              settled = (settled + 1) % INKS.length;
+            }
+            playInks.set(index, rgbOf(INKS[settled]));
+          }
+        }
+      }
+
       const out = pixels.data;
       for (let p = 0, i = 0; p < owner.length; p++, i += 4) {
         const region = owner[p];
         const winner = winnerInks && region >= 0 && region < standing.length;
+        const held = playInks && region >= 0 ? playInks.get(region) : undefined;
         const base = region < 0 ? PAPER_RGB
-          : winner ? winnerInks[region] : shades[ink[region]];
+          : winner ? winnerInks[region]
+          : held ?? shades[ink[region]];
         const fade = winner ? burn : won;
         out[i] = base[0] + (255 - base[0]) * fade;
         out[i + 1] = base[1] + (255 - base[1]) * fade;
@@ -139,19 +163,6 @@ export function createBoardLayer(viewOf, palette = PALETTE) {
       for (const anchor of standing) {
         const view = viewOf(anchor.slot);
         trace(anchor, view.strokes, () => ctx.stroke());
-      }
-
-      // A found car is ringed while the round is still running, so the tally on the
-      // panel can be checked against the board.
-      if (won === 0 && round.found.size) {
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = palette.found;
-        for (const index of round.found) {
-          const anchor = anchors[index];
-          ctx.beginPath();
-          ctx.arc(anchor.cx, anchor.cy, span * 0.09, 0, Math.PI * 2);
-          ctx.stroke();
-        }
       }
     },
   };
@@ -219,12 +230,8 @@ export function createPanelLayer(range, palette = PALETTE) {
       let y = 110 + span + 22;
       ctx.font = '600 16px system-ui, sans-serif';
       ctx.fillStyle = round.left() ? palette.ink : palette.found;
-      ctx.fillText(round.left() ? `${round.left()} to go` : 'all found', left, y);
-      ctx.font = '13px system-ui, sans-serif';
-      ctx.fillStyle = palette.quiet;
-      ctx.textAlign = 'right';
-      ctx.fillText(`${round.total} on the board`, left + span, y + 2);
-      ctx.textAlign = 'left';
+      ctx.fillText(round.left() ? `${round.left()} of ${round.total} to find` : 'all found',
+                   left, y);
 
       y += 34;
       ctx.font = '600 11px system-ui, sans-serif';
