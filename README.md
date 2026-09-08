@@ -1,101 +1,96 @@
 # parts disco
 
-A yard full of vehicles, drawn as outlines and painted so that no two touching
-things share a colour. A panel shows you one of them, solid, from an angle the yard
-does not contain. Find every copy of it.
+**A yard full of vehicles. Find the one you were shown.**
 
-The catch is the fleet. Four of the twelve bodies are the same shell with different
-trim — a sedan, a sports sedan, a taxi and a police car — and from the front they
-differ by a roof sign and nothing else. So the work is never seeing the vehicles;
-it is telling them apart.
+### [▶ Play it in your browser](https://kleer001.github.io/parts_disco/)
 
-A browser game raised in [Trace ROM Studio](https://github.com/kleer001/trace_rom_studio).
-Vanilla JS, ES modules, no build step, no dependencies.
+No install, no sign-up. It loads the fleet once, then runs.
 
-## Run
+![A crowded yard of overlapping vehicles drawn as outlines, each flat-coloured so no two touching shapes share a colour. The panel on the right asks for a delivery van.](screens/board.png)
+
+## What it is
+
+Vehicles are strewn across a yard, drawn as outlines and painted so that no two
+touching shapes share a colour. A panel shows you one of them, solid, at an angle
+you will not find in the yard. Click every copy of it.
+
+The catch is the fleet. Four of the twelve are the same car underneath: a sedan, a
+sports sedan, a taxi and a police car. Head-on, the only thing between them is a roof
+sign. So the work is never seeing the vehicles. It is telling them apart.
+
+Sixteen yards. The first gives you ten big vehicles that look nothing like each other.
+The last gives you a hundred and twenty small ones, four near-identical cars, and one
+colour to paint them all.
+
+## Finding one
+
+A vehicle you find grows, shakes, flashes green, and settles into a colour it was not
+wearing before. That colour is the record — from then on the board itself shows what
+you have done.
+
+![The same yard with one vehicle mid-answer: a tractor swollen past its neighbours and lit bright green.](screens/found.png)
+
+Miss, and the counter goes red. Get down to one left, and the panel turns amber.
+
+![The panel showing a found vehicle settled into a new colour, one left to find in amber, and one miss in red.](screens/panel.png)
+
+Find them all and the losers clear off, leaving the ones you found flashing on a
+whitening yard.
+
+![The win: every vehicle but the eight SUVs has gone, and the ground is fading to white beneath them.](screens/win.png)
+
+## What makes a yard hard
+
+Four dials, and the panel shows every one of them against its range.
+
+| | |
+|---|---|
+| **which vehicles** | The strongest by a distance. A tractor is found instantly however many cars surround it; a taxi is hard on an empty board. |
+| **how many** | Ten at the start, a hundred and twenty at the end. More to look at, and more burying each other. |
+| **how big** | Smaller is harder twice over — less of the detail that tells two shells apart, and more of them fitting on the yard. |
+| **how many colours** | Five is enough for every two touching shapes to differ. Below that they start sharing, and a vehicle starts to merge into whatever it is lying on. |
+
+![The first yard: ten large vehicles, well spaced, six colours.](screens/early.png)
+
+## Running it yourself
+
+No build step and no dependencies. Clone it and serve the folder.
 
 ```sh
-./run.sh          # serves http://localhost:8000, no-cache
+./run.sh          # serves http://localhost:8000
 ./run.sh 9000     # pick a port; it scans upward if that one is busy
 npm test          # node --test, no framework
 ```
 
-Open the URL it prints. Don't open `index.html` from the filesystem — ES modules,
-`fetch` and relative paths all behave differently under `file://`.
+Open the address it prints. Do not double-click `index.html` — ES modules, `fetch`
+and relative paths all behave differently under `file://`.
 
-## How it fits together
+## Under the hood
 
-Everything below the renderer is pure: no module but `main.js` touches the DOM, a
-clock or an event, which is what lets the whole board be tested without a browser.
+Vanilla JavaScript, ES modules, one canvas, no libraries. Every draw comes from a
+seeded generator, so a board reproduces exactly from its seed.
 
-- `src/views.js` — the fleet. A view is one vehicle from one angle: outline strokes,
-  a silhouette, and a solid render of the same angle for the panel to ask with.
-- `src/board.js` — deals a board and throws it onto the field.
-- `src/paint.js` — the colouring, as a map: which regions exist, which share a
-  border, and which ink each one takes.
-- `src/game.js` — what is being asked for, what a click did about it, and how far
-  through the win the board is.
-- `src/levels.js` — the difficulty path. Data only.
-- `src/geometry.js` — polygon containment, for hit-testing.
-- `src/layers.js`, `src/compositor.js` — ordered draw passes over one canvas.
-- `src/main.js` — the only file with a DOM in it. Loads the fleet, wires the loop.
-- `view-preview.html` — the bench: the same board with every dial exposed, for
-  tuning the look and the difficulty without editing constants.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — how the board is dealt, coloured and drawn.
+- [`dev/README.md`](dev/README.md) — the bench, where the game's look was tuned with
+  every knob on a slider.
+- [`DECISIONS.md`](DECISIONS.md) — what was ruled, and what was rejected.
 
-**The board is thrown, not arranged.** Each vehicle stands in for itself as a circle
-no wider than the short edge of its ink, and cars are thrown into the rings around
-cars already down until every one has a place. The circle is far smaller than the
-vehicle on purpose: two cars whose circles have just stopped touching are already
-deep into one another, which is the board this game wants. The separation is
-searched for rather than set, because throwing covers only the ground its separation
-reaches — so the count is what sets density, and burying the cars deeper means
-dealing more of them.
+Raised in [Trace ROM Studio](https://github.com/kleer001/trace_rom_studio).
 
-**The colours are a map, not a palette.** Cars and the bare ground between them are
-one flat subdivision, so they are coloured as one: no two regions sharing a border
-get the same ink. Four inks colour any flat map whose every region is in one piece,
-and a car here need not be — a vehicle in front cuts the one behind into two halves
-that still have to carry one colour. On a full board seventeen of seventy are cut
-like that, which is why five inks is where it stops arguing. Below five the board
-runs out and regions are forced to share, and that is the hardest thing the
-difficulty path does.
+## Credits
 
-## The difficulty path
-
-Sixteen stages, four to a level. A level is one idea about what is hard; within a
-level the numbers tighten. Four dials move: which vehicles are in play, how many,
-how big, and how many inks the board may use. `src/levels.js` is the whole of it,
-and the panel shows every dial against its range.
-
-Which vehicles matters most by a distance. A tractor is found instantly however many
-cars surround it; a taxi is hard on an empty board.
-
-## `tools/` and `research/`
-
-- `tools/model_views` — turns a 3D model into what the board needs: outline strokes
-  traced from Blender's Line Art, a silhouette taken from the render's own alpha, and
-  a 1-bit shaded view for the panel. Its README carries the three things that fail
-  silently, including the one that costs you every windscreen, headlight and grille.
-- `tools/model_views/export_mesh.py` — the same models as raw geometry, for a
-  renderer that draws them live rather than from baked angles.
-- `tools/patent_harvest`, `tools/figure_trace` — the pipeline this game began with,
-  when the board was made of traced patent figures. Kept, and not read by the game.
-- `research/` — where the art can come from, and what was measured about drawing the
-  board in WebGL instead of baking it.
-
-Both tool sets are offline and Python; nothing they produce ships except the views in
-`assets/`.
-
-## What is written down
-
-- `DECISIONS.md` — what was ruled and what was rejected, terse and undated.
-- `DECISIONS-JOURNAL.md` — the dated reasoning behind each, append-only.
-- `.trace_rom_studio.toml` — the studio version this game descends from.
-- `LICENSE` — MIT. The vehicles are Kenney's [Car Kit](https://kenney.nl/assets/car-kit), CC0.
+- The vehicles are Kenney's [Car Kit](https://kenney.nl/assets/car-kit), released
+  into the public domain under CC0.
+- The panel is set in [VT323](https://fonts.google.com/specimen/VT323) by Peter Hull,
+  under the SIL Open Font License.
+- The game is MIT. See [`LICENSE`](LICENSE).
 
 ## Where it is
 
-Prototype. It plays: sixteen stages, a board a round, a win that clears the yard and
-deals the next one. Nobody but its author has played it. Open questions are whether
-the board should drift rather than hold still, whether the difficulty path climbs at
-the right rate, and whether the near-twins are a good puzzle or an unfair one.
+A prototype. It plays end to end, and nobody but its author has played it.
+
+Three things are still open. Should the yard drift rather than hold still? Does the
+difficulty climb at the right rate? And are the near-twins a good puzzle, or an
+unfair one?
+
+Found a yard that felt wrong? [Open an issue](https://github.com/kleer001/parts_disco/issues).
