@@ -8,17 +8,15 @@
 // painted over the first, since a car's softened edge is neither car nor ground and
 // survives any test for either.
 
-import { labelRegions, borders, assignInks } from './paint.js';
-import { flashesBy, blinkOf, FIND_BLINKS } from './game.js';
+import { mulberry32 } from './rng.js';
+import { flashesBy } from './game.js';
+import { SEMANTIC, TUNING, cardShake, findPulse, gridCellAt } from './juice.js';
 
 export const PALETTE = {
   paper: '#f4f1ea',
   ink: '#1a1a1a',
   panel: '#ffffff',
   rule: '#d4d0c8',
-  quiet: '#4b5563',
-  found: '#0f5f57',
-  miss: '#b91c1c',
 };
 
 export const PAPER_RGB = [0xf4, 0xf1, 0xea];
@@ -30,6 +28,11 @@ export const INKS = [
 ];
 
 export const STROKE = 1.5;
+
+export const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+/** The inks pre-parsed, because the repaint loop wants numbers, not hex. */
+const INK_RGB = INKS.map(rgbOf);
 
 // When a winner stops flashing and blows out to white. The ground whitens across the
 // whole win; a car holds its colour most of the way, so the flashes are still there
@@ -50,17 +53,61 @@ function flashInk(car, flash) {
   return ink;
 }
 
-export const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+// How far a found vehicle's resting ink is rotated from the one the map gave it.
+// Far enough that the change is unmistakable, and it is the same walk the win uses.
+const SETTLE_STEPS = 5;
 
-/** Trace one closed ring of a view, placed and sized. */
-function ring(ctx, anchor, points, span) {
+/**
+ * The colour a found vehicle comes to rest in.
+ *
+ * Never one its neighbours are wearing, and never the one it was already wearing.
+ * The second exclusion is the point of the whole thing: the settled colour is the
+ * only record that a vehicle was found, and the rotation lands back on the region's
+ * own ink one time in eight, which is a find that leaves no mark.
+ *
+ * A fact about the plan and the region, so it is resolved once per region when the
+ * board is planned and read from `plan.settled` after that -- the board's repaint
+ * asks for it a region at a time and the pulse over it has to land on the same
+ * answer, or the answer ends with the vehicle changing colour once more.
+ */
+export function settledInk(plan, region) {
+  const taken = new Set([plan.ink[region]]);
+  for (const j of plan.neighbours[region]) taken.add(plan.ink[j]);
+  let ink = flashInk(region, SETTLE_STEPS);
+  for (let n = 0; n < INKS.length && taken.has(ink); n++) ink = (ink + 1) % INKS.length;
+  return INK_RGB[ink];
+}
+
+/**
+ * Trace one closed ring of a view, placed and sized.
+ *
+ * The swing is what a pulsing vehicle adds. It lives here rather than in the find
+ * layer so that how a view lands on the board is stated once: a pulse that drew
+ * itself by its own rule would drift off the board it is drawn over.
+ */
+function ring(ctx, anchor, points, span, scale = 1, dx = 0, dy = 0) {
   ctx.beginPath();
-  ctx.moveTo(anchor.cx + (points[0][0] - 0.5) * span,
-             anchor.cy + (points[0][1] - 0.5) * span);
-  for (let k = 1; k < points.length; k++) {
-    ctx.lineTo(anchor.cx + (points[k][0] - 0.5) * span,
-               anchor.cy + (points[k][1] - 0.5) * span);
+  for (let k = 0; k < points.length; k++) {
+    const x = anchor.cx + (points[k][0] - 0.5) * span * scale + dx;
+    const y = anchor.cy + (points[k][1] - 0.5) * span * scale + dy;
+    if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
+}
+
+/** How a vehicle's linework is drawn, wherever it is drawn. */
+function inkStroke(ctx) {
+  ctx.lineWidth = STROKE;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = PALETTE.ink;
+}
+
+/** A shaded edge falling away from a lip, for anything sitting in a well. */
+function sunkEdge(ctx, x0, y0, x1, y1, alpha) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, `rgba(0,0,0,${alpha})`);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
 }
 
 /**
@@ -98,7 +145,7 @@ export function createPaperLayer(palette = PALETTE) {
  * placement does not move, so it is settled once when the board is laid rather than
  * asked again sixty times a second. What is left here is a lookup and a fade.
  */
-export function createBoardLayer(viewOf, { cache = null, palette = PALETTE } = {}) {
+export function createBoardLayer(viewOf, cache, palette = PALETTE) {
   let buffer = null;
   let heldPlan = null;
   let heldFound = -1;
@@ -110,85 +157,47 @@ export function createBoardLayer(viewOf, { cache = null, palette = PALETTE } = {
       const won = round.winning(at);
       const burn = Math.max(0, (won - BURN_OUT) / (1 - BURN_OUT));
 
-      /** The colour a car comes to rest in: never one its neighbours are wearing. */
-      const settledOf = (region) => {
-        const taken = new Set();
-        for (const j of plan.neighbours[region]) taken.add(plan.ink[j]);
-        let ink = flashInk(region, FIND_BLINKS);
-        for (let n = 0; n < INKS.length && taken.has(ink); n++) ink = (ink + 1) % INKS.length;
-        return rgbOf(INKS[ink]);
-      };
-
       // What the board looks like with nothing moving on it: every car in the ink the
       // map gave it, or in the one it came to rest in after being found.
       const restingOf = (region) => {
         if (region < 0) return PAPER_RGB;
-        if (region < standing.length && round.found.has(region)) return settledOf(region);
+        if (region < standing.length && round.found.has(region)) return plan.settled[region];
         return shades[plan.ink[region]];
       };
 
-      const repaint = (colourOf, fadeOf, box) => {
+      const repaint = (colourOf, fadeOf) => {
         if (!buffer) buffer = ctx.createImageData(width, height);
         const out = buffer.data;
         const owner = plan.owner;
-        const left = box ? box.left : 0;
-        const right = box ? box.right : width - 1;
-        const top = box ? box.top : 0;
-        const bottom = box ? box.bottom : height - 1;
-        for (let y = top; y <= bottom; y++) {
-          for (let x = left; x <= right; x++) {
-            const p = y * width + x;
-            const region = owner[p];
-            const base = colourOf(region);
-            if (!base) continue;
-            const fade = fadeOf(region);
-            const i = p * 4;
-            out[i] = base[0] + (255 - base[0]) * fade;
-            out[i + 1] = base[1] + (255 - base[1]) * fade;
-            out[i + 2] = base[2] + (255 - base[2]) * fade;
-            out[i + 3] = 255;
-          }
+        for (let p = 0; p < owner.length; p++) {
+          const base = colourOf(owner[p]);
+          const fade = fadeOf(owner[p]);
+          const i = p * 4;
+          out[i] = base[0] + (255 - base[0]) * fade;
+          out[i + 1] = base[1] + (255 - base[1]) * fade;
+          out[i + 2] = base[2] + (255 - base[2]) * fade;
+          out[i + 3] = 255;
         }
-        if (box) ctx.putImageData(buffer, 0, 0, left, top, right - left + 1, bottom - top + 1);
-        else ctx.putImageData(buffer, 0, 0);
+        ctx.putImageData(buffer, 0, 0);
       };
 
-      const missesBox = (i, box) => {
-        const b = plan.bounds[i];
-        return b.right < box.left || b.left > box.right
-            || b.bottom < box.top || b.top > box.bottom;
-      };
-
-      // Clipping stops a stroke landing outside the box, but the path is still built
-      // and handed over. Cars nowhere near it are skipped instead.
-      const stroke = (box) => {
-        if (box) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(box.left, box.top, box.right - box.left + 1, box.bottom - box.top + 1);
-          ctx.clip();
-        }
-        ctx.lineWidth = STROKE;
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = palette.ink;
-        for (let i = 0; i < standing.length; i++) {
-          if (box && missesBox(i, box)) continue;
-          for (const points of viewOf(standing[i].slot).strokes) {
-            ring(ctx, standing[i], points, span);
+      const stroke = () => {
+        inkStroke(ctx);
+        for (const anchor of standing) {
+          for (const points of viewOf(anchor.slot).strokes) {
+            ring(ctx, anchor, points, span);
             ctx.stroke();
           }
         }
-        if (box) ctx.restore();
       };
 
       // The still board is kept and put back down, because most frames are the same
       // picture as the last one. It is rebuilt when the map changes or a car is found,
-      // and it always shows found cars already at rest -- what is blinking on top of it
-      // is painted over it afterwards.
-      if (cache && (heldPlan !== plan || heldFound !== round.found.size)) {
-        repaint(restingOf, () => 0, null);
-        stroke(null);
+      // and it shows found cars already at rest -- whatever is answering a find is
+      // painted over it afterwards.
+      if (heldPlan !== plan || heldFound !== round.found.size) {
+        repaint(restingOf, () => 0);
+        stroke();
         cache.getContext('2d').drawImage(ctx.canvas, 0, 0, width, height, 0, 0, width, height);
         heldPlan = plan;
         heldFound = round.found.size;
@@ -198,132 +207,417 @@ export function createBoardLayer(viewOf, { cache = null, palette = PALETTE } = {
       // the game has, and the ground whitens under all of them at once.
       if (won > 0) {
         const flash = flashesBy(won);
-        const flashing = standing.map((_, i) => rgbOf(INKS[flashInk(i, flash)]));
+        const flashing = standing.map((_, i) => INK_RGB[flashInk(i, flash)]);
         repaint(
           (region) => (region < 0 ? PAPER_RGB
             : region < standing.length ? flashing[region] : shades[plan.ink[region]]),
-          (region) => (region >= 0 && region < standing.length ? burn : won),
-          null);
-        stroke(null);
+          (region) => (region >= 0 && region < standing.length ? burn : won));
+        stroke();
         return;
       }
 
-      // Anything still working through its blink. Almost always nothing, sometimes one.
-      const blinking = new Map();
-      for (const [region, found] of round.found) {
-        const step = blinkOf(at - found);
-        if (step < 1) {
-          blinking.set(region, rgbOf(INKS[flashInk(region, Math.floor(step * FIND_BLINKS))]));
+      // Nothing on the board moves under its own steam. A found vehicle is answered
+      // by the find layer, over the top, so the kept board is the whole picture.
+      ctx.drawImage(cache, 0, 0);
+    },
+  };
+}
+
+
+/**
+ * The ground the diagram is printed on: a ruled grid under a film of noise.
+ *
+ * Baked once into a tile and blitted, because the noise is a fact about the texture
+ * and not about the frame. Regenerating it every frame would make it crawl, which
+ * reads as a fault rather than as paper.
+ *
+ * The cell tightens as the path does, so the ground says how deep the board is.
+ */
+export function createGridLayer(settings = () => TUNING) {
+  let tile = null;
+  let mask = null;
+  let cut = null;
+  let tileKey = null;
+  let cutKey = null;
+  let planFrom = null;
+
+  // Everything the tile is made of. One place, because a knob added to the tile and
+  // forgotten here leaves a stale texture with nothing to report it.
+  const keyOf = (s, cell) =>
+    `${cell.toFixed(3)}|${s.gridAlpha}|${s.gridNoise}|${s.gridNoiseScale}`;
+
+  const build = (s, cell) => {
+    // Eight cells to a tile, so the repeat seam never lands on a rule.
+    const size = Math.max(8, Math.round(cell * 8));
+    tile = document.createElement('canvas');
+    tile.width = size;
+    tile.height = size;
+    const c = tile.getContext('2d');
+
+    if (s.gridNoise > 0) {
+      const step = Math.max(1, Math.round(s.gridNoiseScale));
+      const img = c.createImageData(size, size);
+      // Its own seed, not the run's: the paper is a property of the texture and
+      // should not change when the seed that deals the board does.
+      const rand = mulberry32(0x9e3779b9);
+      for (let y = 0; y < size; y += step) {
+        for (let x = 0; x < size; x += step) {
+          const v = rand() * 256 - 128;
+          for (let j = 0; j < step && y + j < size; j++) {
+            for (let i = 0; i < step && x + i < size; i++) {
+              const p = ((y + j) * size + (x + i)) * 4;
+              img.data[p] = img.data[p + 1] = img.data[p + 2] = 0;
+              img.data[p + 3] = Math.max(0, v) * s.gridNoise * 2;
+            }
+          }
         }
       }
+      c.putImageData(img, 0, 0);
+    }
 
-      if (!cache) {
-        repaint((region) => blinking.get(region) ?? restingOf(region), () => 0, null);
-        stroke(null);
+    c.strokeStyle = `rgba(0,0,0,${s.gridAlpha})`;
+    c.lineWidth = 1;
+    for (let at = 0; at <= size; at += size / 8) {
+      c.beginPath();
+      c.moveTo(at + 0.5, 0);
+      c.lineTo(at + 0.5, size);
+      c.moveTo(0, at + 0.5);
+      c.lineTo(size, at + 0.5);
+      c.stroke();
+    }
+  };
+
+  // Which pixels are ground rather than vehicle. A fact about the plan, so it is
+  // asked when the plan changes and not once a frame.
+  const buildMask = (frame) => {
+    mask = document.createElement('canvas');
+    mask.width = frame.width;
+    mask.height = frame.height;
+    const c = mask.getContext('2d');
+    const img = c.createImageData(frame.width, frame.height);
+    const owner = frame.plan.owner;
+    const cars = frame.standing.length;
+    for (let p = 0; p < owner.length; p++) {
+      img.data[p * 4 + 3] = owner[p] >= cars ? 255 : 0;
+    }
+    c.putImageData(img, 0, 0);
+  };
+
+  return {
+    name: 'grid',
+    draw(ctx, frame) {
+      const s = settings();
+      if (s.gridAlpha <= 0 && s.gridNoise <= 0) return;
+      const key = keyOf(s, gridCellAt(frame.level.along, s));
+      if (tileKey !== key) {
+        build(s, gridCellAt(frame.level.along, s));
+        tileKey = key;
+      }
+
+      if (!s.gridGroundOnly) {
+        ctx.fillStyle = ctx.createPattern(tile, 'repeat');
+        ctx.fillRect(0, 0, frame.width, frame.height);
         return;
       }
 
-      ctx.drawImage(cache, 0, 0);
-      if (!blinking.size) return;
+      // The tile cut to the ground is kept and blitted. Two things change it -- the
+      // texture and the map it is cut to -- and cutting it every frame would allocate
+      // a field-sized canvas sixty times a second to arrive at the same picture.
+      if (planFrom !== frame.plan) {
+        buildMask(frame);
+        cutKey = null;
+      }
+      if (cutKey !== key) {
+        if (!cut) {
+          cut = document.createElement('canvas');
+          cut.width = frame.width;
+          cut.height = frame.height;
+        }
+        const c = cut.getContext('2d');
+        c.clearRect(0, 0, frame.width, frame.height);
+        c.fillStyle = c.createPattern(tile, 'repeat');
+        c.fillRect(0, 0, frame.width, frame.height);
+        c.globalCompositeOperation = 'destination-in';
+        c.drawImage(mask, 0, 0);
+        c.globalCompositeOperation = 'source-over';
+        cutKey = key;
+      }
+      planFrom = frame.plan;
+      ctx.drawImage(cut, 0, 0);
+    },
+  };
+}
 
-      // Put the held board back down and repaint only what is moving on it. A blinking
-      // car is one vehicle's worth of pixels; the rest of the board did not change and
-      // painting it again would be the whole point of keeping it thrown away.
-      for (const [region, colour] of blinking) {
-        const box = plan.bounds[region];
-        repaint((r) => (r === region ? colour : null), () => 0, box);
-        stroke(box);
+/**
+ * The vehicles answering a find: a pulse, a shake and a strobe, over the board.
+ *
+ * Drawn on top rather than into the board, so the kept board never rebuilds for it.
+ * A vehicle at the peak of its pulse reaches well outside its own bounds, which a
+ * repaint of that box could not have covered anyway.
+ */
+export function createFindLayer(viewOf, settings = () => TUNING) {
+  return {
+    name: 'find',
+    draw(ctx, frame) {
+      const s = settings();
+      const { standing, span, round, at, plan } = frame;
+      if (round.winning(at) > 0) return;
+
+      // Rank is the order this one was found in, which is what the escalation reads.
+      // A Map keeps insertion order and finds are inserted as they happen, so the
+      // walk is already ranked -- nothing has to be collected or sorted to know it.
+      const alive = s.pulseMs / 1000;
+      let rank = 0;
+      for (const [region, when] of round.found) {
+        rank++;
+        // Almost every entry is a find that finished seconds ago. Skipping those on a
+        // subtraction keeps a full round from costing a pulse's worth of work each.
+        if (at - when >= alive || region >= standing.length) continue;
+        const pulse = findPulse(at - when, s, rank);
+        if (!pulse.alive) continue;
+
+        const anchor = standing[region];
+        const view = viewOf(anchor.slot);
+        // The off beat is the colour the vehicle is about to keep, so the pulse ends
+        // on the board's own answer instead of changing colour once more after it.
+        const [r, g, b] = plan.settled[region];
+        ctx.fillStyle = pulse.lit ? SEMANTIC.found.loud : `rgb(${r},${g},${b})`;
+        for (const points of view.silhouette) {
+          ring(ctx, anchor, points, span, pulse.scale, pulse.dx, pulse.dy);
+          ctx.fill();
+        }
+        inkStroke(ctx);
+        for (const points of view.strokes) {
+          ring(ctx, anchor, points, span, pulse.scale, pulse.dx, pulse.dy);
+          ctx.stroke();
+        }
       }
     },
   };
 }
 
-/** The prompt panel: what to find, and how hard this board was made. */
-export function createPanelLayer(range, palette = PALETTE) {
-  // A dial's bar, so the settings read as a position on a path rather than as
-  // numbers with nothing to be large or small against.
-  const dial = (ctx, x, y, width, label, value, shown, [low, high]) => {
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.fillStyle = palette.quiet;
+/** The board sitting in a well rather than lying on the page. */
+export function createRecessLayer(settings = () => TUNING) {
+  let sides = null;
+  let builtFrom = null;
+
+  return {
+    name: 'recess',
+    draw(ctx, frame) {
+      const s = settings();
+      if (s.recess <= 0) return;
+      const { width, height } = frame;
+      const d = s.recess;
+      const key = `${width}x${height}|${d}|${s.recessAlpha}`;
+
+      // Four gradients that only move when a knob does. Building them per frame is
+      // four objects and four colour strings for a picture that did not change.
+      if (builtFrom !== key) {
+        // The light is above and to the left, so the far edges catch less of it.
+        const near = s.recessAlpha;
+        const far = s.recessAlpha * 0.45;
+        sides = [
+          [0, 0, 0, d, near, 0, 0, width, d],
+          [0, 0, d, 0, near, 0, 0, d, height],
+          [0, height, 0, height - d, far, 0, height - d, width, d],
+          [width, 0, width - d, 0, far, width - d, 0, d, height],
+        ].map(([x0, y0, x1, y1, alpha, ...box]) => {
+          sunkEdge(ctx, x0, y0, x1, y1, alpha);
+          return { fill: ctx.fillStyle, box };
+        });
+        builtFrom = key;
+      }
+
+      for (const side of sides) {
+        ctx.fillStyle = side.fill;
+        ctx.fillRect(...side.box);
+      }
+    },
+  };
+}
+
+/* ---- the panel ----------------------------------------------------------- */
+
+/** A rounded path, for a slab or a card. */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** A sunken block: dark along the top and left, a lit edge along the bottom. */
+function well(ctx, x, y, w, h, depth, fill) {
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, w, h);
+  if (depth <= 0) return;
+  let g = ctx.createLinearGradient(x, y, x, y + depth);
+  g.addColorStop(0, 'rgba(0,0,0,0.16)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(x, y, w, depth);
+  g = ctx.createLinearGradient(x, y, x + depth, y);
+  g.addColorStop(0, 'rgba(0,0,0,0.12)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(x, y, depth, h);
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.fillRect(x, y + h - 1, w, 1);
+}
+
+/**
+ * The panel: what to find, how many are left, and how hard this board was made.
+ *
+ * Every number sits on a slab tinted by what it means, because the board's own inks
+ * are spent on the puzzle and cannot say anything. The asked-for vehicle sits on a
+ * card that hangs straight and flinches when the board answers.
+ */
+export function createPanelLayer(range, settings = () => TUNING, palette = PALETTE) {
+  const face = (px, s) => `${Math.round(px * s.typeScale)}px VT323, monospace`;
+
+  /** A number on a tinted slab. Returns the box it filled. */
+  const slab = (ctx, x, y, text, role, size, s, minWidth = 0) => {
+    ctx.font = face(size, s);
+    const w = Math.max(minWidth, ctx.measureText(text).width + s.slabPad * 2);
+    const h = size * 0.86 + s.slabPad * 2;
+    roundRect(ctx, x, y, w, h, s.slabRadius);
+    ctx.fillStyle = role.tint;
+    ctx.fill();
+    ctx.fillStyle = role.ink;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x + s.slabPad, y + h / 2 + 1);
+    ctx.textBaseline = 'top';
+    return h;
+  };
+
+  // A dial's bar, so a setting reads as a position on a path rather than as a number
+  // with nothing to be large or small against. The range is given the way the dial
+  // runs -- reversed for the ones where a smaller number is the harder board -- so
+  // which way is harder stays with the difficulty data and not in here.
+  const dial = (ctx, x, y, width, label, shown, value, [low, high], s) => {
+    const along = high === low ? 1 : (value - low) / (high - low);
+    ctx.font = face(17, s);
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = SEMANTIC.quiet.ink;
     ctx.fillText(label, x, y);
     ctx.textAlign = 'right';
-    ctx.fillStyle = palette.ink;
     ctx.fillText(shown, x + width, y);
     ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const track = y + 8;
+    ctx.fillStyle = SEMANTIC.quiet.tint;
+    ctx.fillRect(x, track, width, 4);
+    ctx.fillStyle = SEMANTIC.quiet.loud;
+    ctx.fillRect(x, track, Math.max(2, width * along), 4);
+  };
 
-    const track = y + 17;
-    ctx.fillStyle = palette.rule;
-    ctx.fillRect(x, track, width, 3);
-    ctx.fillStyle = palette.found;
-    const along = high === low ? 1 : (value - low) / (high - low);
-    ctx.fillRect(x, track, Math.max(2, width * along), 3);
+  // The card is the same picture every frame: a shadow, a rounded white ground and a
+  // resampled render. Only where it sits changes. Baked once a level, because
+  // shadowBlur is among the slowest things a canvas does and this one was paying it
+  // sixty times a second to arrive at an identical bitmap.
+  let card = null;
+  let cardKey = null;
+  const bakeCard = (span, prompt, s, palette) => {
+    const pad = Math.ceil(s.cardBlur + s.cardShadow + 4);
+    card = document.createElement('canvas');
+    card.width = span + pad * 2;
+    card.height = span + pad * 2;
+    const c = card.getContext('2d');
+    c.translate(pad, pad);
+    c.shadowColor = 'rgba(0,0,0,0.28)';
+    c.shadowOffsetY = s.cardShadow;
+    c.shadowBlur = s.cardBlur;
+    c.fillStyle = palette.panel;
+    roundRect(c, 0, 0, span, span, 6);
+    c.fill();
+    c.shadowColor = 'transparent';
+    c.strokeStyle = palette.rule;
+    c.lineWidth = 1;
+    c.stroke();
+    // Smoothed, against every instinct about a one-bit picture. The render is a
+    // halftone, and point-sampling a halftone at half its size beats it against the
+    // pixel grid and returns a chequerboard. Averaging it back is what recovers the
+    // greys the dither was standing in for.
+    c.imageSmoothingEnabled = true;
+    c.drawImage(prompt, 6, 6, span - 12, span - 12);
   };
 
   return {
     name: 'panel',
     draw(ctx, frame) {
-      const { width, height, panelWidth, round, level, prompt } = frame;
+      const s = settings();
+      const { width, height, panelWidth, round, level, prompt, at } = frame;
+      const left = width + 22;
+      const span = panelWidth - 44;
+
       ctx.fillStyle = palette.panel;
       ctx.fillRect(width, 0, panelWidth, height);
-      ctx.strokeStyle = palette.rule;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(width + 0.5, 0);
-      ctx.lineTo(width + 0.5, height);
-      ctx.stroke();
-
-      const left = width + 24;
-      const span = panelWidth - 48;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
 
-      ctx.fillStyle = palette.quiet;
-      ctx.font = '600 12px system-ui, sans-serif';
-      ctx.fillText(`LEVEL ${level.level}:${level.stage}`
-                   + (level.last ? '  (last)' : ''), left, 28);
+      // The card answers the most recent find, and answers the last one hardest.
+      let lastFind = -1;
+      for (const when of round.found.values()) if (when > lastFind) lastFind = when;
+      const shake = lastFind < 0
+        ? { dx: 0, dy: 0, tilt: 0 }
+        : cardShake(at - lastFind, s, round.found.size === round.total);
 
-      ctx.fillStyle = palette.ink;
-      ctx.font = '12px system-ui, sans-serif';
-      ctx.fillText('FIND', left, 54);
-      ctx.font = '600 26px system-ui, sans-serif';
-      ctx.fillText(round.target, left, 72);
+      ctx.font = face(19, s);
+      ctx.fillStyle = SEMANTIC.quiet.ink;
+      ctx.fillText(`LEVEL ${level.level}:${level.stage}${level.last ? '  LAST' : ''}`,
+                   left, 22);
 
+      ctx.font = face(17, s);
+      ctx.fillStyle = SEMANTIC.quiet.loud;
+      ctx.fillText('FIND', left, 48);
+      slab(ctx, left, 66, round.target.toUpperCase(), SEMANTIC.target, 32, s);
+
+      const cardTop = 112;
       if (prompt && prompt.complete) {
-        // Smoothed, against every instinct about a one-bit picture. The render is a
-        // halftone, and point-sampling a halftone at half its size beats the screen
-        // against the pixel grid and returns a chequerboard. Averaging it back is
-        // what recovers the greys the dither was standing in for.
-        ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(prompt, left, 110, span, span);
+        const key = `${prompt.src}|${span}|${s.cardShadow}|${s.cardBlur}`;
+        if (cardKey !== key) {
+          bakeCard(span, prompt, s, palette);
+          cardKey = key;
+        }
+        ctx.save();
+        ctx.translate(left + span / 2 + shake.dx, cardTop + span / 2 + shake.dy);
+        ctx.rotate((shake.tilt * Math.PI) / 180);
+        ctx.drawImage(card, -card.width / 2, -card.height / 2);
+        ctx.restore();
       }
 
-      let y = 110 + span + 22;
-      ctx.font = '600 16px system-ui, sans-serif';
-      ctx.fillStyle = round.left() ? palette.ink : palette.found;
-      ctx.fillText(round.left() ? `${round.left()} of ${round.total} to find` : 'all found',
-                   left, y);
+      // The count grows as the round fills, and turns amber on the last one.
+      let y = cardTop + span + 24;
+      const left_ = round.left();
+      const role = left_ === 0 ? SEMANTIC.found
+        : left_ === 1 ? SEMANTIC.last : SEMANTIC.quiet;
+      const grown = 26 + 14 * (round.total ? round.found.size / round.total : 0);
+      y += slab(ctx, left, y, left_ ? `${left_} TO FIND` : 'ALL FOUND',
+                role, grown, s, span) + 10;
+      slab(ctx, left, y, `MISSES ${round.misses}`,
+           round.misses ? SEMANTIC.miss : SEMANTIC.quiet, 24, s, span);
 
-      y += 34;
-      ctx.font = '600 11px system-ui, sans-serif';
-      ctx.fillStyle = palette.quiet;
-      ctx.fillText('DIFFICULTY', left, y);
-
-      y += 22;
-      for (const row of [
-        ['vehicles', level.cars, `${level.cars} / ${range.cars[1]}`, range.cars],
-        ['size', -level.size, `${Math.round(level.size * 100)}% of ${Math.round(range.size[1] * 100)}%`,
-         [-range.size[1], -range.size[0]]],
-        ['kinds', level.fleet.length, `${level.fleet.length} of ${range.kinds[1]}`, range.kinds],
-        ['inks', -level.inks, `${level.inks} of ${range.inks[1]}`, [-range.inks[1], -range.inks[0]]],
+      y += 46;
+      well(ctx, left - 10, y - 8, span + 20, 4 * 34 + 22, s.panelRecess,
+           SEMANTIC.quiet.tint);
+      y += 16;
+      // Ranges run the way the dial does. Fewer inks and smaller vehicles are the
+      // harder board, so those two are handed their range back to front.
+      for (const [label, shown, value, span_] of [
+        ['vehicles', `${level.cars}/${range.cars[1]}`, level.cars, range.cars],
+        ['size', `${Math.round(level.size * 100)}%`, level.size,
+         [range.size[1], range.size[0]]],
+        ['kinds', `${level.fleet.length}/${range.kinds[1]}`, level.fleet.length,
+         range.kinds],
+        ['inks', `${level.inks}/${range.inks[1]}`, level.inks,
+         [range.inks[1], range.inks[0]]],
       ]) {
-        dial(ctx, left, y, span, row[0], row[1], row[2], row[3]);
-        y += 32;
+        dial(ctx, left, y, span, label, shown, value, span_, s);
+        y += 34;
       }
-
-      y += 8;
-      ctx.font = '13px system-ui, sans-serif';
-      ctx.fillStyle = palette.quiet;
-      ctx.fillText(`misses ${round.misses}`, left, y);
     },
   };
 }

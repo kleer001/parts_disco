@@ -86,6 +86,9 @@ export function stageAt(depth) {
   return {
     ...PATH[index],
     index,
+    // Where this stage sits on the whole path, 0..1. Anything that ramps with
+    // difficulty reads this rather than working it out from the index and a length.
+    along: PATH.length > 1 ? index / (PATH.length - 1) : 1,
     level: Math.floor(index / STAGES) + 1,
     stage: (index % STAGES) + 1,
     last: index === PATH.length - 1,

@@ -154,40 +154,24 @@ export function assignInks(touching, palette) {
 }
 
 /**
- * The box each region occupies, so a region that changes can be repainted without
- * repainting the board around it.
- */
-function boundsOf(owner, regions, width) {
-  const box = Array.from({ length: regions },
-    () => ({ left: width, top: owner.length, right: -1, bottom: -1 }));
-  for (let at = 0; at < owner.length; at++) {
-    const region = owner[at];
-    if (region < 0) continue;
-    const x = at % width;
-    const y = (at - x) / width;
-    const b = box[region];
-    if (x < b.left) b.left = x;
-    if (x > b.right) b.right = x;
-    if (y < b.top) b.top = y;
-    if (y > b.bottom) b.bottom = y;
-  }
-  return box;
-}
-
-/**
  * Everything about how a board is coloured, worked out once.
  *
  * A function of the placement alone, so it is settled when the board is laid and not
  * asked again every frame -- the regions do not move, and neither does which of them
- * touch. What changes between frames is only which regions are blinking, and that is
- * a lookup against this.
+ * touch. `settled` is in here for the same reason: the colour a found vehicle comes
+ * to rest in is a fact about the map, and both the board and the pulse over it need
+ * to agree on it.
  *
  * @param {Uint8ClampedArray} px - RGBA of a pass that drew each car in its own flat colour
- * @returns {{owner: Int32Array, neighbours: Array<Set>, ink: Int32Array}}
+ * @param {Function} settledOf - a region's resting colour, given the finished plan
+ * @returns {{owner: Int32Array, neighbours: Array<Set>, ink: Int32Array,
+ *            settled: Array}}
  */
-export function planBoard(px, width, height, cars, palette) {
+export function planBoard(px, width, height, cars, palette, settledOf) {
   const { owner, regions } = labelRegions(px, width, height, cars);
   const neighbours = borders(owner, regions, width, height);
   const { ink } = assignInks(neighbours, palette);
-  return { owner, neighbours, ink, bounds: boundsOf(owner, regions, width) };
+  const plan = { owner, neighbours, ink };
+  plan.settled = Array.from({ length: regions }, (_, region) => settledOf(plan, region));
+  return plan;
 }

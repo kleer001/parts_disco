@@ -6,18 +6,14 @@ import { loadViews, proxyOf } from './views.js';
 import { deal, layout } from './board.js';
 import { createRound } from './game.js';
 import { stageAt, RANGE } from './levels.js';
-import { createPaperLayer, createBoardLayer, createPanelLayer,
-         stampRegions, INKS, rgbOf } from './layers.js';
+import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
+         createRecessLayer, createPanelLayer, stampRegions, settledInk, INKS,
+         rgbOf } from './layers.js';
 import { planBoard } from './paint.js';
+import { TUNING, createClock } from './juice.js';
 
 const SEED = 1983;
 const PANEL_WIDTH = 300;
-
-// Hold the drawn board and put it back down while nothing on it is moving. Worth it
-// for a board that mostly sits still; turn it off if the board starts animating in
-// its own right, when every frame is a different picture and the keeping is a copy
-// paid for nothing.
-const HOLD_STILL_BOARDS = true;
 
 /**
  * Wire a canvas to a run and start the loop.
@@ -31,7 +27,12 @@ export async function start(canvas, seed = SEED) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) throw new Error('2D canvas context unavailable'); // boundary
 
-  const views = await loadViews();
+  // The panel measures text to size its slabs, so the face has to be there before
+  // the first frame or every slab is cut to the fallback's widths. It is asked for
+  // alongside the fleet rather than ahead of it -- the fleet is megabytes and the
+  // face is kilobytes, so waiting for one before starting the other is a round trip
+  // spent on nothing.
+  const [views] = await Promise.all([loadViews(), document.fonts.load('16px VT323')]);
   const field = { width: canvas.width - PANEL_WIDTH, height: canvas.height };
   const viewOf = (slot) => views.view(slot.model, slot.angle);
 
@@ -73,7 +74,8 @@ export async function start(canvas, seed = SEED) {
     standing = cars;
     stampRegions(scratchCtx, standing, span, viewOf, field.width, field.height);
     const px = scratchCtx.getImageData(0, 0, field.width, field.height).data;
-    plan = planBoard(px, field.width, field.height, standing.length, level.inks);
+    plan = planBoard(px, field.width, field.height, standing.length, level.inks,
+                     settledInk);
   };
 
   const nextLevel = () => {
@@ -89,13 +91,19 @@ export async function start(canvas, seed = SEED) {
   };
   nextLevel();
 
+  // Order is the picture: the ground goes over the board so the paper lies on top of
+  // the ink, the find pulse goes over that, and the recess frames the lot.
   const scene = createCompositor()
     .add(createPaperLayer())
-    .add(createBoardLayer(viewOf, { cache: HOLD_STILL_BOARDS ? held : null }))
+    .add(createBoardLayer(viewOf, held))
+    .add(createGridLayer())
+    .add(createFindLayer(viewOf))
+    .add(createRecessLayer())
     .add(createPanelLayer(RANGE));
 
-  const started = performance.now();
-  const elapsed = (now) => (now - started) / 1000;
+  // The clock is the game's, not the wall's, so a hit stop can hold the whole board
+  // still without any layer knowing that it happened.
+  const clock = createClock();
 
   canvas.addEventListener('pointerdown', (event) => {
     const box = canvas.getBoundingClientRect();
@@ -104,11 +112,13 @@ export async function start(canvas, seed = SEED) {
       ((event.clientY - box.top) / box.height) * canvas.height,
     ];
     if (point[0] > field.width) return;
-    round.choose(point, span, elapsed(performance.now()));
+    const now = performance.now();
+    const { outcome } = round.choose(point, span, clock.tick(now));
+    if (outcome === 'found') clock.freeze(now, TUNING.hitStopMs);
   });
 
   const frame = (now) => {
-    const at = elapsed(now);
+    const at = clock.tick(now);
     // The win plays itself out on the board, and when it has run its two seconds the
     // next level is dealt. Nothing is timed here beyond that.
     if (round.done(at)) { depth++; nextLevel(); }

@@ -12,17 +12,9 @@ export const WIN_SECONDS = 2;
 export const FLASH_FIRST = 0.150;
 export const FLASH_LAST = 0.050;
 
-// A car answers being found by blinking, five times, and then holding a colour it did
-// not have before. The blink says the click landed; the colour it settles on is what
-// says so from then on, which is why it has to be a colour and not a mark -- a mark
-// sits on top of the board and this is the board itself changing.
+// How many colours a found car steps through before it settles. The step it lands on
+// is what `settledInk` reads, so this number chooses the colour a found car keeps.
 export const FIND_BLINKS = 5;
-export const FIND_BLINK = 0.09;
-
-/** How far through its blink a car found this long ago is: 0..1, then done. */
-export function blinkOf(since) {
-  return since / (FIND_BLINKS * FIND_BLINK);
-}
 
 /**
  * How many times a winner has changed colour by this point in the win.

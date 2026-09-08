@@ -1,3 +1,12 @@
+/* The panel is set in VT323, and a canvas cannot fall back gracefully: it measures
+   and draws whatever the font string resolves to. main.js waits for this to load
+   before the first frame. */
+@font-face {
+  font-family: VT323;
+  src: url("assets/fonts/vt323-latin.woff2") format("woff2");
+  font-display: block;
+}
+
 /* Screenprint, not phosphor: the source material is black ink on white paper, so
    the page is the shop wall the sheet is pinned to. */
 :root {
