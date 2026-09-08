@@ -1,0 +1,81 @@
+- generic [ref=f10e2]:
+  - banner [ref=f10e3]:
+    - generic [ref=f10e4]: Parts Disco · board bench
+    - heading "A hundred and twenty thousand points of car" [level=1] [ref=f10e5]
+    - paragraph [ref=f10e6]:
+      - text: Twelve vehicles traced out of Blender as line art, eight camera angles each, stacked on one field. The panel shows the target rendered solid at an angle the board does
+      - emphasis [ref=f10e7]: not
+      - text: hold — so no view can be matched on shape alone, only recognised.
+  - generic [ref=f10e11]:
+    - generic [ref=f10e12]:
+      - generic [ref=f10e13]: Find
+      - paragraph [ref=f10e14]: sedan-sports
+      - img "The target vehicle, rendered solid at an angle not shown on the board" [ref=f10e15]
+      - generic [ref=f10e16]:
+        - term [ref=f10e17]: On board
+        - definition [ref=f10e18]: 8 of 70 views
+        - term [ref=f10e19]: Angles
+        - definition [ref=f10e20]:
+          - generic [ref=f10e21]:
+            - generic [ref=f10e22]: 0°
+            - generic [ref=f10e23]: 45°
+            - generic [ref=f10e24]: 90°
+            - generic [ref=f10e25]: 135°
+            - generic [ref=f10e26]: 180°
+            - generic [ref=f10e27]: 225°
+            - generic [ref=f10e28]: 270°
+            - generic [ref=f10e29]: 315°
+    - generic [ref=f10e30]:
+      - generic [ref=f10e31]: Board
+      - generic [ref=f10e32]:
+        - generic [ref=f10e33]:
+          - generic [ref=f10e34]: cars
+          - slider "cars" [ref=f10e35]: "70"
+          - status [ref=f10e36]: "70"
+        - generic [ref=f10e37]:
+          - generic [ref=f10e38]: size
+          - slider "size" [ref=f10e39]: "30"
+          - status [ref=f10e40]: 30%
+        - generic [ref=f10e41]:
+          - generic [ref=f10e42]: overlap
+          - slider "overlap" [ref=f10e43]: "58"
+          - status [ref=f10e44]: 58%
+        - generic [ref=f10e45]:
+          - generic [ref=f10e46]: models
+          - slider "models" [ref=f10e47]: "12"
+          - status [ref=f10e48]: "12"
+        - generic [ref=f10e49]:
+          - generic [ref=f10e50]: seed
+          - slider "seed" [ref=f10e51]: "23"
+          - status [ref=f10e52]: "23"
+        - generic [ref=f10e53]:
+          - generic [ref=f10e54]: buried
+          - status [ref=f10e55]: 51% of each car
+    - generic [ref=f10e56]:
+      - generic [ref=f10e57]: Ink
+      - generic [ref=f10e59]:
+        - generic [ref=f10e60]: stroke
+        - slider "stroke" [ref=f10e61]: "1"
+        - status [ref=f10e62]: "1"
+      - generic [ref=f10e63]:
+        - generic [ref=f10e64] [cursor=pointer]:
+          - checkbox "1-bit — cut the antialiasing" [checked] [ref=f10e65]
+          - generic [ref=f10e66]: 1-bit — cut the antialiasing
+        - generic [ref=f10e67] [cursor=pointer]:
+          - checkbox "Opaque — cars occlude" [ref=f10e68]
+          - generic [ref=f10e69]: Opaque — cars occlude
+        - generic [ref=f10e70] [cursor=pointer]:
+          - checkbox "Show answers" [ref=f10e71]
+          - generic [ref=f10e72]: Show answers
+  - contentinfo [ref=f10e73]:
+    - paragraph [ref=f10e74]:
+      - text: Every view is drawn at one scale, so a van reads bigger than a sedan and a front view reads narrower than a side. Four of the twelve bodies —
+      - code [ref=f10e75]: sedan
+      - text: ","
+      - code [ref=f10e76]: sedan-sports
+      - text: ","
+      - code [ref=f10e77]: taxi
+      - text: ","
+      - code [ref=f10e78]: police
+      - text: — are the same shell with different trim, and from the front they differ by a roof sign or a light bar and nothing else.
+    - paragraph [ref=f10e79]: Which is why density turns out not to be the difficulty. A tractor is found instantly at any count; a taxi is hard at any count. What decides a round is which vehicle is asked for and how many of its near-twins are on the board with it.

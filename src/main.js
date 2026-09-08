@@ -2,66 +2,61 @@
 // Everything it calls is pure and takes what it needs as an argument.
 
 import { createCompositor } from './compositor.js';
-import { createBoard, fontSizeFor, BOARD_DEFAULTS } from './board.js';
-import { createGame } from './game.js';
-import { makeWords } from './words.js';
-import { createPaperLayer, createWordsLayer, createPanelLayer, FONT_FAMILY } from './layers.js';
+import { loadViews, proxyOf } from './views.js';
+import { deal, layout } from './board.js';
+import { createRound } from './game.js';
+import { stageAt, RANGE } from './levels.js';
+import { createPaperLayer, createBoardLayer, createPanelLayer } from './layers.js';
 
 const SEED = 1983;
 const PANEL_WIDTH = 300;
-const NOTICE_MS = 900;
-
-const NOTICES = {
-  hit: (part) => ({ tone: 'hit', text: `${part.name} — found` }),
-  wrong: (part) => ({ tone: 'miss', text: `that one is ${part.name}` }),
-  empty: () => ({ tone: 'miss', text: 'bare paper' }),
-};
-
-/**
- * Measure each word at the size the board will draw it.
- *
- * The boundary: only a canvas knows how wide a string of glyphs is, so the widths
- * are taken here and handed to the board as data. Height comes from the font's own
- * ascent and descent rather than the point size, so the hit box matches the ink.
- */
-function measureWords(ctx, words, fontSize) {
-  ctx.font = `${fontSize}px ${FONT_FAMILY}`;
-  return words.map((word) => {
-    const m = ctx.measureText(word);
-    return {
-      word,
-      width: m.width,
-      height: m.actualBoundingBoxAscent + m.actualBoundingBoxDescent,
-    };
-  });
-}
 
 /**
  * Wire a canvas to a run and start the loop.
  * @param {HTMLCanvasElement} canvas
  * @param {number} [seed]
  */
-export function start(canvas, seed = SEED) {
+export async function start(canvas, seed = SEED) {
   if (!(canvas instanceof HTMLCanvasElement)) {
     throw new Error('start() requires a <canvas> element'); // boundary
   }
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('2D canvas context unavailable');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) throw new Error('2D canvas context unavailable'); // boundary
 
+  const views = await loadViews();
   const field = { width: canvas.width - PANEL_WIDTH, height: canvas.height };
-  const fontSize = fontSizeFor(field);
-  const words = makeWords(seed, BOARD_DEFAULTS.count);
-  const board = createBoard(seed, field, measureWords(ctx, words, fontSize));
-  const game = createGame(board, seed);
-  game.next();
+  const viewOf = (slot) => views.view(slot.model, slot.angle);
+
+  // A view's proxy never changes, and the layout asks for it once per car per deal.
+  const proxies = new Map();
+  const proxyFor = (slot) => {
+    const at = `${slot.model}/${slot.angle}`;
+    if (!proxies.has(at)) proxies.set(at, proxyOf(viewOf(slot)));
+    return proxies.get(at);
+  };
+
+  let depth = 0;
+  let level;
+  let round;
+  let span;
+  let prompt;
+
+  const nextLevel = () => {
+    level = stageAt(depth);
+    span = field.height * level.size;
+    const { placed, target, askedAt } = deal(seed + depth, level, views);
+    round = createRound(layout(placed, seed + depth, span, field, proxyFor),
+                        target, viewOf);
+    prompt = new Image();
+    prompt.src = views.promptFor(target, askedAt ?? views.anglesOf(target)[0]);
+  };
+  nextLevel();
 
   const scene = createCompositor()
     .add(createPaperLayer())
-    .add(createWordsLayer(board))
-    .add(createPanelLayer());
+    .add(createBoardLayer(viewOf))
+    .add(createPanelLayer(RANGE));
 
-  let notice = null;
-  let noticeUntil = 0;
   const started = performance.now();
   const elapsed = (now) => (now - started) / 1000;
 
@@ -71,27 +66,27 @@ export function start(canvas, seed = SEED) {
       ((event.clientX - box.left) / box.width) * canvas.width,
       ((event.clientY - box.top) / box.height) * canvas.height,
     ];
-    if (point[0] > field.width || !game.target) return;
-
-    const now = performance.now();
-    const { outcome, part } = game.pick(point, elapsed(now));
-    notice = NOTICES[outcome](part);
-    noticeUntil = now + NOTICE_MS;
-    if (outcome === 'hit') game.next();
+    if (point[0] > field.width) return;
+    round.choose(point, span, elapsed(performance.now()));
   });
 
   const frame = (now) => {
+    const at = elapsed(now);
+    // The win plays itself out on the board, and when it has run its two seconds the
+    // next level is dealt. Nothing is timed here beyond that.
+    if (round.done(at)) { depth++; nextLevel(); }
+
     scene.render(ctx, {
       width: field.width,
-      height: canvas.height,
+      height: field.height,
       panelWidth: PANEL_WIDTH,
-      fontSize,
-      t: elapsed(now),
-      target: game.target,
-      found: game.found,
-      total: board.parts.filter((part) => part.reachable).length,
-      misses: game.misses,
-      notice: now < noticeUntil ? notice : null,
+      anchors: round.anchors,
+      span,
+      inks: level.inks,
+      round,
+      level,
+      prompt,
+      at,
     });
     requestAnimationFrame(frame);
   };

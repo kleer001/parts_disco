@@ -1,162 +1,121 @@
-// Build a board of words from a seed. Pure: same seed and same measurements, same
-// board. Nothing here measures text or touches a canvas — a word arrives already
-// measured, because only the renderer knows how wide a glyph is.
+// Deal a board and lay it out. Pure: same seed and same level, same board. Nothing
+// here draws, measures or touches a canvas -- a view arrives as data and leaves as a
+// position.
 
 import { mulberry32 } from './rng.js';
-import { driftAt } from './drift.js';
-import { contains } from './geometry.js';
 
-/** Tuning for how a board is populated. Data, not logic. */
-export const BOARD_DEFAULTS = {
-  count: 100,
+/** How many places a car tries before it gives up on a separation it cannot fit. */
+const DART_TRIES = 30;
 
-  // Anchors sit on a square grid over the whole field, so the words are evenly
-  // spaced rather than clumped. A word is centred on its cell, which means a word
-  // in an edge cell hangs off the edge — at this font size, by about half.
-  columns: 10,
-
-  // Font height as a fraction of the field. At a quarter, a six-letter word spans
-  // eight columns but only two and a half rows, so the field bands horizontally
-  // until jitter breaks the rows up.
-  fontScale: 0.25,
-
-  // How far a word may sit from its anchor. Zero puts every row on one baseline.
-  jitter: 0,
-
-  // Pixels per second, per axis. Zero holds the board still: motion is a tuning
-  // value rather than a code path, so turning it on is a change to this number.
-  drift: 0,
-
-  // How far past the edge a word's centre may drift once it is moving.
-  margin: 40,
-};
-
-/** The font size a board of this shape wants, for the caller to measure at. */
-export function fontSizeFor(field, cfg = BOARD_DEFAULTS) {
-  return field.height * cfg.fontScale;
-}
+/** How finely the separation is searched, and how far up the search may look. */
+const FIT_STEPS = 14;
+const SPREAD_CEILING = 4.0;
 
 /**
- * Populate a board.
+ * Throw the cars onto the field.
  *
- * @param {number} seed
- * @param {{width: number, height: number}} field
- * @param {Array<{word: string, width: number, height: number}>} measured
- * @param {object} [cfg]
- * @returns {{field: object, parts: Array}}
+ * Bridson's method with a radius per car rather than one for all of them: each car is
+ * thrown into the ring around a car already down and kept only if it clears every one
+ * of them. Nothing is pushed, so nothing has to converge -- one pass lays the board
+ * where a relaxation needs sixty and still leaves the spacing looser.
+ *
+ * A car that finds nowhere against the others tries open ground instead. Without that
+ * a throw only ever lands in the ring around a car already placed, so the board grows
+ * outward as a circle from its first car and a square field keeps its corners bare.
+ *
+ * @returns placements, or null when this separation will not fit them all.
  */
-export function createBoard(seed, field, measured, cfg = BOARD_DEFAULTS) {
-  if (!measured.length) throw new Error('a board needs at least one word'); // boundary
+function dartThrow(bodies, seed, separation, field) {
   const rand = mulberry32(seed);
-  const pitch = field.width / cfg.columns;
-  const wander = () => (rand() - 0.5) * 2 * cfg.jitter;
-  const speed = () => (cfg.drift ? (rand() < 0.5 ? -1 : 1) * cfg.drift : 0);
+  const down = [];
 
-  const parts = measured.slice(0, cfg.count).map((entry, index) => ({
-    id: index,
-    name: entry.word,
-    width: entry.width,
-    height: entry.height,
-    x: (index % cfg.columns) * pitch + pitch / 2 + wander(),
-    y: Math.floor(index / cfg.columns) * pitch + pitch / 2 + wander(),
-    vx: speed(),
-    vy: speed(),
-  }));
+  for (const body of bodies) {
+    let put = null;
 
-  const area = {
-    minX: -cfg.margin,
-    minY: -cfg.margin,
-    maxX: field.width + cfg.margin,
-    maxY: field.height + cfg.margin,
-  };
-  const board = { field: area, parts };
-  // Settle solvability here, once, while the board is being made. A word the pile
-  // has buried can never be clicked, and a prompt that asks for one is a round the
-  // player cannot win however well they read. Deciding it at runtime instead --
-  // lifting a word to the top when it gets asked for -- would read as the world
-  // rearranging itself to help.
-  const clickable = new Set(reachableIds(boardAt(board, 0), field));
-  for (const part of parts) part.reachable = clickable.has(part.id);
-  return board;
-}
-
-// How finely the field is probed when asking whether a word has any exposed pixel.
-// Smaller finds slivers a player could never hit anyway; larger starts calling
-// reachable words buried.
-const PROBE_STEP = 4;
-
-/**
- * The ids of words with at least one point where nothing later covers them.
- * Pure, and a function of the placement alone.
- *
- * @param {Array} placed - output of boardAt
- * @param {{width: number, height: number}} field - only points on the field count
- * @returns {number[]}
- */
-export function reachableIds(placed, field) {
-  const boxes = placed.map((part) => ({
-    left: part.outline[0][0], top: part.outline[0][1],
-    right: part.outline[2][0], bottom: part.outline[2][1],
-  }));
-  const found = [];
-  for (let i = 0; i < placed.length; i++) {
-    const box = boxes[i];
-    // Only words drawn later can bury this one, and only those that overlap it.
-    const over = [];
-    for (let j = i + 1; j < placed.length; j++) {
-      const other = boxes[j];
-      if (other.left < box.right && other.right > box.left
-          && other.top < box.bottom && other.bottom > box.top) over.push(other);
-    }
-    if (isExposed(box, over, field)) found.push(placed[i].id);
-  }
-  return found;
-}
-
-function isExposed(box, over, field) {
-  for (let y = Math.max(box.top, 0); y < Math.min(box.bottom, field.height); y += PROBE_STEP) {
-    for (let x = Math.max(box.left, 0); x < Math.min(box.right, field.width); x += PROBE_STEP) {
-      if (!over.some((o) => x >= o.left && x <= o.right && y >= o.top && y <= o.bottom)) {
-        return true;
+    if (down.length) {
+      for (let attempt = 0; attempt < DART_TRIES && !put; attempt++) {
+        const anchor = down[Math.floor(rand() * down.length)];
+        // The ring runs from just clear of the anchor to twice that, which is what
+        // keeps the board even: closer is rejected, further leaves a hole.
+        const reach = (anchor.r + body.r) * separation;
+        const angle = rand() * Math.PI * 2;
+        const away = reach * (1 + rand());
+        const x = anchor.x + Math.cos(angle) * away;
+        const y = anchor.y + Math.sin(angle) * away;
+        if (x < 0 || y < 0 || x > field.width || y > field.height) continue;
+        if (down.every((q) => Math.hypot(x - q.x, y - q.y) >= (q.r + body.r) * separation)) {
+          put = { body, x, y, r: body.r };
+        }
       }
     }
+
+    for (let attempt = 0; attempt < DART_TRIES && !put; attempt++) {
+      const x = rand() * field.width;
+      const y = rand() * field.height;
+      if (down.every((q) => Math.hypot(x - q.x, y - q.y) >= (q.r + body.r) * separation)) {
+        put = { body, x, y, r: body.r };
+      }
+    }
+
+    if (!put) return null;
+    down.push(put);
   }
-  return false;
+  return down;
 }
 
 /**
- * The board as it stands at time t, each word with the box it occupies now.
- * @param {{field: object, parts: Array}} board
- * @param {number} t - seconds since the board started
+ * Choose what is on the board, and what the panel asks for.
+ *
+ * The target is a vehicle the board holds, asked for at an angle it does not. A
+ * prompt showing an angle that is on the board is a shape to match; this one has to
+ * be recognised.
  */
-export function boardAt(board, t) {
-  return board.parts.map((part) => {
-    const at = driftAt(part, t, board.field);
-    const halfW = part.width / 2;
-    const halfH = part.height / 2;
+export function deal(seed, level, views) {
+  const rand = mulberry32(seed);
+  const pick = (list) => list[Math.floor(rand() * list.length)];
+
+  const placed = [];
+  for (let i = 0; i < level.cars; i++) {
+    const model = pick(level.fleet);
+    placed.push({ model, angle: pick(views.anglesOf(model)) });
+  }
+
+  const target = pick(placed).model;
+  const here = new Set(placed.filter((p) => p.model === target).map((p) => p.angle));
+  const spare = views.anglesOf(target).filter((a) => !here.has(a));
+  return { placed, target, askedAt: spare.length ? pick(spare) : null };
+}
+
+/**
+ * Lay the dealt cars out, at the widest separation the field will take.
+ *
+ * The separation is searched for rather than set. Throwing holds its separation
+ * exactly and covers only the ground that separation reaches, so a fixed one grows an
+ * island and leaves the rest of the board bare. The widest spacing that still fits
+ * every car is the one that fills the field, which makes the count the only thing
+ * that sets density: to bury the cars deeper, deal more of them.
+ *
+ * @returns anchors, each `{ slot, cx, cy }` -- where a view's frame goes.
+ */
+export function layout(placed, seed, span, field, proxyFor) {
+  const bodies = placed.map((slot) => ({ slot, r: proxyFor(slot).r * span }));
+
+  let out = null;
+  let low = 0;
+  let high = SPREAD_CEILING;
+  for (let step = 0; step < FIT_STEPS; step++) {
+    const mid = (low + high) / 2;
+    const attempt = dartThrow(bodies, seed + 1, mid, field);
+    if (attempt) { out = attempt; low = mid; } else high = mid;
+  }
+  if (!out) throw new Error('no separation fits this many cars'); // boundary
+
+  return out.map((p) => {
+    const proxy = proxyFor(p.body.slot);
     return {
-      ...part,
-      ...at,
-      // A word's hit area is the box its glyphs occupy. Testing the letterforms
-      // themselves would mean a click had to land on a stroke, and at this weight
-      // the strokes are a pixel wide.
-      outline: [
-        [at.x - halfW, at.y - halfH], [at.x + halfW, at.y - halfH],
-        [at.x + halfW, at.y + halfH], [at.x - halfW, at.y + halfH],
-      ],
+      slot: p.body.slot,
+      cx: p.x - (proxy.cx - 0.5) * span,
+      cy: p.y - (proxy.cy - 0.5) * span,
     };
   });
-}
-
-/**
- * The word under a point, or null. The last one drawn is on top, so the search
- * runs from the top of the pile down.
- * @param {Array} placed - output of boardAt
- * @param {[number, number]} point
- */
-export function partAt(placed, point) {
-  for (let i = placed.length - 1; i >= 0; i--) {
-    if (contains(point, placed[i].outline)) return placed[i];
-  }
-  return null;
 }

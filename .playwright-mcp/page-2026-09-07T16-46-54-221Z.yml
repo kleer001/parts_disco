@@ -1,0 +1,36 @@
+- generic [active] [ref=e1]:
+  - heading "Cars on an 800×800 field" [level=2] [ref=e2]
+  - paragraph [ref=e3]:
+    - text: Every view is drawn at one scale, so a van reads bigger than a sedan and a front view reads narrower than a side. The prompt is the target rendered solid at an angle that is
+    - emphasis [ref=e4]: not
+    - text: on the board, so no view can be matched by its shape alone.
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - text: count
+      - slider "count" [ref=e7]: "24"
+    - generic [ref=e8]:
+      - text: size %
+      - slider "size %" [ref=e9]: "28"
+    - generic [ref=e10]:
+      - text: jitter
+      - slider "jitter" [ref=e11]: "0"
+    - generic [ref=e12]:
+      - text: stroke
+      - slider "stroke" [ref=e13]: "1"
+    - generic [ref=e14]:
+      - text: models
+      - slider "models" [ref=e15]: "12"
+    - generic [ref=e16]:
+      - text: seed
+      - slider "seed" [ref=e17]: "7"
+    - generic [ref=e18]:
+      - checkbox "1-bit" [checked] [ref=e19]
+      - text: 1-bit
+    - generic [ref=e20]:
+      - checkbox "show answers" [ref=e21]
+      - text: show answers
+  - generic [ref=e24]:
+    - generic [ref=e25]: Find
+    - generic [ref=e26]: —
+    - paragraph
+    - heading "Detail — top-left quarter at 2×" [level=2] [ref=e27]

@@ -1,13 +1,13 @@
 # parts disco
 
-A hundred outlined nonsense words, stacked until the field is a thicket. A panel
-names one. Find it.
+A yard full of vehicles, drawn as outlines and painted so that no two touching
+things share a colour. A panel shows you one of them, solid, from an angle the yard
+does not contain. Find every copy of it.
 
-The alphabet is `oeasplbqdc`, chosen for how the letters look rather than what they
-spell: `b`, `d`, `p` and `q` are the same two strokes rotated, and `o`, `e`, `a`, `c`
-are the same ring closed to different degrees. A word built only from these is hard to
-tell from its neighbour at a glance, which is the point — the search has to be a read,
-not a shape-match.
+The catch is the fleet. Four of the twelve bodies are the same shell with different
+trim — a sedan, a sports sedan, a taxi and a police car — and from the front they
+differ by a roof sign and nothing else. So the work is never seeing the vehicles;
+it is telling them apart.
 
 A browser game raised in [Trace ROM Studio](https://github.com/kleer001/trace_rom_studio).
 Vanilla JS, ES modules, no build step, no dependencies.
@@ -28,58 +28,74 @@ Open the URL it prints. Don't open `index.html` from the filesystem — ES modul
 Everything below the renderer is pure: no module but `main.js` touches the DOM, a
 clock or an event, which is what lets the whole board be tested without a browser.
 
-- `src/words.js` — the vocabulary. Consonant/vowel shapes per length, so the nonsense
-  is sayable; seeded, so a seed reproduces it exactly.
-- `src/board.js` — places words on a grid, and settles which of them a click can
-  actually reach.
-- `src/drift.js` — where a word sits at time *t*, solved rather than stepped.
+- `src/views.js` — the fleet. A view is one vehicle from one angle: outline strokes,
+  a silhouette, and a solid render of the same angle for the panel to ask with.
+- `src/board.js` — deals a board and throws it onto the field.
+- `src/paint.js` — the colouring, as a map: which regions exist, which share a
+  border, and which ink each one takes.
+- `src/game.js` — what is being asked for, what a click did about it, and how far
+  through the win the board is.
+- `src/levels.js` — the difficulty path. Data only.
 - `src/geometry.js` — polygon containment, for hit-testing.
-- `src/game.js` — what is being asked for, and what a click did about it.
 - `src/layers.js`, `src/compositor.js` — ordered draw passes over one canvas.
-- `src/main.js` — the only file with a DOM in it. Measures the words, wires the loop.
-- `word-preview.html` — the field with live controls for font size, stroke weight and
-  grid jitter. For tuning the look without editing constants.
+- `src/main.js` — the only file with a DOM in it. Loads the fleet, wires the loop.
+- `view-preview.html` — the bench: the same board with every dial exposed, for
+  tuning the look and the difficulty without editing constants.
 
-Tuning lives in `BOARD_DEFAULTS` (`src/board.js`), not in the logic. Font size is a
-fraction of the field, so the board scales with the canvas.
+**The board is thrown, not arranged.** Each vehicle stands in for itself as a circle
+no wider than the short edge of its ink, and cars are thrown into the rings around
+cars already down until every one has a place. The circle is far smaller than the
+vehicle on purpose: two cars whose circles have just stopped touching are already
+deep into one another, which is the board this game wants. The separation is
+searched for rather than set, because throwing covers only the ground its separation
+reaches — so the count is what sets density, and burying the cars deeper means
+dealing more of them.
 
-**The board holds still.** Motion is a tuning value rather than a code path: `drift`
-is zero, and `drift.js` is still what works out every position, so turning the board
-into a moving one is a change to that number.
+**The colours are a map, not a palette.** Cars and the bare ground between them are
+one flat subdivision, so they are coloured as one: no two regions sharing a border
+get the same ink. Four inks colour any flat map whose every region is in one piece,
+and a car here need not be — a vehicle in front cuts the one behind into two halves
+that still have to carry one colour. On a full board seventeen of seventy are cut
+like that, which is why five inks is where it stops arguing. Below five the board
+runs out and regions are forced to share, and that is the hardest thing the
+difficulty path does.
 
-**Solvability is settled when the board is built.** At this density some words are
-buried by later ones and no click can reach them, so the prompt never asks for one and
-the tally never counts one. That check runs once, over the placement — lifting a word
-to the top when it happens to be asked for would read as the world rearranging itself
-to help.
+## The difficulty path
 
-## `tools/` and `research/` — the patent pipeline
+Sixteen stages, four to a level. A level is one idea about what is hard; within a
+level the numbers tighten. Four dials move: which vehicles are in play, how many,
+how big, and how many inks the board may use. `src/levels.js` is the whole of it,
+and the panel shows every dial against its range.
 
-The game began as a find-it board made of traced patent figures, and that pipeline
-works and is kept, though nothing in the game reads from it now.
+Which vehicles matters most by a distance. A tractor is found instantly however many
+cars surround it; a taxi is hard on an empty board.
 
-- `tools/patent_harvest` — patent number in, page renders and a `numeral -> part name`
-  table out, read off the specification's own prose.
-- `tools/figure_trace` — cuts the individual figures off a drawing sheet and traces
-  them to SVG.
-- `research/` — where the art can come from, what the CPC drawers hold, and how the
-  sources were checked.
+## `tools/` and `research/`
 
-Both tools are offline and Python; nothing they produce ships with the game. Their
-READMEs carry the details, including the two measured facts about `potrace`'s input
-that fail silently when you get them wrong.
+- `tools/model_views` — turns a 3D model into what the board needs: outline strokes
+  traced from Blender's Line Art, a silhouette taken from the render's own alpha, and
+  a 1-bit shaded view for the panel. Its README carries the three things that fail
+  silently, including the one that costs you every windscreen, headlight and grille.
+- `tools/model_views/export_mesh.py` — the same models as raw geometry, for a
+  renderer that draws them live rather than from baked angles.
+- `tools/patent_harvest`, `tools/figure_trace` — the pipeline this game began with,
+  when the board was made of traced patent figures. Kept, and not read by the game.
+- `research/` — where the art can come from, and what was measured about drawing the
+  board in WebGL instead of baking it.
+
+Both tool sets are offline and Python; nothing they produce ships except the views in
+`assets/`.
 
 ## What is written down
 
 - `DECISIONS.md` — what was ruled and what was rejected, terse and undated.
 - `DECISIONS-JOURNAL.md` — the dated reasoning behind each, append-only.
-- `.trace_rom_studio.toml` — the studio version this game descends from, and where to
-  find that studio.
-- `LICENSE` — MIT.
+- `.trace_rom_studio.toml` — the studio version this game descends from.
+- `LICENSE` — MIT. The vehicles are Kenney's [Car Kit](https://kenney.nl/assets/car-kit), CC0.
 
 ## Where it is
 
-Prototype. The loop runs and the board draws; nobody but its author has played it.
-Open questions are whether the search is fun at all, how many words and how large the
-type should be — density and findability trade directly against each other — and
-whether a drifting board beats a still one.
+Prototype. It plays: sixteen stages, a board a round, a win that clears the yard and
+deals the next one. Nobody but its author has played it. Open questions are whether
+the board should drift rather than hold still, whether the difficulty path climbs at
+the right rate, and whether the near-twins are a good puzzle or an unfair one.

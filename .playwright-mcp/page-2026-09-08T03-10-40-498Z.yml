@@ -1,0 +1,57 @@
+- generic [active] [ref=f31e1]:
+  - heading "Cars on an 800×800 field" [level=2] [ref=f31e2]
+  - paragraph [ref=f31e3]:
+    - text: Every view is drawn at one scale, so a van reads bigger than a sedan and a front view reads narrower than a side. The prompt is the target rendered solid at an angle that is
+    - emphasis [ref=f31e4]: not
+    - text: on the board, so no view can be matched by its shape alone.
+  - paragraph [ref=f31e5]:
+    - text: Reads its views from
+    - code [ref=f31e6]: tmp/fleet2/
+    - text: ", which is not in the repo. Render a fleet with"
+    - code [ref=f31e7]: tools/model_views/render_views.py
+    - text: first, then write a
+    - code [ref=f31e8]: manifest.json
+    - text: beside them listing each model and the angles it was rendered at.
+  - generic [ref=f31e9]:
+    - generic [ref=f31e10]:
+      - text: cars
+      - slider "cars" [ref=f31e11]: "70"
+    - generic [ref=f31e12]:
+      - text: size %
+      - slider "size %" [ref=f31e13]: "30"
+    - generic [ref=f31e14]:
+      - text: overlap
+      - slider "overlap" [ref=f31e15]: "58"
+    - generic [ref=f31e16]:
+      - text: stroke
+      - slider "stroke" [ref=f31e17]: "1"
+    - generic [ref=f31e18]:
+      - text: models
+      - slider "models" [ref=f31e19]: "12"
+    - generic [ref=f31e20]:
+      - text: seed
+      - slider "seed" [ref=f31e21]: "7"
+    - generic [ref=f31e22]:
+      - checkbox "1-bit" [checked] [ref=f31e23]
+      - text: 1-bit
+    - generic [ref=f31e24]:
+      - checkbox "opaque" [ref=f31e25]
+      - text: opaque
+    - generic [ref=f31e26]:
+      - checkbox "colour" [ref=f31e27]
+      - text: colour
+    - generic [ref=f31e28]:
+      - checkbox "fill gaps" [ref=f31e29]
+      - text: fill gaps
+    - generic [ref=f31e30]:
+      - checkbox "poisson (sets its own overlap)" [ref=f31e31]
+      - text: poisson
+      - generic [ref=f31e32]: (sets its own overlap)
+    - generic [ref=f31e33]:
+      - checkbox "show answers" [ref=f31e34]
+      - text: show answers
+  - generic [ref=f31e37]:
+    - generic [ref=f31e38]: Find
+    - generic [ref=f31e39]: —
+    - paragraph
+    - heading "Detail — top-left quarter at 2×" [level=2] [ref=f31e40]

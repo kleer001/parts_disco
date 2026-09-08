@@ -1,0 +1,29 @@
+- generic [active] [ref=f20e1]:
+  - heading "Does a drifting board shimmer, and can the GPU carry it?" [level=2] [ref=f20e2]
+  - paragraph [ref=f20e3]:
+    - text: "The two questions the payload numbers cannot answer. Cars are drawn from their meshes, not from baked views: a depth prepass, then the crease edges depth-tested against it."
+    - code [ref=f20e4]: antialias
+    - text: is off and the lines are one pixel, so what lands on the canvas is one bit per pixel with no threshold pass — every fragment is ink or paper. Turn drift and spin down to zero to compare a still frame against the baked renders.
+  - generic [ref=f20e5]:
+    - generic [ref=f20e6]:
+      - text: cars
+      - slider "cars" [ref=f20e7]: "70"
+    - generic [ref=f20e8]:
+      - text: size
+      - slider "size" [ref=f20e9]: "60"
+    - generic [ref=f20e10]:
+      - text: drift
+      - slider "drift" [ref=f20e11]: "14"
+    - generic [ref=f20e12]:
+      - text: spin
+      - slider "spin" [ref=f20e13]: "8"
+    - generic [ref=f20e14]:
+      - text: elevation
+      - slider "elevation" [ref=f20e15]: "18"
+    - generic [ref=f20e16]:
+      - text: offset
+      - slider "offset" [ref=f20e17]: "8"
+    - generic [ref=f20e18]:
+      - checkbox "run" [checked] [ref=f20e19]
+      - text: run
+  - generic [ref=f20e20]: loading…

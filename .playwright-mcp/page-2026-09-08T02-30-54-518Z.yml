@@ -1,0 +1,50 @@
+- generic [active] [ref=f25e1]:
+  - heading "Cars on an 800×800 field" [level=2] [ref=f25e2]
+  - paragraph [ref=f25e3]:
+    - text: Every view is drawn at one scale, so a van reads bigger than a sedan and a front view reads narrower than a side. The prompt is the target rendered solid at an angle that is
+    - emphasis [ref=f25e4]: not
+    - text: on the board, so no view can be matched by its shape alone.
+  - paragraph [ref=f25e5]:
+    - text: Reads its views from
+    - code [ref=f25e6]: tmp/fleet2/
+    - text: ", which is not in the repo. Render a fleet with"
+    - code [ref=f25e7]: tools/model_views/render_views.py
+    - text: first, then write a
+    - code [ref=f25e8]: manifest.json
+    - text: beside them listing each model and the angles it was rendered at.
+  - generic [ref=f25e9]:
+    - generic [ref=f25e10]:
+      - text: cars
+      - slider "cars" [ref=f25e11]: "70"
+    - generic [ref=f25e12]:
+      - text: size %
+      - slider "size %" [ref=f25e13]: "30"
+    - generic [ref=f25e14]:
+      - text: overlap
+      - slider "overlap" [ref=f25e15]: "58"
+    - generic [ref=f25e16]:
+      - text: stroke
+      - slider "stroke" [ref=f25e17]: "1"
+    - generic [ref=f25e18]:
+      - text: models
+      - slider "models" [ref=f25e19]: "12"
+    - generic [ref=f25e20]:
+      - text: seed
+      - slider "seed" [ref=f25e21]: "7"
+    - generic [ref=f25e22]:
+      - checkbox "1-bit" [checked] [ref=f25e23]
+      - text: 1-bit
+    - generic [ref=f25e24]:
+      - checkbox "opaque" [ref=f25e25]
+      - text: opaque
+    - generic [ref=f25e26]:
+      - checkbox "poisson" [ref=f25e27]
+      - text: poisson
+    - generic [ref=f25e28]:
+      - checkbox "show answers" [ref=f25e29]
+      - text: show answers
+  - generic [ref=f25e32]:
+    - generic [ref=f25e33]: Find
+    - generic [ref=f25e34]: —
+    - paragraph
+    - heading "Detail — top-left quarter at 2×" [level=2] [ref=f25e35]
