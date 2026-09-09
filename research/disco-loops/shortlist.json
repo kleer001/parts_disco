@@ -16,6 +16,11 @@
   "faults": [
    "fades out"
   ],
+  "lufs": -18.4,
+  "truePeakDb": -5.9,
+  "normGain": 1.0471,
+  "normDb": 0.4,
+  "peakAfterNormDb": -5.5,
   "bpm": 120.2,
   "pulseStrength": 0.9,
   "joinPercentile": 90.7,
@@ -40,11 +45,7 @@
    "bars": 16.0,
    "offBars": 0.0,
    "offMs": 0.3
-  },
-  "loop": 3,
-  "fit": 4,
-  "loopWhy": "Sixteen bars at 120, 49ms long, so the length is an easy fix. The join is not: its step is sharper than 90.7% of the music's own, which is heard as a tick every thirty-two seconds. A short crossfade removes it \u2014 the toggle above plays it both ways.",
-  "fitWhy": "The steadiest bed of the four bar one, at 5.4dB of level swing, and mid-bright at 3653Hz. 22% of its energy is in the board's band, so it will want to sit a few dB lower than the disco track to keep the blips clear. Thirty-two seconds is a good length: long enough not to nag, short enough to keep a pulse under a search."
+  }
  },
  {
   "slug": "fs-832693",
@@ -63,6 +64,11 @@
   "faults": [
    "fades out"
   ],
+  "lufs": -13.8,
+  "truePeakDb": -0.3,
+  "normGain": 0.6166,
+  "normDb": -4.2,
+  "peakAfterNormDb": -4.5,
   "bpm": 120.2,
   "pulseStrength": 0.545,
   "joinPercentile": 99.9,
@@ -87,11 +93,7 @@
    "bars": 8.0,
    "offBars": -0.0,
    "offMs": -0.3
-  },
-  "loop": 2,
-  "fit": 2,
-  "loopWhy": "The worst join of the four, and by the widest margin: the step across the wrap is sharper than 99.9% of every step inside the track, which means the loudest transient a listener hears is the loop point itself. Eight bars at 120 and 25ms long, so the length is fine \u2014 it is the wrap that needs the crossfade, and it needs it more than any other here.",
-  "fitWhy": "Warm and steady \u2014 846Hz and 5.0dB, the darkest and least busy of the four, which is what a bed should be. The trouble is where that warmth sits: 47.8% of its energy is inside the band the game's own clicks, refusals and find blips occupy, twice any other candidate. It would mask the thing the player needs to hear. Ducking it under a find would fix that, and that is a feature nobody has asked for yet."
+  }
  },
  {
   "slug": "fs-447576",
@@ -111,6 +113,11 @@
    "224ms of silence at an end",
    "fades out"
   ],
+  "lufs": -26.5,
+  "truePeakDb": -9.7,
+  "normGain": 2.6607,
+  "normDb": 8.5,
+  "peakAfterNormDb": -1.2,
   "bpm": 120.2,
   "pulseStrength": 0.711,
   "joinPercentile": 10.4,
@@ -135,11 +142,7 @@
    "bars": 4.0,
    "offBars": 0.0,
    "offMs": 0.3
-  },
-  "loop": 5,
-  "fit": 3,
-  "loopWhy": "The best join of the four by a distance: its step across the wrap is more ordinary than 90% of the steps inside the music, so nothing clicks. All it needs is the 232ms of silence trimmed off the tail, and it is exactly four bars.",
-  "fitWhy": "Two things pull against each other. It is the brightest of the four at 6750Hz and the most dynamic at 10.5dB, which is what makes it the one that asks to be listened to \u2014 over sixteen stages that is a cost. But it is also the one that leaves the board's own voice alone: a quarter of its energy is in the band the clicks and blips live in, and the rest is above them. Four bars is the real problem \u2014 a ninety-second stage hears it eleven times."
+  }
  },
  {
   "slug": "funky-disco-beats-to-boogiewoogie-to",
@@ -159,6 +162,11 @@
    "39ms of silence at an end",
    "fades out"
   ],
+  "lufs": -16.1,
+  "truePeakDb": -1.0,
+  "normGain": 0.8035,
+  "normDb": -1.9,
+  "peakAfterNormDb": -2.9,
   "bpm": 110.0,
   "pulseStrength": 0.604,
   "joinPercentile": 46.5,
@@ -183,10 +191,6 @@
    "bars": 60.0,
    "offBars": 0.0,
    "offMs": 0.5
-  },
-  "loop": 4,
-  "fit": 5,
-  "loopWhy": "Sixty-one bars at 110bpm and only 53ms off a whole one, so trimming to 60 bars squares it. The join is unremarkable \u2014 sharper than 47% of the music's own steps, which is inside what a groove does anyway.",
-  "fitWhy": "The one that sounds like the game is called parts disco. It is also the one that stays out of the way: 8.4% of its energy sits in the band the board's clicks and blips occupy, the lowest of the four by a factor of three, so it can be louder than the others and still not bury a find. At 131 seconds a stage mostly hears it once, which is the opposite of the four-bar problem. The cost is that it is an arrangement rather than a bed \u2014 it goes places, and over sixteen stages a player may start following it instead of the board."
+  }
  }
 ]

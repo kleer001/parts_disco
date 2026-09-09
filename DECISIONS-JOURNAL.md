@@ -703,3 +703,45 @@ its gain through the weighting and the decay envelope together.
 **Threaded:** `BALANCE` and the solved gains in `src/audio.js`; `buildTone` and
 `buildFind`; the balance panel in `research/disco-loops/mixer.html`, which re-measures
 the shipped voices against the table.
+
+### [2026-09-09] Balanced is not the same as loud enough
+
+**Amends the entry above it.** The relative balance stands; what it was missing is an
+absolute one.
+
+**Decision:** `BALANCE` gains a `findLufs` anchor saying where the whole set sits, and
+every music loop carries a measured `normGain` bringing it to a bed of -18 LUFS.
+`setMusic` takes that gain alongside the trim.
+
+**Pressure:** the voices were placed correctly against each other and still could not
+be heard. Measured against the top-rated loop, a find sat 15.9dB under it open and
+6.8dB under it ducked. Two of the five had been made *quieter* by the balancing pass —
+so the answer to "the sounds are hard to hear" had been to turn two of them down.
+
+**A relative table cannot catch this, which is the lesson.** Every row read within
+0.03dB of its target while the whole set was buried. An offset table has no opinion
+about where the set sits, so the panel that checks it grew a row that measures the
+find against the loop that is actually playing.
+
+**Rejected: leaving the music fader to do it.** The four candidates measure from -13.8
+to -26.5 LUFS — nearly thirteen decibels apart. One fader over that spread leaves the
+board shouting over a quiet track and buried under a loud one. The loudness is a
+property of the track, so the correction travels with the track.
+
+**Rejected: normalising by peak.** Peak says nothing about how loud a thing sounds; it
+is what the loudest single sample happens to be. The bed is set by integrated loudness
+per EBU R128, and the peak is checked afterwards only to confirm nothing clips after
+the lift -- the worst case is the quietest loop, which needs +8.5dB and still peaks at
+-1.2 dBFS.
+
+**Also caught:** the balance panel was carrying its own copy of the win's gain, so it
+reported a 10.6dB drift that was its own staleness. `WIN_GAIN` is exported now and the
+panel reads it. A checker with a second copy of the thing it checks is not a checker.
+
+**Where it lands:** a find clears a ducked loop by 6.5 to 8.4dB across all four
+candidates, against 1.9dB of spread between them. Under an open loop it sits about
+level, and the duck is what lifts it clear.
+
+**Threaded:** `BALANCE.findLufs`, the lifted gains and `WIN_GAIN` in `src/audio.js`;
+the track gain in `setMusic`; `BED_LUFS`, `integrated()` and `normGain` in
+`research/disco-loops/shortlist.py`; the anchor rows in the balance panel.

@@ -167,6 +167,12 @@ it went; it is never a reason to refuse a change he asks for.
   not to bury them is too low to hear. REJECTED: a `DynamicsCompressor` sidechain — a
   scheduled dip on a gain is exact, reproducible and readable, and the compressor
   behaves differently offline than in a browser.
+- **The balance table carries an absolute anchor as well as the relative offsets, and
+  every music loop is normalised to a bed.** REJECTED: relative placement alone —
+  balanced but unanchored, every voice sat correctly against every other and the whole
+  set was 6.8dB under a ducked loop. REJECTED: one music fader doing the job —
+  published loops vary by more than ten decibels, so the fader means a different thing
+  per track.
 - **The voices' relative loudness is declared, and their gains are solved to hit
   it.** REJECTED: choosing five gains by ear — a gain is not a loudness. Measured, the
   refusal came out 3.8dB *above* the find it was meant to sit under and the win 10.3dB

@@ -31,9 +31,9 @@ export const CHIME = 'assets/sfx/win-chime.mp3';
  * kind of thing from a bend.
  */
 export const VOICES = {
-  ground: { wave: 'sine',   from: 210, to: 165, ms: 70,  gain: 0.0289, duck: 0.35 },
-  again:  { wave: 'sine',   from: 330, to: 330, ms: 45,  gain: 0.0224, duck: 0.25 },
-  wrong:  { wave: 'square', from: 190, to: 135, ms: 175, gain: 0.0343, duck: 1 },
+  ground: { wave: 'sine',   from: 210, to: 165, ms: 70,  gain: 0.1433, duck: 0.35 },
+  again:  { wave: 'sine',   from: 330, to: 330, ms: 45,  gain: 0.1110, duck: 0.25 },
+  wrong:  { wave: 'square', from: 190, to: 135, ms: 175, gain: 0.1700, duck: 1 },
 };
 
 /**
@@ -60,7 +60,21 @@ export const VOICES = {
  * measures the shipped voices against this table, and is the thing to re-run when one
  * of them moves.
  */
-export const BALANCE = { find: 0, win: 4, wrong: -2, ground: -9, again: -13 };
+export const BALANCE = {
+  /**
+   * Where the whole set sits, in LUFS, measured through the effects fader at unity.
+   *
+   * Without this the table only says how the voices stand against each other, which
+   * is half a mix. Balanced but unanchored, the find measured 15.9dB under an open
+   * loop and 6.8dB under a ducked one -- every sound correctly placed, and the lot of
+   * them buried. The anchor is what says how loud "the board" is before a fader
+   * touches it, and it is chosen to clear a ducked bed by a few decibels.
+   */
+  findLufs: -20.5,
+
+  /** And where each voice stands against a find, in decibels. */
+  find: 0, win: 4, wrong: -2, ground: -9, again: -13,
+};
 
 /**
  * The find, which climbs and never runs out of ladder.
@@ -85,7 +99,7 @@ export const FIND = {
   /** How far up the ladder one find moves, in octaves. Six finds is one turn. */
   step: 1 / 6,
   ms: 150,
-  gain: 0.055,
+  gain: 0.2725,
   /** A sine started at full volume clicks. This is the ramp that stops it. */
   attackMs: 8,
   /** A find is the thing a player is listening for, so it takes the whole duck. */
@@ -99,7 +113,7 @@ export const WIN_PAUSE = 250;
  * Where the faders sit, as gains rather than decibels, because every one of them ends
  * up multiplying a sample.
  */
-export const MIX = { master: 1, music: 0.55, sfx: 1 };
+export const MIX = { master: 1, music: 0.42, sfx: 1 };
 
 /**
  * How far the music gets out of the way, and how quickly it comes back.
@@ -112,7 +126,7 @@ export const MIX = { master: 1, music: 0.55, sfx: 1 };
 export const DUCK = { depth: 0.65, attackMs: 25, holdMs: 90, releaseMs: 420 };
 
 /** How loud the win sits over the rest. Solved against `BALANCE`, not chosen. */
-const WIN_GAIN = 0.1699;
+export const WIN_GAIN = 0.7509;
 
 /** Below this a partial is inaudible, and an oscillator for it is one nobody hears. */
 const FLOOR = 1e-4;
@@ -260,8 +274,13 @@ export function createVoice(chimeUrl = CHIME) {
      * bar, and coming round a few tens of milliseconds early drags the pulse forward
      * on every repeat. Passing the bar-aligned points is what stops that.
      *
+     * `gain` is the loop's own, not the fader's: published loops vary by more than ten
+     * decibels, so without one the music fader means a different thing per track --
+     * one leaves the board shouting over it and the next buries the board. It is
+     * measured per track and travels with it.
+     *
      * @param {string|null} url - the loop, or null to stop
-     * @param {{startSec?: number, endSec?: number}} [trim]
+     * @param {{startSec?: number, endSec?: number, gain?: number}} [trim]
      */
     async setMusic(url, trim = {}) {
       if (loop) {
@@ -278,7 +297,9 @@ export function createVoice(chimeUrl = CHIME) {
       loop.loop = true;
       loop.loopStart = trim.startSec ?? 0;
       loop.loopEnd = trim.endSec ?? buffer.duration;
-      loop.connect(music);
+      const trackGain = ac.createGain();
+      trackGain.gain.value = trim.gain ?? 1;
+      loop.connect(trackGain).connect(music);
       loop.start(0, loop.loopStart);
       return buffer;
     },

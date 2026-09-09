@@ -142,9 +142,12 @@ td.near{color:#005C27}
       <p class="hint" style="margin:0 0 10px">Each voice rendered offline through the
       same builders the game plays, K-weighted per ITU-R BS.1770 and read at its
       loudest 50ms. <b>Want</b> is <code>BALANCE</code> in <code>src/audio.js</code>;
-      <b>got</b> is what the shipped gains actually produce. They should agree within a
-      few tenths of a decibel — a row that has drifted is a gain someone changed
-      without re-solving it.</p>
+      <b>got</b> is what the shipped gains actually produce.</p>
+      <p class="hint" style="margin:0 0 10px">The last row is the one that matters
+      most, and the one a table of relative offsets cannot catch: where the whole set
+      sits against the loop that is playing. Balanced but unanchored, every voice can
+      be exactly right against every other and the lot of them still be under the
+      music.</p>
       <div class="bar"><button type="button" id="measure">measure the voices</button></div>
       <table id="balance" hidden></table>
     </div>
@@ -164,7 +167,7 @@ td.near{color:#005C27}
 </div>
 
 <script type="module">
-import { createVoice, MIX, DUCK, VOICES, FIND, BALANCE,
+import { createVoice, MIX, DUCK, VOICES, FIND, BALANCE, WIN_GAIN,
          buildTone, buildFind } from '../../src/audio.js';
 
 const AUDIO = '../../tmp/loops/audio/';
@@ -193,17 +196,20 @@ for (const id of ['master', 'music', 'sfx']) bind(id, 'mix');
 for (const id of ['depth', 'attackMs', 'holdMs', 'releaseMs']) bind(id, 'duck');
 
 // ---- the loop picker -----------------------------------------------------
+const rows_ = rows;
 const tracks = document.getElementById('tracks');
 for (const r of rows) {
   const id = `t-${r.slug}`;
   const label = document.createElement('label');
   label.innerHTML = `<input type="radio" name="track" id="${id}">
     <span><b>${r.title.replace(/\.wav$/, '')}</b><br>
-    <small>${r.bpm} bpm · ${r.trim.bars} bars · ${r.gameBandPct}% in the board's band</small></span>`;
+    <small>${r.bpm} bpm · ${r.trim.bars} bars · ${r.gameBandPct}% in the board's band ·
+    ${r.lufs} LUFS, played ${r.normDb > 0 ? '+' : ''}${r.normDb}dB</small></span>`;
   label.querySelector('input').addEventListener('change', async () => {
     try {
-      await voice.setMusic(AUDIO + r.file,
-                           { startSec: r.trim.startSec, endSec: r.trim.endSec });
+      await voice.setMusic(AUDIO + r.file, {
+        startSec: r.trim.startSec, endSec: r.trim.endSec, gain: r.normGain,
+      });
       gone.hidden = true;
     } catch (e) {
       gone.hidden = false;
@@ -303,7 +309,7 @@ document.getElementById('measure').addEventListener('click', async (e) => {
   const bytes = await (await fetch('../../assets/sfx/win-chime.mp3')).arrayBuffer();
   const probe = new OfflineAudioContext(1, SR, SR);
   const chime = await probe.decodeAudioData(bytes);
-  const winGain = 0.1699;
+  const winGain = WIN_GAIN;   // read, not copied: a copy is the drift this panel hunts
   const ctx = new OfflineAudioContext(1, Math.ceil(SR * (chime.duration + 0.2)), SR);
   const k = kWeight(ctx);
   k.tail.connect(ctx.destination);
@@ -316,6 +322,36 @@ document.getElementById('measure').addEventListener('click', async (e) => {
   rows.push({ name: 'win', gain: winGain, got: loudest(await ctx.startRendering()) });
 
   const ref = rows.find((r) => r.name === 'find').got;
+
+  // And where the set stands against the loop, open and ducked. A relative table
+  // cannot see this, which is exactly how the voices came to be buried.
+  const against = [];
+  const chosen = document.querySelector('input[name=track]:checked');
+  if (chosen) {
+    const r = rows_.find((t) => `t-${t.slug}` === chosen.id);
+    const raw = await (await fetch(AUDIO + r.file)).arrayBuffer();
+    const p2 = new OfflineAudioContext(1, SR, SR);
+    const loop = await p2.decodeAudioData(raw);
+    const musicAt = async (duckGain) => {
+      const c = new OfflineAudioContext(1, Math.ceil(SR * 8), SR);
+      const kk = kWeight(c);
+      const g2 = c.createGain();
+      g2.gain.value = state.mix.music * duckGain * (r.normGain ?? 1);
+      g2.connect(kk.head);
+      kk.tail.connect(c.destination);
+      const s2 = c.createBufferSource();
+      s2.buffer = loop;
+      s2.connect(g2);
+      s2.start(0, r.trim.startSec);
+      return loudest(await c.startRendering(), 0.4);
+    };
+    const open = await musicAt(1);
+    const ducked = await musicAt(1 - state.duck.depth);
+    const find = ref + 20 * Math.log10(state.mix.sfx || 1e-6);
+    against.push(['find over the open loop', find - open],
+                 ['find over the ducked loop', find - ducked]);
+  }
+
   const table = document.getElementById('balance');
   table.hidden = false;
   table.innerHTML = '<tr><th>voice</th><th>gain</th><th>want</th><th>got</th><th>off by</th></tr>'
@@ -328,7 +364,13 @@ document.getElementById('measure').addEventListener('click', async (e) => {
           + `<td>${want > 0 ? '+' : ''}${want.toFixed(1)}</td>`
           + `<td>${got > 0 ? '+' : ''}${got.toFixed(2)}</td>`
           + `<td class="${cls}">${off > 0 ? '+' : ''}${off.toFixed(2)} dB</td></tr>`;
-      }).join('');
+      }).join('')
+    + (against.length
+        ? against.map(([what, db]) =>
+            `<tr><td colspan="3">${what}</td><td colspan="2" class="${db >= 3 ? 'near' : 'off'}">`
+            + `${db > 0 ? '+' : ''}${db.toFixed(1)} dB</td></tr>`).join('')
+        : '<tr><td colspan="5" style="color:var(--ink3)">pick a loop to see where the '
+          + 'set sits against it</td></tr>');
   e.target.disabled = false;
 });
 

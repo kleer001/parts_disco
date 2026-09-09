@@ -17,7 +17,7 @@ HOW WELL IT VIBES is not measured and is not claimed to be. What is measured her
 the things a judgement about it should be made against: how often it comes round in a
 stage, how bright it is, and how much its level moves.
 """
-import json, os, subprocess, sys
+import json, os, re, subprocess, sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -148,6 +148,26 @@ def fade_ratio(x, share=0.2):
     rms = lambda a: float(np.sqrt(np.mean(a ** 2)))
     return round(rms(x[-n:]) / (rms(x[:n]) + 1e-12), 3)
 
+# The bed every loop is normalised to, in LUFS. Loops as published vary by more than
+# ten decibels, so without this the music fader means a different thing per track and
+# a quiet one leaves the board shouting while a loud one buries it.
+BED_LUFS = -18.0
+
+def integrated(path):
+    """Integrated loudness and true peak, from ffmpeg's EBU R128 meter.
+
+    Read out of the Summary block at the end. The running lines carry a `I:` too, and
+    the first of those is the gate's floor rather than a measurement.
+    """
+    out = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-nostats", "-i", path,
+         "-af", "ebur128=peak=true", "-f", "null", "-"],
+        capture_output=True, text=True).stderr
+    tail = out.split("Summary:")[-1]
+    lufs = re.search(r"I:\s*(-?\d+\.\d+)\s*LUFS", tail)
+    peak = re.search(r"Peak:\s*(-?\d+\.\d+)\s*dBFS", tail)
+    return float(lufs.group(1)), float(peak.group(1))
+
 rows = []
 by_slug = {r["slug"]: r for r in json.load(open(os.path.join(HERE, "loops.json")))}
 for slug in PICKS:
@@ -161,8 +181,17 @@ for slug in PICKS:
     fit = bar_fit(meta["seconds"], bpm)
     trimmed_fit = bar_fit(trim["lengthSec"], bpm) if trim else None
 
+    lufs, peak_db = integrated(path)
+    # What this loop needs to sit at the bed, and what that does to its peak. Above
+    # 0dBFS the master would clip on the loop alone, before a single blip.
+    norm_db = BED_LUFS - lufs
     rows.append({
         **meta,
+        "lufs": round(lufs, 1),
+        "truePeakDb": round(peak_db, 1),
+        "normGain": round(10 ** (norm_db / 20), 4),
+        "normDb": round(norm_db, 1),
+        "peakAfterNormDb": round(peak_db + norm_db, 1),
         "bpm": round(bpm, 1) if bpm else None,
         "pulseStrength": round(pulse, 3),
         "joinPercentile": round(step_score(x), 1),
@@ -183,6 +212,8 @@ for slug in PICKS:
           f"fade={r['fadeRatio']}  bright={r['brightnessHz']}Hz  swing={swing_db:.1f}dB  "
           f"in the game's band={r['gameBandPct']}%", file=sys.stderr)
     print(f"    trim to {t}", file=sys.stderr)
+    print(f"    {lufs:.1f} LUFS -> bed at {norm_db:+.1f}dB (x{rows[-1]['normGain']}), "
+          f"peak then {rows[-1]['peakAfterNormDb']:+.1f} dBFS", file=sys.stderr)
 
 json.dump(rows, open(os.path.join(HERE, "shortlist.json"), "w"), indent=1)
 print(f"\nwrote {len(rows)}")
