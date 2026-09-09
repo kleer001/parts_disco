@@ -94,23 +94,27 @@ export const TUNING = {
   gridNoiseScale: 2,
   gridGroundOnly: true,
 
-  // -- the paper the panel's two blocks are printed on -----------------------
-  // The card lies on one mat and the readout sits in another. Both are the same ruled
-  // paper as the ground, in their own ink and their own weight, so the panel reads as
-  // a printed sheet rather than as white space with type on it.
-  cardMatCell: 9,
-  cardMatAlpha: 0.16,
-  cardMatNoise: 0.05,
-  cardMatPad: 14,
-  cardMatRecess: 4,
-  cardMatInk: '#8d9299',
+  // -- the two papers the panel is printed on --------------------------------
+  // One sheet lies under the whole panel and every block is pressed into it, so the
+  // paper reads as continuous behind them rather than as a patch under each. The card
+  // is printed on a sheet of its own, which is what the asked-for vehicle stands on.
+  //
+  // `blockTint` is how far a pressed-in block lightens the sheet under it: at 0 the
+  // paper shows through untouched and only the sunk edge says the block is there, at
+  // 1 the block is solid and the sheet stops at its edge.
+  cardPaperCell: 7,
+  cardPaperAlpha: 0.13,
+  cardPaperNoise: 0.05,
+  cardPaperInk: '#8d9299',
 
-  readMatCell: 9,
-  readMatAlpha: 0.22,
-  readMatNoise: 0.06,
-  readMatPad: 12,
-  readMatRecess: 6,
-  readMatInk: '#9aa0a8',
+  panelPaperCell: 11,
+  panelPaperAlpha: 0.2,
+  panelPaperNoise: 0.06,
+  panelPaperInk: '#9aa0a8',
+
+  blockTint: 0.45,
+  readRecess: 6,
+  readPad: 12,
 
   // -- the board and the panel blocks sitting in wells ----------------------
   recess: 9,

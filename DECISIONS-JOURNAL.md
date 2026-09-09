@@ -549,3 +549,37 @@ built only when a knob moves and every frame after is a pattern fill.
 **Threaded:** `ruledTile`, `mat`, `sunkFrame` and the two `paperFor` caches in
 `src/layers.js`; the twelve `cardMat*` and `readMat*` numbers in `src/juice.js`;
 `dev/panel.html`.
+
+### [2026-09-09] The panel's paper is one sheet, and the vehicle stands on it
+
+**Supersedes the entry above it**, which gave the card and the readout a patch of
+paper each. That entry stands as written; this is what replaced it.
+
+**Decision:** one sheet of ruled paper lies under the whole panel, and the card, the
+readout and the dials are pressed into it — a partial wash of their own colour under a
+sunk edge, so the rules run on behind all three. The card is printed on a second sheet
+inside its own rounded edge, and the render is multiplied onto that sheet rather than
+drawn over it.
+
+**Pressure:** paper under each block separately makes the rules stop at every edge.
+The blocks then read as cards lying on a white page, which is the opposite of the
+recesses they are meant to be. One continuous sheet with things pressed into it is the
+picture; the patches were the same idea drawn inside out.
+
+**Rejected: an opaque wash under a pressed block.** A block that paints over the rules
+hides the sheet it is supposed to be cut into. `blockTint` is how far it lightens
+instead: at 0 only the sunk edge says a block is there, at 1 the sheet stops at its
+edge. The choice is on the bench rather than settled here.
+
+**Rejected: drawing the prompt render onto the card unchanged,** which is what it had
+always done. The renders carry an opaque white ground, so a card printed on paper kept
+its rules only in the six-pixel margin around the render — the paper was around the
+vehicle and not behind it, which is the one place it was asked for. Multiplying lets
+the render's white leave the rules alone and its greys print over them. Verified by
+forcing the card's paper to loud red and counting: 79% of the pixels over the vehicle
+carry the paper's ink, where before it was none of them.
+
+**Threaded:** `paper`, `pressed` and `sunkFrame` in `src/layers.js`, the two
+`paperFor` caches, and the `multiply` in `bakeCard`; the eleven `cardPaper*`,
+`panelPaper*`, `blockTint`, `readRecess` and `readPad` numbers in `src/juice.js`;
+`dev/panel.html`.

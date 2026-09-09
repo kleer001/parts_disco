@@ -521,24 +521,37 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 /**
- * A block of ruled paper sunk into the panel.
+ * Lay ruled paper over a rectangle.
  *
- * The tile is handed in rather than made here, because a mat is redrawn every frame
- * and its paper changes only when a knob does.
+ * The pattern is anchored to the rectangle rather than to the canvas, so a sheet that
+ * moves takes its rules with it instead of sliding under them.
  */
-function mat(ctx, x, y, w, h, depth, tile, base) {
-  ctx.fillStyle = base;
-  ctx.fillRect(x, y, w, h);
+function paper(ctx, x, y, w, h, tile) {
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, w, h);
   ctx.clip();
-  // Anchored to the block and not to the canvas, so a mat that moves takes its rules
-  // with it instead of sliding under them.
   ctx.translate(x, y);
   ctx.fillStyle = ctx.createPattern(tile, 'repeat');
   ctx.fillRect(0, 0, w, h);
   ctx.restore();
+}
+
+/**
+ * A block pressed into the sheet: a wash of its own colour, then the sunk edge.
+ *
+ * The wash is partial on purpose. The sheet under the panel is one piece of paper and
+ * every block is cut into it, so a block that painted over the rules would read as a
+ * card lying on top instead of a recess pressed in.
+ */
+function pressed(ctx, x, y, w, h, depth, tint, alpha) {
+  if (alpha > 0) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = tint;
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+  }
   if (depth > 0) sunkFrame(ctx, x, y, w, h, depth);
 }
 
@@ -558,12 +571,6 @@ function sunkFrame(ctx, x, y, w, h, depth) {
   ctx.fillRect(x, y + h - 1, w, 1);
 }
 
-/** A sunken block: dark along the top and left, a lit edge along the bottom. */
-function well(ctx, x, y, w, h, depth, fill) {
-  ctx.fillStyle = fill;
-  ctx.fillRect(x, y, w, h);
-  if (depth > 0) sunkFrame(ctx, x, y, w, h, depth);
-}
 
 /**
  * The panel: what to find, how many are left, and how hard this board was made.
@@ -735,18 +742,33 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
     roundRect(c, 0, 0, span, span, 6);
     c.fill();
     c.shadowColor = 'transparent';
+    // The vehicle stands on ruled paper, not on white. Inside the card's own edge, so
+    // the rules stop where the card does.
+    c.save();
+    roundRect(c, 0, 0, span, span, 6);
+    c.clip();
+    paper(c, 0, 0, span, span, paperFor('card', s));
+    c.restore();
+    roundRect(c, 0, 0, span, span, 6);
     c.strokeStyle = palette.rule;
     c.lineWidth = 1;
     c.stroke();
     c.imageSmoothingEnabled = true;
     c.imageSmoothingQuality = 'high';
+    // Multiplied, not pasted. The render carries an opaque white ground, and laying
+    // that over the card would cover the paper everywhere but the margin. Multiplying
+    // lets its white leave the rules alone and its greys print over them, which is
+    // what puts the paper behind the vehicle rather than merely around it.
+    c.globalCompositeOperation = 'multiply';
     c.drawImage(flatten(prompt), 6, 6, span - 12, span - 12);
+    c.globalCompositeOperation = 'source-over';
   };
 
   /** The card, drawn centred on a point and flinching. */
   const drawCard = (ctx, cx, cy, span, prompt, shake, s) => {
     if (!prompt || !prompt.complete) return;
-    const key = `${prompt.src}|${span}|${s.cardShadow}|${s.cardBlur}`;
+    const key = `${prompt.src}|${span}|${s.cardShadow}|${s.cardBlur}`
+      + `|${paperKey('card', s)}`;
     if (cardKey !== key) {
       bakeCard(span, prompt, s);
       cardKey = key;
@@ -769,15 +791,17 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
 
   // The panel's two papers. Rebuilt only when a knob moves, because a tile is an
   // image and making one is a pixel loop.
-  const papers = { card: null, read: null };
-  const paperKeys = { card: null, read: null };
+  const papers = { card: null, panel: null };
+  const paperKeys = { card: null, panel: null };
+  const paperKey = (which, s) =>
+    `${s[`${which}PaperCell`]}|${s[`${which}PaperAlpha`]}`
+    + `|${s[`${which}PaperNoise`]}|${s.gridNoiseScale}|${s[`${which}PaperInk`]}`;
   const paperFor = (which, s) => {
-    const key = `${s[`${which}MatCell`]}|${s[`${which}MatAlpha`]}`
-      + `|${s[`${which}MatNoise`]}|${s.gridNoiseScale}|${s[`${which}MatInk`]}`;
+    const key = paperKey(which, s);
     if (paperKeys[which] !== key) {
-      papers[which] = ruledTile(s[`${which}MatCell`], s[`${which}MatAlpha`],
-                                s[`${which}MatNoise`], s.gridNoiseScale,
-                                s[`${which}MatInk`]);
+      papers[which] = ruledTile(s[`${which}PaperCell`], s[`${which}PaperAlpha`],
+                                s[`${which}PaperNoise`], s.gridNoiseScale,
+                                s[`${which}PaperInk`]);
       paperKeys[which] = key;
     }
     return papers[which];
@@ -793,6 +817,9 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
 
       ctx.fillStyle = palette.panel;
       ctx.fillRect(panel.x, panel.y, panel.width, panel.height);
+      // One sheet under the lot. Every block below is pressed into this rather than
+      // carrying paper of its own, so the rules run on behind all of them.
+      paper(ctx, panel.x, panel.y, panel.width, panel.height, paperFor('panel', s));
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
 
@@ -818,11 +845,6 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
           Math.min(panel.height - pad * 2, panel.width * 0.38));
         const cardX = panel.x + pad + span / 2;
         const cardY = panel.y + panel.height / 2;
-        // The card lies on its own sheet. Laid before the card so the card's shadow
-        // falls on the paper rather than on the panel behind it.
-        mat(ctx, cardX - span / 2 - s.cardMatPad, cardY - span / 2 - s.cardMatPad,
-            span + s.cardMatPad * 2, span + s.cardMatPad * 2,
-            s.cardMatRecess, paperFor('card', s), palette.panel);
         drawCard(ctx, cardX, cardY, span, prompt, shake, s);
 
         const rest = panel.width - span - pad * 3;
@@ -837,11 +859,11 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
                         + 8 + 18 + height(22);
         let y = panel.y + (panel.height - readout) / 2;
 
-        // Everything the readout says sits in one sunken sheet: the stage, what to
-        // find, how many are left and how much trouble the run is in.
-        mat(ctx, colX - s.readMatPad, y - s.readMatPad,
-            colW + s.readMatPad * 2, readout + s.readMatPad * 2,
-            s.readMatRecess, paperFor('read', s), palette.panel);
+        // Everything the readout says is pressed into the sheet together: the stage,
+        // what to find, how many are left and how much trouble the run is in.
+        pressed(ctx, colX - s.readPad, y - s.readPad,
+                colW + s.readPad * 2, readout + s.readPad * 2,
+                s.readRecess, palette.panel, s.blockTint);
 
         ctx.font = face(19, s);
         ctx.fillStyle = SEMANTIC.quiet.ink;
@@ -864,8 +886,8 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
         const step = Math.min(40, (panel.height - pad * 2) / rows.length);
         const block = step * rows.length + 16;
         const top = panel.y + (panel.height - block) / 2;
-        well(ctx, dialsX - 10, top, dialsW + 20, block, s.panelRecess,
-             SEMANTIC.quiet.tint);
+        pressed(ctx, dialsX - 10, top, dialsW + 20, block, s.panelRecess,
+                SEMANTIC.quiet.tint, s.blockTint);
         let dy = top + 18;
         for (const row of rows) {
           dial(ctx, dialsX, dy, dialsW, ...row, s);
@@ -879,14 +901,14 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
       const span = panel.width - pad * 2;
       let y = panel.y + pad;
 
-      // The card is inside the readout here rather than beside it, so one sheet holds
-      // the lot and the card's own sheet lies on top of it. Measured before anything
-      // is drawn, because the paper has to go down first.
+      // The card is inside the readout here rather than beside it, so one block holds
+      // the lot. Measured before anything is drawn, because the recess goes down
+      // first and it has to know how far it reaches.
       const tallHeight = 26 + 18 + height(32) + 14 + span + 24
                          + height(countSize(round)) + 10 + 18 + height(22);
-      mat(ctx, left - s.readMatPad, y - s.readMatPad,
-          span + s.readMatPad * 2, tallHeight + s.readMatPad * 2,
-          s.readMatRecess, paperFor('read', s), palette.panel);
+      pressed(ctx, left - s.readPad, y - s.readPad,
+              span + s.readPad * 2, tallHeight + s.readPad * 2,
+              s.readRecess, palette.panel, s.blockTint);
 
       ctx.font = face(19, s);
       ctx.fillStyle = SEMANTIC.quiet.ink;
@@ -898,9 +920,6 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
       y += 18;
       y += slab(ctx, left, y, round.target.toUpperCase(), SEMANTIC.target, 32, s) + 14;
 
-      mat(ctx, left - s.cardMatPad, y - s.cardMatPad,
-          span + s.cardMatPad * 2, span + s.cardMatPad * 2,
-          s.cardMatRecess, paperFor('card', s), palette.panel);
       drawCard(ctx, left + span / 2, y + span / 2, span, prompt, shake, s);
       y += span + 24;
 
@@ -912,8 +931,8 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
       y += 18;
       y += meterBar(ctx, left, y, span, meter, kick, s) + 22;
 
-      well(ctx, left - 10, y - 8, span + 20, 4 * 34 + 22, s.panelRecess,
-           SEMANTIC.quiet.tint);
+      pressed(ctx, left - 10, y - 8, span + 20, 4 * 34 + 22, s.panelRecess,
+              SEMANTIC.quiet.tint, s.blockTint);
       y += 16;
       for (const row of dialsOf(level)) {
         dial(ctx, left, y, span, ...row, s);

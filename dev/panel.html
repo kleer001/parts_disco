@@ -55,36 +55,46 @@ canvas{display:block;max-width:100%;height:auto;
 <header>
   <p class="eyebrow">parts disco · bench</p>
   <h1>panel paper</h1>
-  <p class="lede">The panel's two sheets: the one the card lies on and the one the
-  readout sits in. Both are the same ruled, speckled paper as the board's ground, in
-  their own ink and weight. Drawn at the two shapes the panel really takes — a desktop
-  puts it down the right-hand side, a phone across the bottom — asked of the same
-  <code>layoutFor</code> the game asks. Nothing else runs here: no board is dealt and
-  no clock is ticking, so the card hangs straight.</p>
+  <p class="lede">The panel's two papers. One sheet lies under the whole panel and the
+  card, the readout and the dials are pressed into it, so the rules run on behind all
+  three. The card is printed on a sheet of its own, which is what the asked-for vehicle
+  stands on. Both are the ruled, speckled paper the board's ground uses. Drawn at the
+  two shapes the panel really takes — a desktop puts it down the right-hand side, a
+  phone across the bottom — asked of the same <code>layoutFor</code> the game asks.
+  Nothing else runs here: no board is dealt and no clock is ticking, so the card hangs
+  straight.</p>
 </header>
 
 <div class="cols">
   <div>
     <div class="panel">
       <div class="grp">
-        <h2>Under the card</h2>
-        <div class="row"><label for="cardMatInk">ink</label><input type="color" id="cardMatInk"><output id="cardMatInk-o"></output></div>
-        <div class="row"><label for="cardMatCell">cell px</label><input type="range" id="cardMatCell" min="2" max="40" step="0.5"><output id="cardMatCell-o"></output></div>
-        <div class="row"><label for="cardMatAlpha">rule</label><input type="range" id="cardMatAlpha" min="0" max="0.6" step="0.005"><output id="cardMatAlpha-o"></output></div>
-        <div class="row"><label for="cardMatNoise">noise</label><input type="range" id="cardMatNoise" min="0" max="0.4" step="0.005"><output id="cardMatNoise-o"></output></div>
-        <div class="row"><label for="cardMatPad">margin px</label><input type="range" id="cardMatPad" min="0" max="48" step="1"><output id="cardMatPad-o"></output></div>
-        <div class="row"><label for="cardMatRecess">inset px</label><input type="range" id="cardMatRecess" min="0" max="20" step="1"><output id="cardMatRecess-o"></output></div>
+        <h2>Behind the vehicle</h2>
+        <div class="row"><label for="cardPaperInk">ink</label><input type="color" id="cardPaperInk"><output id="cardPaperInk-o"></output></div>
+        <div class="row"><label for="cardPaperCell">cell px</label><input type="range" id="cardPaperCell" min="2" max="40" step="0.5"><output id="cardPaperCell-o"></output></div>
+        <div class="row"><label for="cardPaperAlpha">rule</label><input type="range" id="cardPaperAlpha" min="0" max="0.6" step="0.005"><output id="cardPaperAlpha-o"></output></div>
+        <div class="row"><label for="cardPaperNoise">noise</label><input type="range" id="cardPaperNoise" min="0" max="0.4" step="0.005"><output id="cardPaperNoise-o"></output></div>
+        <p class="hint">Inside the card, so the vehicle stands on it. Baked into the
+        card with the render, not drawn per frame.</p>
       </div>
       <div class="grp">
-        <h2>Under the readout</h2>
-        <div class="row"><label for="readMatInk">ink</label><input type="color" id="readMatInk"><output id="readMatInk-o"></output></div>
-        <div class="row"><label for="readMatCell">cell px</label><input type="range" id="readMatCell" min="2" max="40" step="0.5"><output id="readMatCell-o"></output></div>
-        <div class="row"><label for="readMatAlpha">rule</label><input type="range" id="readMatAlpha" min="0" max="0.6" step="0.005"><output id="readMatAlpha-o"></output></div>
-        <div class="row"><label for="readMatNoise">noise</label><input type="range" id="readMatNoise" min="0" max="0.4" step="0.005"><output id="readMatNoise-o"></output></div>
-        <div class="row"><label for="readMatPad">margin px</label><input type="range" id="readMatPad" min="0" max="48" step="1"><output id="readMatPad-o"></output></div>
-        <div class="row"><label for="readMatRecess">inset px</label><input type="range" id="readMatRecess" min="0" max="20" step="1"><output id="readMatRecess-o"></output></div>
-        <p class="hint">The grain is shared with the board's ground — it is
-        <em>grain px</em> on the juice bench, and it is not repeated here.</p>
+        <h2>Behind the whole panel</h2>
+        <div class="row"><label for="panelPaperInk">ink</label><input type="color" id="panelPaperInk"><output id="panelPaperInk-o"></output></div>
+        <div class="row"><label for="panelPaperCell">cell px</label><input type="range" id="panelPaperCell" min="2" max="40" step="0.5"><output id="panelPaperCell-o"></output></div>
+        <div class="row"><label for="panelPaperAlpha">rule</label><input type="range" id="panelPaperAlpha" min="0" max="0.6" step="0.005"><output id="panelPaperAlpha-o"></output></div>
+        <div class="row"><label for="panelPaperNoise">noise</label><input type="range" id="panelPaperNoise" min="0" max="0.4" step="0.005"><output id="panelPaperNoise-o"></output></div>
+        <p class="hint">One sheet under the card, the readout and the dials. Every
+        block is pressed into it, so the rules run on behind all three.</p>
+      </div>
+      <div class="grp">
+        <h2>The pressed blocks</h2>
+        <div class="row"><label for="blockTint">wash</label><input type="range" id="blockTint" min="0" max="1" step="0.01"><output id="blockTint-o"></output></div>
+        <div class="row"><label for="readRecess">readout px</label><input type="range" id="readRecess" min="0" max="20" step="1"><output id="readRecess-o"></output></div>
+        <div class="row"><label for="readPad">readout pad</label><input type="range" id="readPad" min="0" max="48" step="1"><output id="readPad-o"></output></div>
+        <div class="row"><label for="panelRecess">dials px</label><input type="range" id="panelRecess" min="0" max="20" step="1"><output id="panelRecess-o"></output></div>
+        <p class="hint">At wash 0 the paper shows through untouched and only the sunk
+        edge says a block is there. At 1 the block is solid and the sheet stops at its
+        edge.</p>
       </div>
       <div class="grp">
         <h2>What the panel is saying</h2>
@@ -127,10 +137,10 @@ import { TUNING } from '../src/juice.js';
 import { layoutFor } from '../src/layout.js';
 import { createMeter } from '../src/meter.js';
 
-const KEYS = ['cardMatCell', 'cardMatAlpha', 'cardMatNoise', 'cardMatPad',
-              'cardMatRecess', 'readMatCell', 'readMatAlpha', 'readMatNoise',
-              'readMatPad', 'readMatRecess'];
-const INKS = ['cardMatInk', 'readMatInk'];
+const KEYS = ['cardPaperCell', 'cardPaperAlpha', 'cardPaperNoise',
+              'panelPaperCell', 'panelPaperAlpha', 'panelPaperNoise',
+              'blockTint', 'readRecess', 'readPad', 'panelRecess'];
+const INKS = ['cardPaperInk', 'panelPaperInk'];
 
 const state = { ...TUNING };
 const settings = () => state;
