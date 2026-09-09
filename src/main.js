@@ -140,12 +140,14 @@ export async function start(canvas, seed = SEED) {
     event.preventDefault();
     const now = performance.now();
     const { outcome } = round.choose(point, span, clock.tick(now));
-    if (outcome === 'found') clock.freeze(now, TUNING.hitStopMs);
-    // The find that ends the round hands its sound to the chime rather than sounding
-    // twice: the win is the louder statement and the beep under it says nothing the
-    // chime does not. Rank is the size of the found set, which this click just grew.
-    if (outcome === 'found' && round.wonAt !== null) voice.win();
-    else voice.play(outcome, round.found.size);
+    // Rank is the size of the found set, which this click just grew. The find knows
+    // whether it won, because the win is a sound it queues behind itself.
+    if (outcome === 'found') {
+      clock.freeze(now, TUNING.hitStopMs);
+      voice.find(round.found.size, round.wonAt !== null);
+    } else {
+      voice.play(outcome);
+    }
   });
 
   const frame = (now) => {

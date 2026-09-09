@@ -357,3 +357,50 @@ against and is a question to settle before a store page.
 
 **Threaded:** `src/audio.js` in full; `src/main.js`, where the pointer handler asks for
 one sound per outcome and hands the chime the find that ends the round.
+
+### [2026-09-09] The find climbs on a Shepard tone, and the win waits its turn
+
+**Supersedes the capped climb** in the entry above it. That entry stands as written;
+this is what replaced it.
+
+**Decision:** a find is three sine partials an octave apart, moving up together by
+1/6 of an octave per find, under a raised-cosine loudness window fixed in pitch rather
+than carried with them. A partial climbing towards the top of the window fades out; one
+entering at the bottom fades in. After six finds the three partials stand exactly where
+they started, so the seventh find is spectrally the first and still reads as higher
+than the sixth. The find that wins the round sounds in full, and the chime starts
+`WIN_PAUSE` (250ms) after that blip ends.
+
+**Pressure:** the escalation shipped as a fixed ratio per find capped at
+`TUNING.rampCap`, on the reasoning that past a point more intensity stops reading as
+more. That reasoning is sound for the pulse's amplitude and wrong for pitch: a capped
+pitch does not read as "loud enough", it reads as the sound having stopped answering.
+Measured against the shipped seed, 11 of the 16 stages ask for more than six of the
+target — stage 15 asks for 33 — so most of the game was played past the cap, and stage
+15 would have rung 27 identical blips in a row.
+
+**Rejected: raising the cap, or making the step smaller.** Both push the dead spot
+further out without removing it, and a smaller step makes each rise less legible on
+the way. There is no ceiling that is high enough for 33 and still audible as a climb
+across 3.
+
+**Rejected: sliding the partials during the blip, as a Risset glissando does.** The
+rise lives between one find and the next, which is where the escalation is. A slide
+inside a 150ms blip would be heard as a chirp rather than as a step, and the two
+readings fight.
+
+**Rejected: the chime replacing the winning find's blip,** which is what shipped
+first. The blip is what earned the win and the chime is what the win says back; laying
+them end to end is two statements, and playing only one of them loses the first. The
+gap is booked on the audio clock rather than the frame loop, so a stalled frame cannot
+smear it.
+
+**Measured, by tapping the graph the game actually builds:** ranks 1..6 walk the bottom
+partial 440 → 493.88 → 554.37 → 622.25 → 698.46 → 783.99 Hz, each 2^(1/6) above the
+last; rank 7 and rank 13 are identical to rank 1. The window is symmetric — rank 2's
+partial gains (0.0017, 0.0486, 0.0323) are rank 6's reversed — and their sum is
+constant across every rank, so the chord does not pump as it climbs.
+
+**Threaded:** `FIND`, `WIN_PAUSE` and `gainAt` in `src/audio.js`, and the `find` method
+that reads them; `src/main.js`, whose pointer handler now asks the find whether it won
+rather than choosing the sound itself.

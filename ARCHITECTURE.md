@@ -38,7 +38,7 @@ audio graph -- and neither reads the round; they are handed what to draw and say
 | `src/layout.js` | Where the board and the panel sit, given a viewport. Pure. |
 | `src/layers.js`, `src/compositor.js` | Ordered draw passes over one canvas. |
 | `src/rng.js` | `mulberry32`. Every draw in game logic comes from here, so a run reproduces from its seed. |
-| `src/audio.js` | The voice: a table of beeps made from an oscillator, and the one recorded win. |
+| `src/audio.js` | The voice: a table of beeps made from an oscillator, a find that climbs on a Shepard tone, and the one recorded win. |
 | `src/main.js` | The only file with a DOM in it. Loads the fleet, wires the loop. |
 
 ## The board is thrown, not arranged

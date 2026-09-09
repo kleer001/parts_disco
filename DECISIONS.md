@@ -97,11 +97,21 @@ it went; it is never a reason to refuse a change he asks for.
 - **Tuning lives as a module constant in `src/juice.js`.** REJECTED: a JSON file the
   bench writes directly — nothing else in this game loads data at runtime, and a fetch
   on the critical path buys an edit round trip the bench's copy-out already covers.
-- **Three of the four sounds are made from an oscillator; the win is a sample.**
-  REJECTED: recording all four — a beep that is a row in a table is retuned by editing
-  the table, and four samples is four downloads for three sounds nobody will notice
-  the timbre of. REJECTED: synthesising the win too — a chord is not something two
-  oscillators do convincingly, and the win is the one moment worth a download.
+- **Every sound but the win is made from oscillators; the win is a sample.**
+  REJECTED: recording them all — a beep that is a row in a table is retuned by editing
+  the table, and four samples is four downloads for sounds nobody will notice the
+  timbre of. REJECTED: synthesising the win too — a chord of that kind is not
+  something three oscillators do convincingly, and the win is the one moment worth a
+  download.
+- **The find climbs on a Shepard tone: three sine partials an octave apart under a
+  loudness window fixed in pitch.** REJECTED: a capped linear climb — a scale cannot
+  rise forever, so the cap flatlined the escalation from the seventh find on, and 11
+  of the 16 stages ask for more than six.
+- **The find that wins sounds, and the chime follows 250ms behind it.** REJECTED: the
+  chime replacing that blip — the blip is what earned the win and the chime is what
+  the win says back, so they are two statements and not one. REJECTED: timing the gap
+  on the frame loop — it is booked on the audio clock, where a stalled frame cannot
+  smear it.
 - **The audio context is built before any gesture and the chime decoded with the
   fleet.** REJECTED: opening it on the first click, as `treasure_trash` does — a
   context may be built suspended and decoded into, so doing it up front removes the
