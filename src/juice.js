@@ -52,6 +52,9 @@ export const TUNING = {
   // -- the beat the board holds at the instant of a find ---------------------
   hitStopMs: 95,
 
+  // -- one level being taken off the screen and the next put down ------------
+  wipeMs: 750,
+
   // -- the panel flinching when the board answers ---------------------------
   cardShake: 17,
   cardShakeLast: 50,

@@ -719,3 +719,72 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
     },
   };
 }
+
+
+/**
+ * The four wipes, as the rectangle of the old screen the edge has not passed yet.
+ *
+ * `x` and `y` are how far the edge has travelled across the screen, so each entry is
+ * the same rectangle in both images -- the old screen is put back down exactly where
+ * it was, and the new one is simply not covered any more.
+ */
+const WIPES = [
+  (w, h, x, y) => [0, y, w, h - y],  // from the north, the edge falling
+  (w, h, x, y) => [0, 0, w - x, h],  // from the east, the edge crossing to the left
+  (w, h, x, y) => [0, 0, w, h - y],  // from the south, the edge rising
+  (w, h, x, y) => [x, 0, w - x, h],  // from the west, the edge crossing to the right
+];
+
+/**
+ * The side a wipe runs from.
+ *
+ * Drawn off the seed of the level the wipe is bringing in, so a level always arrives
+ * the same way and a run stays reproducible from its seed.
+ */
+export const wipeFrom = (seed) => Math.floor(mulberry32(seed)() * WIPES.length);
+
+/**
+ * The last screen of a level, taken off in one hard edge.
+ *
+ * A wipe is over the whole canvas, panel included, so this goes on top of everything.
+ * It is the only layer that draws what the game is no longer holding: the new level is
+ * dealt and drawn from the first frame, and the old screen is a picture laid back over
+ * the part of it the edge has not reached. Nothing has to be kept alive to be wiped
+ * away, so no other layer knows a transition is happening.
+ *
+ * @param {HTMLCanvasElement} shot - an offscreen canvas to keep the old screen in
+ */
+export function createWipeLayer(shot, settings = () => TUNING) {
+  let began = -1;
+  let from = 0;
+
+  return {
+    name: 'wipe',
+
+    /** Keep what is on the canvas now, and start taking it off from `side`. */
+    take(ctx, at, side) {
+      if (!WIPES[side]) throw new Error(`no wipe from side ${side}`); // boundary
+      shot.width = ctx.canvas.width;
+      shot.height = ctx.canvas.height;
+      shot.getContext('2d').drawImage(ctx.canvas, 0, 0);
+      began = at;
+      from = side;
+    },
+
+    draw(ctx, frame) {
+      if (began < 0) return;
+      const along = (frame.at - began) / (settings().wipeMs / 1000);
+      if (along >= 1) return;
+      const { width, height } = ctx.canvas;
+      // A wipe only runs over the screen it was taken from. A turned phone deals a new
+      // board on a canvas of a different shape, and the old screen has no place on it.
+      if (shot.width !== width || shot.height !== height) return;
+
+      // Floored, so the edge lands on a pixel and the rectangle it leaves is never
+      // empty -- a wipe that has not finished always has some of the old screen left.
+      const [x, y, w, h] =
+        WIPES[from](width, height, Math.floor(along * width), Math.floor(along * height));
+      ctx.drawImage(shot, x, y, w, h, x, y, w, h);
+    },
+  };
+}

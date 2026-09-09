@@ -208,8 +208,8 @@ import { deal, layout } from '../src/board.js';
 import { createRound } from '../src/game.js';
 import { stageAt, RANGE, PATH } from '../src/levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
-         createRecessLayer, createPanelLayer, stampRegions, INKS,
-         rgbOf } from '../src/layers.js';
+         createRecessLayer, createPanelLayer, createWipeLayer, stampRegions,
+         wipeFrom, INKS, rgbOf } from '../src/layers.js';
 import { planBoard } from '../src/paint.js';
 import { TUNING, SEMANTIC, createClock, gridCellAt } from '../src/juice.js';
 import { layoutFor } from '../src/layout.js';
@@ -276,6 +276,7 @@ const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
 const held = document.createElement('canvas');
 held.width = field.width;
 held.height = field.height;
+const shot = document.createElement('canvas');
 
 let seed = 1983;
 let depth = 0;
@@ -304,6 +305,7 @@ nextLevel();
 /* ---- layers --------------------------------------------------------------- */
 // Every layer is the game's own, handed a live settings function instead of the
 // tuning it would read on its own.
+const wipe = createWipeLayer(shot, settings);
 const tuned = createPanelLayer(RANGE, settings);
 const asShipped = createPanelLayer(RANGE);
 let useShipped = false;
@@ -314,7 +316,8 @@ const scene = createCompositor()
   .add(createGridLayer(settings))
   .add(createFindLayer(viewOf, settings))
   .add(createRecessLayer(settings))
-  .add({ name: 'panel', draw: (c, f) => (useShipped ? asShipped : tuned).draw(c, f) });
+  .add({ name: 'panel', draw: (c, f) => (useShipped ? asShipped : tuned).draw(c, f) })
+  .add(wipe);
 
 /* ---- the clock ------------------------------------------------------------ */
 const clock = createClock();
@@ -349,7 +352,7 @@ let lastPaint = 0;
 
 const frame = (now) => {
   const at = clock.tick(scaledNow(now));
-  if (round.done(at)) { depth++; nextLevel(); }
+  if (round.done(at)) { depth++; wipe.take(ctx, at, wipeFrom(seed + depth)); nextLevel(); }
   if (round.wonAt !== null && standing.length === round.anchors.length) {
     replan(round.anchors.filter((_, i) => round.found.has(i)));
   }

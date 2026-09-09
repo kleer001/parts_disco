@@ -7,8 +7,8 @@ import { deal, layout } from './board.js';
 import { createRound } from './game.js';
 import { stageAt, RANGE } from './levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
-         createRecessLayer, createPanelLayer, stampRegions, INKS,
-         rgbOf } from './layers.js';
+         createRecessLayer, createPanelLayer, createWipeLayer, stampRegions,
+         wipeFrom, INKS, rgbOf } from './layers.js';
 import { planBoard } from './paint.js';
 import { TUNING, createClock } from './juice.js';
 import { layoutFor } from './layout.js';
@@ -55,6 +55,7 @@ export async function start(canvas, seed = SEED) {
   const scratch = document.createElement('canvas');
   const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
   const held = document.createElement('canvas');
+  const shot = document.createElement('canvas');
 
   const resize = () => {
     canvas.width = place.width;
@@ -100,15 +101,22 @@ export async function start(canvas, seed = SEED) {
   };
   nextLevel();
 
+  // The wipe is kept rather than added and forgotten, because the loop is what hands
+  // it the screen it takes off.
+  const wipe = createWipeLayer(shot);
+
   // Order is the picture: the ground goes over the board so the paper lies on top of
-  // the ink, the find pulse goes over that, and the recess frames the lot.
+  // the ink, the find pulse goes over that, the recess frames the lot, and the wipe
+  // is over everything because it takes the whole screen away.
+
   const scene = createCompositor()
     .add(createPaperLayer())
     .add(createBoardLayer(viewOf, held))
     .add(createGridLayer())
     .add(createFindLayer(viewOf))
     .add(createRecessLayer())
-    .add(createPanelLayer(RANGE));
+    .add(createPanelLayer(RANGE))
+    .add(wipe);
 
   // The clock is the game's, not the wall's, so a hit stop can hold the whole board
   // still without any layer knowing that it happened.
@@ -130,8 +138,14 @@ export async function start(canvas, seed = SEED) {
   const frame = (now) => {
     const at = clock.tick(now);
     // The win plays itself out on the board, and when it has run its two seconds the
-    // next level is dealt. Nothing is timed here beyond that.
-    if (round.done(at)) { depth++; nextLevel(); }
+    // next level is dealt. Nothing is timed here beyond that. What is on the canvas at
+    // that moment is the win's last frame, so the wipe takes the picture first: after
+    // this line the state behind it is the new level's.
+    if (round.done(at)) {
+      depth++;
+      wipe.take(ctx, at, wipeFrom(seed + depth));
+      nextLevel();
+    }
 
     // The moment the last one is found the losers clear off, and what is left is a
     // different map that has to be coloured again. Once, not every frame after.

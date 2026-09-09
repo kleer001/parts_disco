@@ -267,3 +267,28 @@ one grey mass rather than several distinguishable solved cars.
 **Threaded:** `src/layers.js` `SETTLED`; the board layer's `restingOf` and the find
 layer's off beat, which read the one constant so the pulse ends on the colour the board
 keeps.
+
+### [2026-09-08] One level leaves under a hard wipe, drawn from a snapshot
+
+**Decision:** When a round ends, the loop keeps the canvas as it stands -- the win's
+last frame -- and hands it to a wipe layer on top of the stack. The next level is dealt
+and drawn in full from the first frame after that, and the wipe lays the old picture
+back over the part of the screen a hard edge has not crossed yet. 750ms
+(`TUNING.wipeMs`), from one of the four sides to its opposite, drawn off the incoming
+level's seed.
+
+**Why:** The transition is then a fact about pixels, not about the game. Nothing else in
+the stack learns that a handover is happening, and the old level's round, plan and
+layout are released the moment it ends.
+
+**Rejected:** Holding the finished round alive and compositing two boards. Every layer
+would have to be told which round it was drawing, and the board layer's kept picture --
+one canvas, rebuilt when the map changes -- would have to become two, all to animate a
+handover that is over in three quarters of a second.
+
+**What it costs:** The old screen is frozen, so nothing on it can move during the wipe.
+It also cannot survive a change of canvas shape: a wipe in flight when the phone turns
+stops, because the screen it was taken from no longer exists.
+
+**Threaded:** `src/layers.js` `createWipeLayer`, `wipeFrom` and the `WIPES` table;
+`src/main.js`, which takes the picture in the same breath as it deals the next level.

@@ -39,6 +39,10 @@ it went; it is never a reason to refuse a change he asks for.
 - **Every part drifts on its own heading.** REJECTED: moving layers as groups — parts
   that move together read as one object, and it is differing motion that lets a player
   pull one outline out of a pile.
+- **A level is taken off the screen by a hard wipe over a picture of it.** REJECTED:
+  keeping the finished level's state alive and rendering both boards at once — every
+  layer would then need to know which of two rounds it was drawing, to animate a
+  handover that is over in well under a second.
 - **A find is answered by a pulse drawn over the board, not by repainting the board.**
   REJECTED: blinking the vehicle in the board's own pixels and repainting its box —
   the answer then cannot leave the vehicle's bounds, and the board rebuilds on the one
