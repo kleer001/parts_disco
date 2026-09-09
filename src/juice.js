@@ -94,6 +94,24 @@ export const TUNING = {
   gridNoiseScale: 2,
   gridGroundOnly: true,
 
+  // -- the paper the panel's two blocks are printed on -----------------------
+  // The card lies on one mat and the readout sits in another. Both are the same ruled
+  // paper as the ground, in their own ink and their own weight, so the panel reads as
+  // a printed sheet rather than as white space with type on it.
+  cardMatCell: 9,
+  cardMatAlpha: 0.16,
+  cardMatNoise: 0.05,
+  cardMatPad: 14,
+  cardMatRecess: 4,
+  cardMatInk: '#8d9299',
+
+  readMatCell: 9,
+  readMatAlpha: 0.22,
+  readMatNoise: 0.06,
+  readMatPad: 12,
+  readMatRecess: 6,
+  readMatInk: '#9aa0a8',
+
   // -- the board and the panel blocks sitting in wells ----------------------
   recess: 9,
   recessAlpha: 0.3,

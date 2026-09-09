@@ -82,26 +82,6 @@ pre{background:var(--sunk);border:1px solid var(--rule);padding:10px;
   <div>
     <div class="panel">
       <div class="grp">
-        <h2>Find pulse</h2>
-        <div class="row"><label for="pulseMs">length ms</label><input type="range" id="pulseMs" min="120" max="1200" step="20"><output id="pulseMs-o"></output></div>
-        <div class="row"><label for="pulseGrow">grow</label><input type="range" id="pulseGrow" min="1" max="1.6" step="0.01"><output id="pulseGrow-o"></output></div>
-        <div class="row"><label for="pulseShrink">shrink</label><input type="range" id="pulseShrink" min="0.7" max="1" step="0.01"><output id="pulseShrink-o"></output></div>
-        <div class="row"><label for="pulseShake">shake px</label><input type="range" id="pulseShake" min="0" max="14" step="0.2"><output id="pulseShake-o"></output></div>
-        <div class="row"><label for="pulseShakeHz">shake hz</label><input type="range" id="pulseShakeHz" min="4" max="60" step="1"><output id="pulseShakeHz-o"></output></div>
-        <div class="row"><label for="strobes">strobes</label><input type="range" id="strobes" min="0" max="14" step="1"><output id="strobes-o"></output></div>
-        <label class="check"><input type="checkbox" id="strobeMode"> strobe the ink rainbow, not the green</label>
-      </div>
-      <div class="grp">
-        <h2>Escalation</h2>
-        <div class="row"><label for="rampTo">last is ×</label><input type="range" id="rampTo" min="1" max="3.5" step="0.05"><output id="rampTo-o"></output></div>
-        <div class="row"><label for="rampCap">cap at find</label><input type="range" id="rampCap" min="1" max="14" step="1"><output id="rampCap-o"></output></div>
-        <p class="hint">The cap decides where more stops reading as more.</p>
-      </div>
-      <div class="grp">
-        <h2>Hit stop</h2>
-        <div class="row"><label for="hitStopMs">hold ms</label><input type="range" id="hitStopMs" min="0" max="300" step="5"><output id="hitStopMs-o"></output></div>
-      </div>
-      <div class="grp">
         <h2>The wipe</h2>
         <div class="row"><label for="wipeMs">total ms</label><input type="range" id="wipeMs" min="200" max="2500" step="25"><output id="wipeMs-o"></output></div>
         <div class="row"><label for="wipeCells">most squares</label><input type="range" id="wipeCells" min="4" max="120" step="1"><output id="wipeCells-o"></output></div>
@@ -124,22 +104,6 @@ pre{background:var(--sunk);border:1px solid var(--rule);padding:10px;
       </div>
     </div>
 
-    <div class="panel">
-      <div class="grp">
-        <h2>The card</h2>
-        <div class="row"><label for="cardShake">shake px</label><input type="range" id="cardShake" min="0" max="20" step="0.5"><output id="cardShake-o"></output></div>
-        <div class="row"><label for="cardShakeLast">last one px</label><input type="range" id="cardShakeLast" min="0" max="50" step="1"><output id="cardShakeLast-o"></output></div>
-        <div class="row"><label for="cardTiltMax">max tilt &deg;</label><input type="range" id="cardTiltMax" min="0" max="20" step="0.2"><output id="cardTiltMax-o"></output></div>
-        <div class="row"><label for="cardShakeHz">frequency hz</label><input type="range" id="cardShakeHz" min="2" max="60" step="1"><output id="cardShakeHz-o"></output></div>
-        <div class="row"><label for="cardDecay">decay</label><input type="range" id="cardDecay" min="0.3" max="6" step="0.1"><output id="cardDecay-o"></output></div>
-        <div class="row"><label for="cardShakeMs">total ms</label><input type="range" id="cardShakeMs" min="80" max="1600" step="20"><output id="cardShakeMs-o"></output></div>
-        <div class="row"><label for="cardShadow">shadow y</label><input type="range" id="cardShadow" min="0" max="24" step="1"><output id="cardShadow-o"></output></div>
-        <div class="row"><label for="cardBlur">shadow blur</label><input type="range" id="cardBlur" min="0" max="40" step="1"><output id="cardBlur-o"></output></div>
-        <p class="hint">The card hangs straight at rest. Max tilt is the angle the
-        find that ends a round reaches; every other find gets the share its own
-        amplitude asks for. Decay 1 is a straight fade, higher snaps back sooner.</p>
-      </div>
-    </div>
   </div>
 
   <div class="stage">
@@ -158,43 +122,6 @@ pre{background:var(--sunk);border:1px solid var(--rule);padding:10px;
   </div>
 
   <div>
-    <div class="panel">
-      <div class="grp">
-        <h2>The ground</h2>
-        <div class="row"><label for="gridCellFirst">cell at 1:1</label><input type="range" id="gridCellFirst" min="10" max="140" step="1"><output id="gridCellFirst-o"></output></div>
-        <div class="row"><label for="gridCellLast">cell at 4:4</label><input type="range" id="gridCellLast" min="2" max="60" step="1"><output id="gridCellLast-o"></output></div>
-        <div class="row"><label for="gridCellCurve">curve</label><input type="range" id="gridCellCurve" min="0.3" max="3" step="0.05"><output id="gridCellCurve-o"></output></div>
-        <div class="row"><label for="gridAlpha">rule</label><input type="range" id="gridAlpha" min="0" max="0.5" step="0.005"><output id="gridAlpha-o"></output></div>
-        <div class="row"><label for="gridNoise">noise</label><input type="range" id="gridNoise" min="0" max="0.4" step="0.005"><output id="gridNoise-o"></output></div>
-        <div class="row"><label for="gridNoiseScale">grain px</label><input type="range" id="gridNoiseScale" min="1" max="6" step="1"><output id="gridNoiseScale-o"></output></div>
-        <label class="check"><input type="checkbox" id="gridGroundOnly"> ground only, not the vehicles</label>
-        <p class="hint">The cell tightens across the sixteen stages, geometrically:
-        an even ratio per stage is what reads as an even tightening. Curve 1 is that
-        ratio; above 1 holds the wide cell longer.</p>
-      </div>
-      <div class="grp">
-        <h2>Wells</h2>
-        <div class="row"><label for="recess">board px</label><input type="range" id="recess" min="0" max="40" step="1"><output id="recess-o"></output></div>
-        <div class="row"><label for="recessAlpha">board dark</label><input type="range" id="recessAlpha" min="0" max="0.7" step="0.01"><output id="recessAlpha-o"></output></div>
-        <div class="row"><label for="panelRecess">panel px</label><input type="range" id="panelRecess" min="0" max="20" step="1"><output id="panelRecess-o"></output></div>
-      </div>
-      <div class="grp">
-        <h2>Type and slabs</h2>
-        <div class="row"><label for="typeScale">type ×</label><input type="range" id="typeScale" min="0.7" max="1.6" step="0.02"><output id="typeScale-o"></output></div>
-        <div class="row"><label for="slabRadius">radius</label><input type="range" id="slabRadius" min="0" max="16" step="1"><output id="slabRadius-o"></output></div>
-        <div class="row"><label for="slabPad">pad</label><input type="range" id="slabPad" min="2" max="18" step="1"><output id="slabPad-o"></output></div>
-      </div>
-      <div class="grp">
-        <h2>Presets</h2>
-        <div class="bar">
-          <button type="button" data-preset="shipped">shipped</button>
-          <button type="button" data-preset="off">all off</button>
-          <button type="button" data-preset="subtle">subtle</button>
-          <button type="button" data-preset="loud">loud</button>
-        </div>
-      </div>
-    </div>
-
     <div class="panel">
       <h2>Semantic ramp</h2>
       <div class="swatches" id="swatches"></div>
@@ -416,11 +343,6 @@ const bind = (key) => {
 };
 KEYS.forEach(bind);
 FLAGS.forEach(bind);
-document.getElementById('strobeMode').addEventListener('change', (e) => {
-  state.strobeMode = e.target.checked ? 'inks' : 'semantic';
-  dump();
-});
-
 const show = () => {
   for (const key of KEYS) {
     const el = document.getElementById(key);
@@ -433,7 +355,6 @@ const show = () => {
     const el = document.getElementById(key);
     if (el) el.checked = !!state[key];
   }
-  document.getElementById('strobeMode').checked = state.strobeMode === 'inks';
   dump();
 };
 

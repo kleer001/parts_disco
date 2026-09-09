@@ -1,0 +1,264 @@
+<meta charset="utf-8">
+<title>parts disco — panel paper</title>
+<style>
+@font-face {
+  font-family: VT323;
+  src: url("../assets/fonts/vt323-latin.woff2") format("woff2");
+  font-display: block;
+}
+:root{--paper:#E7E2D8;--panel:#F4F2ED;--sunk:#DCD7CB;--ink1:#1A1A1A;--ink2:#54514A;
+      --ink3:#8A857A;--rule:#C6C0B2}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink1);
+     font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px}
+.wrap{max-width:1360px;margin:0 auto;padding:26px 22px 70px}
+header{border-bottom:2px solid var(--ink1);padding-bottom:18px;margin-bottom:20px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.17em;text-transform:uppercase;
+         color:var(--ink3)}
+h1{font-family:VT323,ui-monospace,monospace;font-size:44px;font-weight:400;
+   margin:6px 0 0;line-height:1}
+.lede{margin:10px 0 0;max-width:78ch;color:var(--ink2);line-height:1.55}
+h2{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+   margin:0 0 10px;color:var(--ink1)}
+.cols{display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--rule);padding:14px 13px;
+       margin-bottom:14px}
+.row{display:grid;grid-template-columns:84px 1fr 46px;align-items:center;gap:7px;
+     margin-bottom:6px}
+.row label{font-size:11px;color:var(--ink2)}
+.row output{font-size:10.5px;text-align:right;font-variant-numeric:tabular-nums;
+            color:var(--ink2)}
+.row input[type=range]{width:100%}
+.row input[type=color]{width:100%;height:22px;padding:0;border:1px solid var(--rule);
+                       background:none;cursor:pointer}
+.grp{margin-bottom:16px}.grp:last-child{margin-bottom:0}
+button{font:inherit;font-size:11px;padding:5px 9px;background:#fff;
+       border:1px solid var(--rule);border-radius:3px;cursor:pointer}
+button:hover{border-color:var(--ink1)}
+button.on{background:var(--ink1);color:var(--paper);border-color:var(--ink1)}
+.bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.stage{background:var(--sunk);border:1px solid var(--rule);padding:16px;
+       display:flex;flex-direction:column;align-items:center;gap:12px}
+canvas{display:block;max-width:100%;height:auto;
+       box-shadow:0 1px 4px rgba(0,0,0,.25);background:#fff}
+.hint{font-size:11px;color:var(--ink3);margin:7px 0 0;line-height:1.5}
+.export{background:var(--panel);border:1px solid var(--rule);padding:15px 14px;
+        margin-top:18px}
+.export textarea{width:100%;height:190px;resize:vertical;background:var(--sunk);
+                 border:1px solid var(--rule);padding:10px;
+                 font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+                 font-size:10.5px;line-height:1.5}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">parts disco · bench</p>
+  <h1>panel paper</h1>
+  <p class="lede">The panel's two sheets: the one the card lies on and the one the
+  readout sits in. Both are the same ruled, speckled paper as the board's ground, in
+  their own ink and weight. Drawn at the two shapes the panel really takes — a desktop
+  puts it down the right-hand side, a phone across the bottom — asked of the same
+  <code>layoutFor</code> the game asks. Nothing else runs here: no board is dealt and
+  no clock is ticking, so the card hangs straight.</p>
+</header>
+
+<div class="cols">
+  <div>
+    <div class="panel">
+      <div class="grp">
+        <h2>Under the card</h2>
+        <div class="row"><label for="cardMatInk">ink</label><input type="color" id="cardMatInk"><output id="cardMatInk-o"></output></div>
+        <div class="row"><label for="cardMatCell">cell px</label><input type="range" id="cardMatCell" min="2" max="40" step="0.5"><output id="cardMatCell-o"></output></div>
+        <div class="row"><label for="cardMatAlpha">rule</label><input type="range" id="cardMatAlpha" min="0" max="0.6" step="0.005"><output id="cardMatAlpha-o"></output></div>
+        <div class="row"><label for="cardMatNoise">noise</label><input type="range" id="cardMatNoise" min="0" max="0.4" step="0.005"><output id="cardMatNoise-o"></output></div>
+        <div class="row"><label for="cardMatPad">margin px</label><input type="range" id="cardMatPad" min="0" max="48" step="1"><output id="cardMatPad-o"></output></div>
+        <div class="row"><label for="cardMatRecess">inset px</label><input type="range" id="cardMatRecess" min="0" max="20" step="1"><output id="cardMatRecess-o"></output></div>
+      </div>
+      <div class="grp">
+        <h2>Under the readout</h2>
+        <div class="row"><label for="readMatInk">ink</label><input type="color" id="readMatInk"><output id="readMatInk-o"></output></div>
+        <div class="row"><label for="readMatCell">cell px</label><input type="range" id="readMatCell" min="2" max="40" step="0.5"><output id="readMatCell-o"></output></div>
+        <div class="row"><label for="readMatAlpha">rule</label><input type="range" id="readMatAlpha" min="0" max="0.6" step="0.005"><output id="readMatAlpha-o"></output></div>
+        <div class="row"><label for="readMatNoise">noise</label><input type="range" id="readMatNoise" min="0" max="0.4" step="0.005"><output id="readMatNoise-o"></output></div>
+        <div class="row"><label for="readMatPad">margin px</label><input type="range" id="readMatPad" min="0" max="48" step="1"><output id="readMatPad-o"></output></div>
+        <div class="row"><label for="readMatRecess">inset px</label><input type="range" id="readMatRecess" min="0" max="20" step="1"><output id="readMatRecess-o"></output></div>
+        <p class="hint">The grain is shared with the board's ground — it is
+        <em>grain px</em> on the juice bench, and it is not repeated here.</p>
+      </div>
+      <div class="grp">
+        <h2>What the panel is saying</h2>
+        <div class="row"><label for="stageAt">stage</label><input type="range" id="stageAt" min="1" max="16" step="1"><output id="stageAt-o"></output></div>
+        <div class="row"><label for="found">found</label><input type="range" id="found" min="0" max="12" step="1"><output id="found-o"></output></div>
+        <div class="row"><label for="damage">misses</label><input type="range" id="damage" min="0" max="10" step="0.25"><output id="damage-o"></output></div>
+      </div>
+      <div class="grp">
+        <div class="bar">
+          <button type="button" id="shipped">back to shipped</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="bar">
+      <button type="button" id="both" class="on">both</button>
+      <button type="button" id="deskOnly">desktop</button>
+      <button type="button" id="phoneOnly">phone</button>
+    </div>
+    <canvas id="screen" width="1220" height="960"></canvas>
+    <p class="hint" id="note"></p>
+  </div>
+</div>
+
+<div class="export">
+  <h2 style="margin:0">Settings — copy this into <code>TUNING</code></h2>
+  <div class="bar" style="margin:9px 0">
+    <button type="button" id="copy">copy JSON</button>
+  </div>
+  <textarea id="dump" spellcheck="false" readonly></textarea>
+</div>
+</div>
+
+<script type="module">
+import { createPanelLayer } from '../src/layers.js';
+import { stageAt, RANGE } from '../src/levels.js';
+import { TUNING } from '../src/juice.js';
+import { layoutFor } from '../src/layout.js';
+import { createMeter } from '../src/meter.js';
+
+const KEYS = ['cardMatCell', 'cardMatAlpha', 'cardMatNoise', 'cardMatPad',
+              'cardMatRecess', 'readMatCell', 'readMatAlpha', 'readMatNoise',
+              'readMatPad', 'readMatRecess'];
+const INKS = ['cardMatInk', 'readMatInk'];
+
+const state = { ...TUNING };
+const settings = () => state;
+const panelLayer = createPanelLayer(RANGE, settings);
+
+// The panel asks a round four things and a meter two. None of it needs a board, so
+// the bench answers them directly rather than dealing one.
+const view = { stage: 1, found: 3, damage: 2.5 };
+const meter = createMeter();
+const roundFor = () => {
+  const total = 8;
+  const found = new Map();
+  // Found long ago, so the card hangs straight instead of flinching on every redraw.
+  for (let i = 0; i < Math.min(view.found, total); i++) found.set(i, -99);
+  return { target: 'sedan-sports', total, found, left: () => total - found.size };
+};
+
+// One prompt render, fetched by the path the game would use. The whole fleet is
+// megabytes and the card only ever shows one picture at a time.
+const prompt = new Image();
+prompt.src = '../assets/views/sedan-sports/000.png';
+
+const canvas = document.getElementById('screen');
+const ctx = canvas.getContext('2d');
+const note = document.getElementById('note');
+let shapes = 'both';
+
+const render = () => {
+  const level = stageAt(view.stage - 1);
+  meter.filled = view.damage;
+  meter.hitAt = null;
+  const round = roundFor();
+  ctx.fillStyle = '#dcd7cb';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // The two shapes the panel really takes, asked of the same function the game asks:
+  // a desktop puts it down the right-hand side, a phone across the bottom.
+  const desk = layoutFor(1440, 900, 1).panel;
+  const phone = layoutFor(393, 852, 3).panel;
+  const gap = 20;
+  const boxes = [];
+  if (shapes !== 'phone') boxes.push({ ...desk, x: gap, y: gap, label: 'desktop' });
+  if (shapes !== 'desk') {
+    boxes.push({ ...phone, label: 'phone',
+                 x: shapes === 'phone' ? gap : gap * 2 + desk.width, y: gap });
+  }
+  for (const panel of boxes) {
+    panelLayer.draw(ctx, { panel, round, level, prompt, meter, at: 0 });
+    ctx.strokeStyle = 'rgba(0,0,0,.25)';
+    ctx.strokeRect(panel.x + .5, panel.y + .5, panel.width - 1, panel.height - 1);
+    ctx.fillStyle = '#8A857A';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`${panel.label}  ${panel.width}x${panel.height}`,
+                 panel.x, panel.y + panel.height + 5);
+  }
+  note.textContent =
+    `stage ${level.level}:${level.stage} · ${round.total - round.found.size} to find · `
+    + `${view.damage} of ${meter.capacity} spent`;
+  dump();
+};
+
+/* ---- controls ------------------------------------------------------------ */
+const dumpEl = document.getElementById('dump');
+const only = (k) => Object.fromEntries(
+  [...KEYS, ...INKS].map((key) => [key, state[key]]));
+function dump() { dumpEl.value = JSON.stringify(only(), null, 2); }
+
+const bind = (key, read) => {
+  const el = document.getElementById(key);
+  const out = document.getElementById(`${key}-o`);
+  const sync = () => {
+    state[key] = read(el);
+    if (out) out.textContent = String(state[key]);
+    render();
+  };
+  el.addEventListener('input', sync);
+  return () => {
+    el.value = state[key];
+    if (out) out.textContent = String(state[key]);
+  };
+};
+const show = [
+  ...KEYS.map((k) => bind(k, (el) => parseFloat(el.value))),
+  ...INKS.map((k) => bind(k, (el) => el.value)),
+];
+
+for (const [key, field, cast] of
+     [['stageAt', 'stage', Number], ['found', 'found', Number],
+      ['damage', 'damage', Number]]) {
+  const el = document.getElementById(key);
+  const out = document.getElementById(`${key}-o`);
+  el.value = view[field];
+  out.textContent = String(view[field]);
+  el.addEventListener('input', () => {
+    view[field] = cast(el.value);
+    out.textContent = el.value;
+    render();
+  });
+}
+
+const shapeButtons = { both: 'both', deskOnly: 'desk', phoneOnly: 'phone' };
+for (const [id, mode] of Object.entries(shapeButtons)) {
+  document.getElementById(id).addEventListener('click', () => {
+    shapes = mode;
+    for (const other of Object.keys(shapeButtons)) {
+      document.getElementById(other).classList.toggle('on', other === id);
+    }
+    render();
+  });
+}
+
+document.getElementById('shipped').addEventListener('click', () => {
+  for (const key of [...KEYS, ...INKS]) state[key] = TUNING[key];
+  show.forEach((f) => f());
+  render();
+});
+
+document.getElementById('copy').addEventListener('click', async () => {
+  await navigator.clipboard.writeText(dumpEl.value);
+});
+
+show.forEach((f) => f());
+// The panel measures its type, so the face has to be there before the first frame.
+await Promise.all([
+  document.fonts.load('16px VT323'),
+  new Promise((done) => { prompt.complete ? done() : prompt.onload = done; }),
+]);
+render();
+</script>

@@ -512,3 +512,40 @@ worst on a 1174x1192 canvas.
 **Threaded:** `SIDES`, `cellOf` and `createWipeLayer` in `src/layers.js`; the six
 `wipe*` numbers in `src/juice.js`; the `wipe.take` call in `src/main.js`, which hands
 it the arriving stage.
+
+### [2026-09-09] The panel gets paper
+
+**Decision:** the panel is printed on two sheets of the same ruled, speckled paper the
+board's ground uses. The card lies on one, the readout sits sunk into the other, and
+each has its own ink, rule weight, noise, margin and inset. `ruledTile` in
+`src/layers.js` makes all three papers; `dev/panel.html` is the bench the two panel
+sheets are chosen on.
+
+**Pressure:** the board is a printed thing on ruled paper and the panel beside it was
+a plain white rectangle with type on it. Nothing tied them together.
+
+**Rejected: one sheet behind the whole panel.** The card and the readout are different
+objects — one is the question and the other is the state of the answer — and a single
+wash behind both flattens them into a tinted background instead of two things lying on
+a desk.
+
+**Rejected: giving the panel its own texture code.** The ground's tile builder already
+did the work and was sitting inside `createGridLayer`'s closure. It is now
+`ruledTile(cell, alpha, noise, noiseScale, ink)` at module scope, and the ground asks
+it for black paper while the panel asks for grey. The lift keeps the ground's ink at
+pure black rather than `PALETTE.ink`, because that is what it always drew and this was
+a lift and not a retint.
+
+**A layout fact worth writing down:** a desktop panel is 374x900 and a phone panel is
+786x443, so the *desktop* takes the panel's tall branch and the *phone* takes its wide
+one. The bench asks `layoutFor` for both rather than inventing rectangles, which is
+what caught the two being the opposite way round from the obvious guess. In the tall
+branch the card sits inside the readout's sheet, because the readout's items are split
+above and below it and two separate sheets there read as an accident.
+
+**Cost:** 0.20ms to paint the whole panel including both sheets, because a tile is
+built only when a knob moves and every frame after is a pattern fill.
+
+**Threaded:** `ruledTile`, `mat`, `sunkFrame` and the two `paperFor` caches in
+`src/layers.js`; the twelve `cardMat*` and `readMat*` numbers in `src/juice.js`;
+`dev/panel.html`.

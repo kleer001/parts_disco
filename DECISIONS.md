@@ -95,6 +95,11 @@ it went; it is never a reason to refuse a change he asks for.
   REJECTED: leaving the wash on for the rest of the round — a permanently greyed
   vehicle is a candidate crossed off the list, which turns the difficulty dial rather
   than answering the click; the owner picks that dial, not the feedback.
+- **The panel is printed on two sheets of the same paper as the board's ground.**
+  REJECTED: leaving the panel plain white — the board is a printed thing and the panel
+  beside it read as an empty page rather than as part of the same sheet. REJECTED: one
+  sheet behind the whole panel — the card and the readout are two different objects,
+  and one wash behind both flattens them into a tinted background.
 - **The panel's colours are separated by lightness, not hue.** REJECTED: an
   equal-lightness ramp with hue carrying the meaning — measured, it puts green and red
   0.021 apart in OKLab under simulated deuteranopia, which is the same colour.

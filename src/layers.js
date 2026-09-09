@@ -88,6 +88,58 @@ function ring(ctx, anchor, points, span, scale = 1, dx = 0, dy = 0) {
 }
 
 /**
+ * A square of ruled, speckled paper that tiles seamlessly.
+ *
+ * Eight cells to a tile, so a repeat seam never lands on a rule. The noise carries its
+ * own fixed seed rather than the run's: paper is a property of the texture and should
+ * not change when the seed that deals the board does.
+ *
+ * The board's ground and the panel's mats are the same paper in different inks, which
+ * is the only reason this is a function and not a line inside the grid.
+ */
+function ruledTile(cell, alpha, noise, noiseScale, ink) {
+  const size = Math.max(8, Math.round(cell * 8));
+  const tile = document.createElement('canvas');
+  tile.width = size;
+  tile.height = size;
+  const c = tile.getContext('2d');
+  const [r, g, b] = rgbOf(ink);
+
+  if (noise > 0) {
+    const step = Math.max(1, Math.round(noiseScale));
+    const img = c.createImageData(size, size);
+    const rand = mulberry32(0x9e3779b9);
+    for (let y = 0; y < size; y += step) {
+      for (let x = 0; x < size; x += step) {
+        const v = rand() * 256 - 128;
+        for (let j = 0; j < step && y + j < size; j++) {
+          for (let i = 0; i < step && x + i < size; i++) {
+            const p = ((y + j) * size + (x + i)) * 4;
+            img.data[p] = r;
+            img.data[p + 1] = g;
+            img.data[p + 2] = b;
+            img.data[p + 3] = Math.max(0, v) * noise * 2;
+          }
+        }
+      }
+    }
+    c.putImageData(img, 0, 0);
+  }
+
+  c.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
+  c.lineWidth = 1;
+  for (let at = 0; at <= size; at += size / 8) {
+    c.beginPath();
+    c.moveTo(at + 0.5, 0);
+    c.lineTo(at + 0.5, size);
+    c.moveTo(0, at + 0.5);
+    c.lineTo(size, at + 0.5);
+    c.stroke();
+  }
+  return tile;
+}
+
+/**
  * The cell the grid actually rules, which is not quite the cell it was asked for.
  *
  * The tile is eight cells wide and has to be a whole number of pixels, so the ask is
@@ -253,44 +305,9 @@ export function createGridLayer(settings = () => TUNING) {
     `${cell.toFixed(3)}|${s.gridAlpha}|${s.gridNoise}|${s.gridNoiseScale}`;
 
   const build = (s, cell) => {
-    // Eight cells to a tile, so the repeat seam never lands on a rule.
-    const size = Math.max(8, Math.round(cell * 8));
-    tile = document.createElement('canvas');
-    tile.width = size;
-    tile.height = size;
-    const c = tile.getContext('2d');
-
-    if (s.gridNoise > 0) {
-      const step = Math.max(1, Math.round(s.gridNoiseScale));
-      const img = c.createImageData(size, size);
-      // Its own seed, not the run's: the paper is a property of the texture and
-      // should not change when the seed that deals the board does.
-      const rand = mulberry32(0x9e3779b9);
-      for (let y = 0; y < size; y += step) {
-        for (let x = 0; x < size; x += step) {
-          const v = rand() * 256 - 128;
-          for (let j = 0; j < step && y + j < size; j++) {
-            for (let i = 0; i < step && x + i < size; i++) {
-              const p = ((y + j) * size + (x + i)) * 4;
-              img.data[p] = img.data[p + 1] = img.data[p + 2] = 0;
-              img.data[p + 3] = Math.max(0, v) * s.gridNoise * 2;
-            }
-          }
-        }
-      }
-      c.putImageData(img, 0, 0);
-    }
-
-    c.strokeStyle = `rgba(0,0,0,${s.gridAlpha})`;
-    c.lineWidth = 1;
-    for (let at = 0; at <= size; at += size / 8) {
-      c.beginPath();
-      c.moveTo(at + 0.5, 0);
-      c.lineTo(at + 0.5, size);
-      c.moveTo(0, at + 0.5);
-      c.lineTo(size, at + 0.5);
-      c.stroke();
-    }
+    // Black, not the palette's ink: the ground's rules were always pure black and
+    // this is a lift, not a retint.
+    tile = ruledTile(cell, s.gridAlpha, s.gridNoise, s.gridNoiseScale, '#000000');
   };
 
   // Which pixels are ground rather than vehicle. A fact about the plan, so it is
@@ -503,11 +520,30 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-/** A sunken block: dark along the top and left, a lit edge along the bottom. */
-function well(ctx, x, y, w, h, depth, fill) {
-  ctx.fillStyle = fill;
+/**
+ * A block of ruled paper sunk into the panel.
+ *
+ * The tile is handed in rather than made here, because a mat is redrawn every frame
+ * and its paper changes only when a knob does.
+ */
+function mat(ctx, x, y, w, h, depth, tile, base) {
+  ctx.fillStyle = base;
   ctx.fillRect(x, y, w, h);
-  if (depth <= 0) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  // Anchored to the block and not to the canvas, so a mat that moves takes its rules
+  // with it instead of sliding under them.
+  ctx.translate(x, y);
+  ctx.fillStyle = ctx.createPattern(tile, 'repeat');
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+  if (depth > 0) sunkFrame(ctx, x, y, w, h, depth);
+}
+
+/** The sunken edges of a block, without the fill. */
+function sunkFrame(ctx, x, y, w, h, depth) {
   let g = ctx.createLinearGradient(x, y, x, y + depth);
   g.addColorStop(0, 'rgba(0,0,0,0.16)');
   g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -520,6 +556,13 @@ function well(ctx, x, y, w, h, depth, fill) {
   ctx.fillRect(x, y, depth, h);
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   ctx.fillRect(x, y + h - 1, w, 1);
+}
+
+/** A sunken block: dark along the top and left, a lit edge along the bottom. */
+function well(ctx, x, y, w, h, depth, fill) {
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, w, h);
+  if (depth > 0) sunkFrame(ctx, x, y, w, h, depth);
 }
 
 /**
@@ -724,6 +767,22 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
   const countSize = (round) =>
     26 + 14 * (round.total ? round.found.size / round.total : 0);
 
+  // The panel's two papers. Rebuilt only when a knob moves, because a tile is an
+  // image and making one is a pixel loop.
+  const papers = { card: null, read: null };
+  const paperKeys = { card: null, read: null };
+  const paperFor = (which, s) => {
+    const key = `${s[`${which}MatCell`]}|${s[`${which}MatAlpha`]}`
+      + `|${s[`${which}MatNoise`]}|${s.gridNoiseScale}|${s[`${which}MatInk`]}`;
+    if (paperKeys[which] !== key) {
+      papers[which] = ruledTile(s[`${which}MatCell`], s[`${which}MatAlpha`],
+                                s[`${which}MatNoise`], s.gridNoiseScale,
+                                s[`${which}MatInk`]);
+      paperKeys[which] = key;
+    }
+    return papers[which];
+  };
+
   return {
     name: 'panel',
     draw(ctx, frame) {
@@ -746,6 +805,9 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
 
       const pad = Math.round(Math.min(24, panel.width * 0.05, panel.height * 0.07));
       const stage = `LEVEL ${level.level}:${level.stage}${level.last ? '  LAST' : ''}`;
+      // What a slab of a given type size stands, which is how either layout measures
+      // its readout before drawing the paper under it.
+      const height = (px) => px * 0.86 + s.slabPad * 2;
 
       // Wider than it is tall: the card takes the left and the readout runs beside it
       // in two columns. This is the shape a phone held upright gives the panel.
@@ -754,8 +816,14 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
         // panel's short edge as the readout beside it can spare.
         const span = Math.round(
           Math.min(panel.height - pad * 2, panel.width * 0.38));
-        drawCard(ctx, panel.x + pad + span / 2, panel.y + panel.height / 2,
-                 span, prompt, shake, s);
+        const cardX = panel.x + pad + span / 2;
+        const cardY = panel.y + panel.height / 2;
+        // The card lies on its own sheet. Laid before the card so the card's shadow
+        // falls on the paper rather than on the panel behind it.
+        mat(ctx, cardX - span / 2 - s.cardMatPad, cardY - span / 2 - s.cardMatPad,
+            span + s.cardMatPad * 2, span + s.cardMatPad * 2,
+            s.cardMatRecess, paperFor('card', s), palette.panel);
+        drawCard(ctx, cardX, cardY, span, prompt, shake, s);
 
         const rest = panel.width - span - pad * 3;
         const colX = panel.x + pad * 2 + span;
@@ -765,10 +833,15 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
 
         // Both columns sit against the card, which is centred, so they are centred
         // too. Starting them at the top leaves the panel bottom-heavy and empty.
-        const height = (px) => px * 0.86 + s.slabPad * 2;
         const readout = 24 + 20 + height(30) + 10 + height(countSize(round))
                         + 8 + 18 + height(22);
         let y = panel.y + (panel.height - readout) / 2;
+
+        // Everything the readout says sits in one sunken sheet: the stage, what to
+        // find, how many are left and how much trouble the run is in.
+        mat(ctx, colX - s.readMatPad, y - s.readMatPad,
+            colW + s.readMatPad * 2, readout + s.readMatPad * 2,
+            s.readMatRecess, paperFor('read', s), palette.panel);
 
         ctx.font = face(19, s);
         ctx.fillStyle = SEMANTIC.quiet.ink;
@@ -806,6 +879,15 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
       const span = panel.width - pad * 2;
       let y = panel.y + pad;
 
+      // The card is inside the readout here rather than beside it, so one sheet holds
+      // the lot and the card's own sheet lies on top of it. Measured before anything
+      // is drawn, because the paper has to go down first.
+      const tallHeight = 26 + 18 + height(32) + 14 + span + 24
+                         + height(countSize(round)) + 10 + 18 + height(22);
+      mat(ctx, left - s.readMatPad, y - s.readMatPad,
+          span + s.readMatPad * 2, tallHeight + s.readMatPad * 2,
+          s.readMatRecess, paperFor('read', s), palette.panel);
+
       ctx.font = face(19, s);
       ctx.fillStyle = SEMANTIC.quiet.ink;
       ctx.fillText(stage, left, y);
@@ -816,6 +898,9 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
       y += 18;
       y += slab(ctx, left, y, round.target.toUpperCase(), SEMANTIC.target, 32, s) + 14;
 
+      mat(ctx, left - s.cardMatPad, y - s.cardMatPad,
+          span + s.cardMatPad * 2, span + s.cardMatPad * 2,
+          s.cardMatRecess, paperFor('card', s), palette.panel);
       drawCard(ctx, left + span / 2, y + span / 2, span, prompt, shake, s);
       y += span + 24;
 
