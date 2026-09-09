@@ -111,6 +111,18 @@ it went; it is never a reason to refuse a change he asks for.
   equal-lightness ramp with hue carrying the meaning — measured, it puts green and red
   0.021 apart in OKLab under simulated deuteranopia, which is the same colour.
 
+## The options panel
+
+- **The panel is HTML laid over the canvas, not drawn on it.** REJECTED: canvas
+  sliders — a hundred lines of hit-testing and drag state to arrive at something the
+  browser already does, with the keyboard and the screen reader included.
+- **Music is off until it is asked for.** REJECTED: starting a track on load — music
+  under a search is a preference, and a game that begins by playing something at you
+  has made the choice for you.
+- **A fader's travel is squared.** REJECTED: a straight gain scale — halfway up one is
+  barely quieter than the top, so every useful position is crowded into the last third
+  of the throw.
+
 ## Talking to hosts
 
 - **A 429 or 503 is waited out against the same URL; only a host still not serving

@@ -215,5 +215,11 @@ for slug in PICKS:
     print(f"    {lufs:.1f} LUFS -> bed at {norm_db:+.1f}dB (x{rows[-1]['normGain']}), "
           f"peak then {rows[-1]['peakAfterNormDb']:+.1f} dBFS", file=sys.stderr)
 
+# The ratings are written by hand and live in their own file. Merging them in rather
+# than letting this script own them is what stops a re-measure erasing the argument.
+notes = json.load(open(os.path.join(HERE, "ratings.json")))
+for r in rows:
+    r.update(notes.get(r["slug"], {}))
+
 json.dump(rows, open(os.path.join(HERE, "shortlist.json"), "w"), indent=1)
 print(f"\nwrote {len(rows)}")

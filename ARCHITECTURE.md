@@ -21,8 +21,9 @@ its seed. `dev/README.md` covers the tuning bench.
 
 ## The modules
 
-Everything below the renderer is pure: no module but `main.js` touches the DOM, a
-clock or an event, which is what lets the whole board be tested without a browser.
+Everything below the renderer is pure: no module but `main.js` and `options.js`
+touches the DOM, a clock or an event, which is what lets the whole board be tested
+without a browser.
 `layers.js` and `audio.js` are the two boundaries onto a device -- the canvas and the
 audio graph -- and neither reads the round; they are handed what to draw and say.
 
@@ -40,7 +41,9 @@ audio graph -- and neither reads the round; they are handed what to draw and say
 | `src/layers.js`, `src/compositor.js` | Ordered draw passes over one canvas. The wipe among them leaves on the grid the arriving level rules. |
 | `src/rng.js` | `mulberry32`. Every draw in game logic comes from here, so a run reproduces from its seed. |
 | `src/audio.js` | The voice: a table of beeps made from an oscillator, a find that climbs on a Shepard tone, and the one recorded win. Also the desk — a music bus and an effects bus into a master, with the music ducking out of the way of every effect. |
-| `src/main.js` | The only file with a DOM in it. Loads the fleet, wires the loop. |
+| `src/music.js` | What can play under the board: the loops, their bar-aligned trim, and the gain that brings each to the same bed. Data only. |
+| `src/options.js` | The options panel. The one part of the game that is HTML rather than canvas. |
+| `src/main.js` | Loads the fleet, wires the loop, and raises the options panel. |
 
 ## The board is thrown, not arranged
 

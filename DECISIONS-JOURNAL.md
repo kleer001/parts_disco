@@ -745,3 +745,42 @@ level, and the duck is what lifts it clear.
 **Threaded:** `BALANCE.findLufs`, the lifted gains and `WIN_GAIN` in `src/audio.js`;
 the track gain in `setMusic`; `BED_LUFS`, `integrated()` and `normGain` in
 `research/disco-loops/shortlist.py`; the anchor rows in the balance panel.
+
+### [2026-09-09] The game gets an options panel, and it is HTML
+
+**Decision:** a three-line opener sits bottom-right over the canvas and raises a panel
+holding the sound and music controls. `src/options.js` builds it, `src/music.js` is the
+track table, and `styles.css` carries the look. Music is off until chosen, and the
+tracks are named by the first word of their title.
+
+**Rejected: drawing it on the canvas** like everything else in the game. A slider drawn
+there is a hundred lines of hit-testing and drag state to arrive at something an
+`<input type=range>` already does — with keyboard access, focus, and a screen reader
+name thrown in. The board is a picture and this is a form; they are different jobs.
+
+**Rejected: putting it in `index.html`.** It has nothing to say until there is a desk to
+move, and building it in `options.js` keeps the markup to the one canvas the game
+actually is.
+
+**Rejected: starting a track on load.** Music under a visual search is a preference and
+not a default. A game that begins by playing something at you has decided for the
+player, and the first thing many will do is go looking for the switch.
+
+**A fader's travel is squared** rather than straight. On a linear gain scale halfway up
+is barely quieter than the top and everything useful is crammed into the last third of
+the throw; squaring puts the halfway point around twelve decibels down, which is what a
+hand expects halfway to be. The board's fader reaches past unity and the music's does
+not: the music's level was measured against a bed, and going past it would undo that.
+
+**What ships with the tracks.** All four are CC0 and the provenance travels with them
+in `music.js`, along with a `master` flag saying whether the file is the published
+master or a preview — three of the four are Freesound previews, which are fine to play
+and to choose by, and are the thing to replace before a store page.
+
+**Caught while doing it:** `shortlist.py` owned the whole of `shortlist.json`, so
+re-running the measurements erased the hand-written ratings. The ratings now live in
+`ratings.json` and the script merges them in. A script that measures should not own the
+file that also holds an argument.
+
+**Threaded:** `src/options.js` and `src/music.js`; the `.opts-*` rules in `styles.css`;
+the one `createOptions` call in `src/main.js`; `assets/music/`.

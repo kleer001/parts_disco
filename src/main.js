@@ -14,6 +14,7 @@ import { TUNING, createClock } from './juice.js';
 import { layoutFor } from './layout.js';
 import { createVoice } from './audio.js';
 import { createMeter } from './meter.js';
+import { createOptions } from './options.js';
 
 const SEED = 1983;
 
@@ -124,6 +125,10 @@ export async function start(canvas, seed = SEED) {
   // The damage a life can take. It outlives a round on purpose -- it is the run that
   // is being spent, not the board.
   const meter = createMeter();
+
+  // The one piece of HTML in the game, laid over the canvas. It is raised here rather
+  // than in the markup because it has nothing to say until there is a desk to move.
+  createOptions(document.body, voice);
 
   // The wipe is kept rather than added and forgotten, because the loop is what hands
   // it the screen it takes off.
