@@ -457,3 +457,58 @@ target count is the first thing to try if one stage turns into a wall.
 `src/juice.js`; `meterBar`, `zoneOf` and `createOverLayer` in `src/layers.js`;
 `RETRY_STRIDE` and the death branch of the pointer handler in `src/main.js`;
 `tests/meter.test.js`.
+
+### [2026-09-09] The wipe leaves on the arriving level's grid
+
+**Decision:** the old screen no longer slides off in one piece. It leaves in the cells
+of the grid the *incoming* level rules. Each lane — a column for a wipe that falls or
+rises, a row for one that crosses — opens at its own moment and they all finish
+together. Within a lane the cells open one at a time along the grid, and each square
+grows into its cell from `wipeLead` to full, so a square is smallest at the front and
+full a cell or two back. A square finishes growing before the next cell opens, and that
+gap is the wait on the line.
+
+**Pressure:** the wipe was one hard edge and had no character. The grid is already the
+clearest signal of how hard a stage is, and the transition was the one moment it could
+be said before the board is playable.
+
+**Rejected: the departing level's grid.** Same effect, opposite meaning — a wipe on
+the outgoing grid is a goodbye, one on the incoming grid is an announcement. `take` is
+handed the arriving stage's `along` for exactly this.
+
+**Rejected: a travelling front with squares appearing behind it,** which is how this
+was first built. The front advanced continuously and a cell only became a growing
+square once the front had fully crossed it, so the cell went from a vanishing sliver
+of old screen back to 88% covered in a single frame. Measured by counting pixels rather
+than reasoning about rectangles: 13% of the screen reappearing at the coarsest grid,
+falling to a fraction of a percent at the finest, which is why it was invisible in the
+fine case and obvious in the coarse one. Cells now open as the front reaches them, so
+the two are one clock and the old screen only ever shrinks.
+
+**Rejected: a pause added on top of the travel.** A tread has to be the lane's whole
+share of a cell, or the treads stop filling the lane's time. The wait is therefore
+taken *out* of the tread: `rest = min(wipeDwellMs, tread * wipeDwellMax)` and the
+square grows in what is left. The asked-for 50ms is a target, not a promise — at the
+last stage a tread is 19ms, so the rest saturates at its cap and the lane hesitates
+rather than pauses.
+
+**Rejected: honouring every ruled line.** The last stage rules a five-pixel grid, which
+is two hundred waits and more squares than anyone can see leave. `wipeCells` caps how
+many the wipe shows along the long edge, and above that it opens every kth ruled cell —
+still exactly on the grid, just a coarser beat of it. What the cap costs is that the
+last stages all wipe at the same beat, because past that point the grid is finer than
+the wipe can show anyway.
+
+**Also settled here:** the grid rules a cell that is not quite the one `gridCellAt`
+asks for, because the tile is eight cells wide and has to be whole pixels. The wipe
+steps on the ruled cell and not the asked-for one, or it would drift off the lines
+across the screen. Both now read it from `cellOf`.
+
+**Measured:** across three stages and all four sides, 120 frames each, the old screen
+never grows back and every wipe ends completely clear. The whole effect is one clip and
+one blit per frame — 33 to 119 rectangles depending on the grid, 0.04ms mean and 0.3ms
+worst on a 1174x1192 canvas.
+
+**Threaded:** `SIDES`, `cellOf` and `createWipeLayer` in `src/layers.js`; the six
+`wipe*` numbers in `src/juice.js`; the `wipe.take` call in `src/main.js`, which hands
+it the arriving stage.

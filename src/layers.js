@@ -87,6 +87,16 @@ function ring(ctx, anchor, points, span, scale = 1, dx = 0, dy = 0) {
   }
 }
 
+/**
+ * The cell the grid actually rules, which is not quite the cell it was asked for.
+ *
+ * The tile is eight cells wide and has to be a whole number of pixels, so the ask is
+ * rounded on its way into the texture. The wipe steps on the same lines, and a wipe
+ * stepping on the asked-for cell would drift off the ruled one across the screen --
+ * so both read the cell from here rather than from `gridCellAt`.
+ */
+const cellOf = (s, along) => Math.max(8, Math.round(gridCellAt(along, s) * 8)) / 8;
+
 /** How type is set, wherever it is set. */
 const face = (px, s) => `${Math.round(px * s.typeScale)}px VT323, monospace`;
 
@@ -304,9 +314,10 @@ export function createGridLayer(settings = () => TUNING) {
     draw(ctx, frame) {
       const s = settings();
       if (s.gridAlpha <= 0 && s.gridNoise <= 0) return;
-      const key = keyOf(s, gridCellAt(frame.level.along, s));
+      const cell = cellOf(s, frame.level.along);
+      const key = keyOf(s, cell);
       if (tileKey !== key) {
-        build(s, gridCellAt(frame.level.along, s));
+        build(s, cell);
         tileKey = key;
       }
 
@@ -862,17 +873,18 @@ export function createOverLayer(settings = () => TUNING, palette = PALETTE) {
 }
 
 /**
- * The four wipes, as the rectangle of the old screen the edge has not passed yet.
+ * The four sides a wipe can run from, as the two facts that tell them apart.
  *
- * `x` and `y` are how far the edge has travelled across the screen, so each entry is
- * the same rectangle in both images -- the old screen is put back down exactly where
- * it was, and the new one is simply not covered any more.
+ * `vertical` says which axis the edge travels along, and so which way the lanes run:
+ * an edge falling or rising is crossed by columns, one crossing left or right by
+ * rows. `forward` says whether it travels in the direction the coordinate grows.
+ * Everything else about the four is the same arithmetic read through those two.
  */
-const WIPES = [
-  (w, h, x, y) => [0, y, w, h - y],  // from the north, the edge falling
-  (w, h, x, y) => [0, 0, w - x, h],  // from the east, the edge crossing to the left
-  (w, h, x, y) => [0, 0, w, h - y],  // from the south, the edge rising
-  (w, h, x, y) => [x, 0, w - x, h],  // from the west, the edge crossing to the right
+const SIDES = [
+  { vertical: true,  forward: true  },  // from the north, the edge falling
+  { vertical: false, forward: false },  // from the east, crossing to the left
+  { vertical: true,  forward: false },  // from the south, the edge rising
+  { vertical: false, forward: true  },  // from the west, crossing to the right
 ];
 
 /**
@@ -881,50 +893,150 @@ const WIPES = [
  * Drawn off the seed of the level the wipe is bringing in, so a level always arrives
  * the same way and a run stays reproducible from its seed.
  */
-export const wipeFrom = (seed) => Math.floor(mulberry32(seed)() * WIPES.length);
+export const wipeFrom = (seed) => Math.floor(mulberry32(seed)() * SIDES.length);
 
 /**
- * The last screen of a level, taken off in one hard edge.
+ * The last screen of a level, taken off on the grid of the level arriving.
  *
  * A wipe is over the whole canvas, panel included, so this goes on top of everything.
  * It is the only layer that draws what the game is no longer holding: the new level is
  * dealt and drawn from the first frame, and the old screen is a picture laid back over
- * the part of it the edge has not reached. Nothing has to be kept alive to be wiped
- * away, so no other layer knows a transition is happening.
+ * the part of it the new one has not taken yet. Nothing has to be kept alive to be
+ * wiped away, so no other layer knows a transition is happening.
+ *
+ * The old screen does not slide off in one piece. It leaves in the cells of the grid
+ * the *incoming* level rules, which is how a level announces its density before it is
+ * playable: a first stage leaves in a few fat squares, a last stage in a fine rattle.
+ * Three things carry that.
+ *
+ * Every lane opens at its own moment and they all finish together, so the front starts
+ * ragged and closes up. Within a lane the cells open one at a time along the grid, and
+ * each square grows into its cell rather than appearing whole -- so a square is at its
+ * smallest at the front and full a cell or two back. And a square finishes growing
+ * before the next cell opens, which is the wait on the line: the lane lands a tile,
+ * rests, and lands the next.
+ *
+ * The whole shape is read off the cell. A lane's tread is its own share of the wipe
+ * divided by the cells it has to cross, the wait takes what it is asked for out of
+ * that tread, and the growing takes the rest -- so a coarse grid rests properly and a
+ * fine one only hesitates, without either being told which it is.
  *
  * @param {HTMLCanvasElement} shot - an offscreen canvas to keep the old screen in
  */
 export function createWipeLayer(shot, settings = () => TUNING) {
   let began = -1;
-  let from = 0;
+  let plan = null;
 
   return {
     name: 'wipe',
 
-    /** Keep what is on the canvas now, and start taking it off from `side`. */
-    take(ctx, at, side) {
-      if (!WIPES[side]) throw new Error(`no wipe from side ${side}`); // boundary
-      shot.width = ctx.canvas.width;
-      shot.height = ctx.canvas.height;
+    /**
+     * Keep what is on the canvas now, and start taking it off.
+     *
+     * The shape of the wipe is settled here rather than per frame: it is a fact about
+     * the screen and the level arriving, and neither moves while it runs.
+     *
+     * @param {number} seed - the incoming level's seed, for the side and the stagger
+     * @param {number} along - where the incoming level sits on the path, 0..1
+     */
+    take(ctx, at, seed, along) {
+      const s = settings();
+      const { width, height } = ctx.canvas;
+      shot.width = width;
+      shot.height = height;
       shot.getContext('2d').drawImage(ctx.canvas, 0, 0);
+
+      const side = wipeFrom(seed);
+      const vertical = SIDES[side].vertical;
+      const travel = vertical ? height : width;
+      const cross = vertical ? width : height;
+
+      // A late stage rules a five-pixel grid, which is two hundred lines to wait on
+      // and far more squares than anyone can see leave. So the wipe opens every kth
+      // ruled cell rather than every one: still exactly on the grid, just reading a
+      // coarser beat of it. What the cap costs is that the last stages all wipe at the
+      // same beat, because past that point the grid is finer than the wipe can show.
+      const ruled = cellOf(s, along);
+      const every = Math.max(1, Math.ceil(Math.max(cross, travel) / ruled / s.wipeCells));
+      const cell = ruled * every;
+
+      const steps = Math.max(1, Math.ceil(travel / cell));
+      const lanes = Math.max(1, Math.ceil(cross / cell));
+
+      const rand = mulberry32(seed);
+      const offsets = [];
+      for (let i = 0; i < lanes; i++) offsets.push(rand() * s.wipeStagger);
+
       began = at;
-      from = side;
+      plan = { side, vertical, cell, steps, lanes, offsets, width, height };
     },
 
     draw(ctx, frame) {
-      if (began < 0) return;
-      const along = (frame.at - began) / (settings().wipeMs / 1000);
-      if (along >= 1) return;
-      const { width, height } = ctx.canvas;
+      if (began < 0 || plan === null) return;
+      const s = settings();
+      const t = (frame.at - began) / (s.wipeMs / 1000);
+      if (t >= 1) return;
       // A wipe only runs over the screen it was taken from. A turned phone deals a new
       // board on a canvas of a different shape, and the old screen has no place on it.
-      if (shot.width !== width || shot.height !== height) return;
+      if (plan.width !== ctx.canvas.width || plan.height !== ctx.canvas.height) return;
 
-      // Floored, so the edge lands on a pixel and the rectangle it leaves is never
-      // empty -- a wipe that has not finished always has some of the old screen left.
-      const [x, y, w, h] =
-        WIPES[from](width, height, Math.floor(along * width), Math.floor(along * height));
-      ctx.drawImage(shot, x, y, w, h, x, y, w, h);
+      const { vertical, cell, steps, lanes, offsets } = plan;
+      const { forward } = SIDES[plan.side];
+      const travel = vertical ? plan.height : plan.width;
+      const cross = vertical ? plan.width : plan.height;
+
+      // One rectangle is one subpath, and the odd-even rule turns a cell holding a
+      // smaller square into a ring: old screen around the edges, new screen through
+      // the middle. The whole wipe is therefore one clip and one blit, however many
+      // squares are in the air.
+      const held = new Path2D();
+      const lay = (at, size, start, len) => {
+        if (len <= 0) return;
+        if (vertical) held.rect(at, start, size, len);
+        else held.rect(start, at, len, size);
+      };
+
+      for (let i = 0; i < lanes; i++) {
+        const opens = offsets[i];
+        const runs = Math.max(0.05, 1 - opens);
+        const p = Math.max(0, Math.min(1, (t - opens) / runs));
+
+        // What one cell costs this lane, and how that time is split between landing a
+        // square and resting on the line before the next one opens.
+        const tread = (runs * s.wipeMs) / steps;
+        const rest = Math.min(s.wipeDwellMs, tread * s.wipeDwellMax);
+        const grows = Math.max(1, tread - rest) / s.wipeMs;
+
+        const at = i * cell;
+        const size = Math.min(cell, cross - at);
+        // Cells opened so far. Cell j opens at p = j / steps, so the front is always
+        // on a ruled line and the lane's last cell opens one tread before the end.
+        const open = t < opens ? 0 : Math.min(steps, Math.floor(p * steps) + 1);
+
+        // Everything not yet opened is the old screen, in one piece.
+        if (forward) lay(at, size, open * cell, travel - open * cell);
+        else lay(at, size, 0, Math.min((steps - open) * cell, travel));
+
+        // The squares still growing. They are walked back from the front and the walk
+        // stops at the first full one, because every square behind it is full too.
+        for (let j = open - 1; j >= 0; j--) {
+          const landed = opens + (j / steps) * runs;
+          const grown = (t - landed) / grows;
+          if (grown >= 1) break;
+          const scale = s.wipeLead + (1 - s.wipeLead) * Math.max(0, grown);
+          const inset = (cell * (1 - scale)) / 2;
+          // Which cell of the screen this is. A wipe running backwards opens the last
+          // cell first, so the count and the coordinate run opposite ways.
+          const c = forward ? j : steps - 1 - j;
+          lay(at, size, c * cell, cell);
+          lay(at + inset, size - inset * 2, c * cell + inset, cell - inset * 2);
+        }
+      }
+
+      ctx.save();
+      ctx.clip(held, 'evenodd');
+      ctx.drawImage(shot, 0, 0);
+      ctx.restore();
     },
   };
 }

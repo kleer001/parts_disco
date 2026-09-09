@@ -8,7 +8,7 @@ import { createRound } from './game.js';
 import { stageAt, RANGE } from './levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
          createRefuseLayer, createRecessLayer, createOverLayer, createPanelLayer,
-         createWipeLayer, stampRegions, wipeFrom, INKS, rgbOf } from './layers.js';
+         createWipeLayer, stampRegions, INKS, rgbOf } from './layers.js';
 import { planBoard } from './paint.js';
 import { TUNING, createClock } from './juice.js';
 import { layoutFor } from './layout.js';
@@ -191,7 +191,10 @@ export async function start(canvas, seed = SEED) {
     if (!dead && round.done(at)) {
       depth++;
       attempt = 0;
-      wipe.take(ctx, at, wipeFrom(seed + depth));
+      // The wipe is told the level it is bringing in, not the one it is taking off:
+      // the grid it leaves on is the arriving level's, which is what makes the
+      // transition an announcement rather than a goodbye.
+      wipe.take(ctx, at, seed + depth, stageAt(depth).along);
       nextLevel();
     }
 

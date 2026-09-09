@@ -37,7 +37,7 @@ audio graph -- and neither reads the round; they are handed what to draw and say
 | `src/juice.js` | How the board answers: the tuning, the envelopes, and the colours that carry meaning. Pure. |
 | `src/geometry.js` | Polygon containment, for hit-testing. |
 | `src/layout.js` | Where the board and the panel sit, given a viewport. Pure. |
-| `src/layers.js`, `src/compositor.js` | Ordered draw passes over one canvas. |
+| `src/layers.js`, `src/compositor.js` | Ordered draw passes over one canvas. The wipe among them leaves on the grid the arriving level rules. |
 | `src/rng.js` | `mulberry32`. Every draw in game logic comes from here, so a run reproduces from its seed. |
 | `src/audio.js` | The voice: a table of beeps made from an oscillator, a find that climbs on a Shepard tone, and the one recorded win. |
 | `src/main.js` | The only file with a DOM in it. Loads the fleet, wires the loop. |

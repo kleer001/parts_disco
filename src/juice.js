@@ -63,7 +63,17 @@ export const TUNING = {
   meterRingHz: 3.5,
 
   // -- one level being taken off the screen and the next put down ------------
+  // The wipe leaves on the grid the arriving level rules. `wipeCells` is the most
+  // squares it will show across the long edge -- past that it steps every other ruled
+  // line, or every third, so a fine grid reads as a fine rattle without asking for two
+  // hundred waits. `wipeDwellMs` is the pause at each line, taken as a share of the
+  // tread and so capped by `wipeDwellMax` when the grid is finer than the pause.
   wipeMs: 750,
+  wipeCells: 64,
+  wipeStagger: 0.34,
+  wipeDwellMs: 50,
+  wipeDwellMax: 0.7,
+  wipeLead: 0.35,
 
   // -- the panel flinching when the board answers ---------------------------
   cardShake: 17,

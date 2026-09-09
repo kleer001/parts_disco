@@ -60,10 +60,26 @@ it went; it is never a reason to refuse a change he asks for.
 - **Every part drifts on its own heading.** REJECTED: moving layers as groups — parts
   that move together read as one object, and it is differing motion that lets a player
   pull one outline out of a pile.
-- **A level is taken off the screen by a hard wipe over a picture of it.** REJECTED:
+- **A level is taken off the screen by a wipe over a picture of it.** REJECTED:
   keeping the finished level's state alive and rendering both boards at once — every
   layer would then need to know which of two rounds it was drawing, to animate a
   handover that is over in well under a second.
+- **The wipe leaves on the grid the *arriving* level rules, not the departing one.**
+  REJECTED: the outgoing level's grid — the transition is then a goodbye, and the
+  denser beat of a harder stage is the one thing the wipe can say before the board is
+  playable.
+- **A cell opens as the front reaches it, and its square grows in place.** REJECTED:
+  a travelling edge with squares appearing behind it — the two ran on different clocks,
+  so a cell went from nearly gone back to 88% covered the moment it became a square.
+  Measured at 13% of the screen reappearing in one frame.
+- **The wait on each grid line is what is left of a tread after the square has
+  grown.** REJECTED: a pause added on top of the travel — the treads then no longer
+  fill the lane's time, and a fine grid asks for eight seconds of pauses inside a
+  750ms wipe. REJECTED: a fixed 50ms — it is a target, taken as a share of the tread
+  and capped, so a coarse grid rests and a fine one hesitates.
+- **A grid finer than `wipeCells` is read every kth line rather than every line.**
+  REJECTED: honouring every ruled line — two hundred waits and twenty-five thousand
+  squares nobody can see. The cost is that the last stages all wipe at the same beat.
 - **A find is answered by a pulse drawn over the board, not by repainting the board.**
   REJECTED: blinking the vehicle in the board's own pixels and repainting its box —
   the answer then cannot leave the vehicle's bounds, and the board rebuilds on the one
