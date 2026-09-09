@@ -39,10 +39,16 @@ player-facing README.
   with knobs for all three under "Wrong click" in `dev/juice.html`. Open with it: over
   a blue region the grey reads pale blue rather than grey, which is what a translucent
   grey does; alpha 1 would make it opaque grey.
+- [ ] #17 Playtest the meter and settle its two guesses: ten units of capacity, and a
+  wrong vehicle falling from a whole unit to a quarter across the path. The asymmetry
+  to watch is that a stage's target count swings from 2 to 33, so two stages at the
+  same point on the path charge the same for very different numbers of clicks —
+  dividing the cost by the target count is the first thing to try if one stage is a
+  wall. Credit for clearing a board is the dial to reach for if it is simply too harsh.
 - [ ] #3 A title screen and an end. The game starts mid-board on load and holds the
   last stage forever.
-- [ ] #4 Score or timer. Still "find them all, next prompt, no clock". Misses are
-  counted and shown in red but do nothing.
+- [ ] #4 Score or timer. Still "find them all, next prompt, no clock". Losing exists
+  now; winning is still unscored and unclocked.
 - [ ] #5 Play the sixteen stages start to finish and feel the ramp. It has been
   played and it is fun; what is still unfelt is the far end. Especially: is the jump
   at stage 9 (twins arrive) too steep, and is stage 16 at one ink playable.
@@ -137,14 +143,23 @@ via `createRefuseLayer`, under the find pulse; the wash fades and records nothin
 because a permanent grey-out crosses a candidate off the list and turns the difficulty
 dial. Both rulings, and what they rejected, are in `DECISIONS.md`.
 
+**A run can be lost.** `src/meter.js` is ten units of damage that carry across stages;
+only a wrong vehicle charges it, and the price falls geometrically along the path (a
+whole unit at stage 1, a quarter at stage 16) so the ladder can stay one fixed picture.
+`round.misses` is gone — it counted bare ground too, which stops being the same event
+once a count decides a death. Filling the meter frosts the yard (`createOverLayer`) and
+offers the same stage again; taking it empties the meter and deals a different yard via
+`RETRY_STRIDE`. Nothing else ever empties it. All of it, and the losers, are in
+`DECISIONS.md` under **Losing**.
+
 **Copy decisions are recorded.** `.claude/skills/copy/plain/terms.md` holds the
 plain-language calls for the README's reader, so the next run starts quiet. The player
 half of the README says *yard*; *board* is developer vocabulary.
 
 ## Next Step
 
-#5 — play to the far end of the path. It is the oldest open item and the only one that
-answers whether stage 9's jump and stage 16's single ink are playable; #12's design
-tweaks and #13's fleet research both get sharper once someone has.
+#17 and #5 are the same sitting: play the path end to end and watch the meter while
+you do. The ramp has never been felt past the early stages, and the meter's two numbers
+were chosen by argument rather than by dying to them.
 
 /home/menser/Dropbox/ai/code/parts_disco
