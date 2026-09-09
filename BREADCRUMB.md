@@ -44,7 +44,8 @@ player-facing README.
   own copy. ~60 near-identical lines: `proxyFor`, the scratch and held canvases,
   `replan`, `nextLevel`, the pointer handler and the frame loop. The bench is the
   instrument the tuning is chosen on, so a bench that has silently drifted from the
-  game produces wrong numbers with nothing to catch it.
+  game produces wrong numbers with nothing to catch it. The wipe was the third thing
+  wired into both files by hand.
 - [ ] #6 Decide what to do about `view-preview.html`. `dev/juice.html` now supersedes
   it and it still restates most of `src/`. Retire it, make it import from `src/`, or
   write down that the duplication is deliberate. Same call covers the other root
@@ -78,6 +79,13 @@ is the tuning bench. `ARCHITECTURE.md` explains the lot; `README.md` is for play
 this session, and one of them reverses the commit before it: the board's blink was
 deleted in favour of a pulse drawn over the board. The box-repaint machinery it removed
 looks like an obvious optimisation from the code alone.
+
+**A found vehicle rests in one grey, and a level leaves under a wipe.** `SETTLED`
+(`#4c4c4c`) in `layers.js` is the colour every found vehicle keeps — off the board's
+palette, so a solved car is out of the puzzle rather than wearing a colour some unfound
+car also wears. `createWipeLayer` sits on top of the stack: the loop hands it the win's
+last frame and a hard edge takes that picture off in `TUNING.wipeMs` (750ms) from a
+seeded side. Both rulings and their losers are in `DECISIONS.md`.
 
 **The tuning is in `src/juice.js` as `TUNING`.** Chosen on the bench, not reasoned
 about. `dev/juice.html`'s **shipped** preset reads it, so the bench always opens on
