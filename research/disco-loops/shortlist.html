@@ -1,0 +1,271 @@
+<meta charset="utf-8">
+<title>parts disco — the four</title>
+<style>
+:root{--paper:#E7E2D8;--panel:#F4F2ED;--sunk:#DCD7CB;--ink1:#1A1A1A;--ink2:#54514A;
+      --ink3:#8A857A;--rule:#C6C0B2;--good:#03A14A;--warn:#E39A00;--bad:#810009}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink1);
+     font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px}
+.wrap{max-width:1120px;margin:0 auto;padding:26px 22px 80px}
+header{border-bottom:2px solid var(--ink1);padding-bottom:18px;margin-bottom:20px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.17em;text-transform:uppercase;
+         color:var(--ink3)}
+h1{font-size:38px;font-weight:400;margin:6px 0 0;line-height:1}
+.lede{margin:12px 0 0;max-width:76ch;color:var(--ink2);line-height:1.6}
+.lede b{color:var(--ink1)}
+button{font:inherit;font-size:12px;padding:6px 11px;background:#fff;
+       border:1px solid var(--rule);border-radius:3px;cursor:pointer}
+button:hover{border-color:var(--ink1)}
+button.on{background:var(--ink1);color:var(--paper);border-color:var(--ink1)}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.card{background:var(--panel);border:1px solid var(--rule);padding:16px;margin-bottom:14px}
+.card.playing{border-color:var(--ink1);box-shadow:inset 4px 0 0 var(--good)}
+.head{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:start}
+.name{font-size:19px;font-weight:600;margin:0}
+.by{font-size:11.5px;color:var(--ink2);margin:4px 0 0}
+.by a{color:var(--ink2)}
+.scores{display:flex;gap:16px;margin:12px 0 0}
+.score{min-width:132px}
+.score .lab{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink3)}
+.pips{font-size:17px;letter-spacing:2px;margin-top:1px}
+.pips .on{color:var(--good)}
+.pips .off{color:var(--rule)}
+.why{font-size:12.5px;color:var(--ink2);line-height:1.6;margin:11px 0 0;max-width:74ch}
+.why b{color:var(--ink1)}
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:1px;
+      background:var(--rule);border:1px solid var(--rule);margin:13px 0 0}
+.nums div{background:var(--panel);padding:7px 9px}
+.nums .k{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)}
+.nums .v{font-size:14px;font-variant-numeric:tabular-nums;margin-top:2px}
+.nums .v small{font-size:10px;color:var(--ink3)}
+.v.ok{color:#005C27}.v.warn{color:#674300}.v.bad{color:var(--bad)}
+.join{height:58px;background:var(--sunk);border:1px solid var(--rule);margin:12px 0 0;
+      position:relative}
+.join canvas{display:block;width:100%;height:100%}
+.join .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--bad)}
+.join .cap{position:absolute;left:6px;top:4px;font-size:9.5px;color:var(--ink3);
+           letter-spacing:.06em;text-transform:uppercase}
+.play{font-size:14px;padding:9px 16px;min-width:132px}
+.opts{display:flex;gap:14px;align-items:center;margin:10px 0 0;font-size:12px;
+      color:var(--ink2);flex-wrap:wrap}
+.opts label{display:flex;gap:5px;align-items:center;cursor:pointer}
+.overgame{background:var(--panel);border:1px solid var(--rule);padding:16px;margin-top:22px}
+.overgame iframe{width:100%;height:620px;border:1px solid var(--rule);background:#fff;
+                 display:block;margin-top:11px}
+.hint{font-size:11.5px;color:var(--ink3);margin:8px 0 0;line-height:1.55}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px}
+.miss{background:#FFE6E3;border:1px solid #f0b8b3;padding:12px 14px;margin-bottom:14px;
+      font-size:12.5px;color:#842521}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">parts disco · research</p>
+  <h1>the four</h1>
+  <p class="lede">The earmarked loops, rated on two things that are not the same kind of
+  question. <b>How well it loops</b> is measured — bar length, the step across the join,
+  the silence at the ends. <b>How well it fits the game</b> is a judgement, made against
+  measurements but not derived from them; the reasoning is written out on each card so
+  you can disagree with it.</p>
+  <p class="lede">All four play <b>trimmed to whole bars</b> by default, because none of
+  them was cut to one. Two of them tick at the join, and the crossfade switch is what
+  that costs to fix — turn it off to hear what you would be shipping without it.</p>
+  <p class="lede">A correction on the earlier page: it called all four of these
+  <em>fades out</em>. That was wrong. It compared the last 100ms against the first,
+  which misreads any loop that leaves air before a downbeat. Measured over a fifth of
+  the track, none of them fades — the ratios are 0.89 to 0.98.</p>
+</header>
+
+<div id="gone" class="miss" hidden></div>
+
+<div id="list"></div>
+
+<div class="overgame">
+  <div class="bar">
+    <strong style="font-size:13px">Play it over the game</strong>
+    <button type="button" id="loadGame">load the board</button>
+    <button type="button" id="stopAll">stop the music</button>
+  </div>
+  <p class="hint">The only test that answers the second question. Start a loop above,
+  then load the board and play a stage under it. The game's own clicks and blips keep
+  working, which is the point — the <em>in the game's band</em> figure on each card is
+  a guess at what you are about to hear, and this is the thing itself.</p>
+  <div id="gameHolder"></div>
+</div>
+
+<p class="hint">Numbers come from <code>research/disco-loops/shortlist.py</code>. Audio
+lives in <code>tmp/loops/audio/</code> and is not in the repository — the fetch scripts
+in this directory put it there.</p>
+</div>
+
+<script type="module">
+const AUDIO = '../../tmp/loops/audio/';
+const rows = (await (await fetch('shortlist.json')).json())
+  // Best first: how well it loops is fixable, how well it fits is not, so the fit
+  // breaks the tie.
+  .sort((a, b) => (b.loop + b.fit) - (a.loop + a.fit) || b.fit - a.fit);
+const ac = new AudioContext();
+const list = document.getElementById('list');
+const gone = document.getElementById('gone');
+const buffers = new Map();
+let playing = null;
+
+const pips = (n) => `<span class="on">${'●'.repeat(n)}</span>`
+                  + `<span class="off">${'●'.repeat(5 - n)}</span>`;
+
+/** Slice the trim out and crossfade the head over the tail, so the wrap has no step. */
+function prepare(buf, { start, end, fadeMs }) {
+  const from = Math.round(start * buf.sampleRate);
+  const to = Math.round(end * buf.sampleRate);
+  const fade = Math.min(Math.round((fadeMs / 1000) * buf.sampleRate),
+                        Math.floor((to - from) / 4));
+  const len = to - from;
+  const out = ac.createBuffer(buf.numberOfChannels, len, buf.sampleRate);
+  for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+    const src = buf.getChannelData(ch);
+    const dst = out.getChannelData(ch);
+    dst.set(src.subarray(from, to));
+    if (fade > 0) {
+      // The tail is mixed into the head under an equal-power pair, which is what keeps
+      // the level steady across the join instead of dipping through it.
+      for (let i = 0; i < fade; i++) {
+        const t = i / fade;
+        const a = Math.cos(t * Math.PI / 2);
+        const b = Math.sin(t * Math.PI / 2);
+        const before = src[from - fade + i] ?? 0;
+        dst[i] = dst[i] * b + before * a;
+      }
+    }
+  }
+  return out;
+}
+
+function drawJoin(canvas, buf) {
+  const w = canvas.width = canvas.clientWidth * 2;
+  const h = canvas.height = 116;
+  const c = canvas.getContext('2d');
+  const x = buf.getChannelData(0);
+  const span = Math.round(buf.sampleRate * 0.06);      // 60ms each side of the wrap
+  const line = (data, x0, wide) => {
+    c.fillStyle = '#54514A';
+    for (let i = 0; i < wide; i++) {
+      const at = Math.floor((i / wide) * data.length);
+      const v = Math.abs(data[at]);
+      const tall = Math.max(1, v * h * 0.92);
+      c.fillRect(x0 + i, (h - tall) / 2, 1, tall);
+    }
+  };
+  c.clearRect(0, 0, w, h);
+  line(x.subarray(x.length - span), 0, w / 2);          // what leads into the wrap
+  line(x.subarray(0, span), w / 2, w / 2);              // what it lands on
+}
+
+async function bufferFor(row) {
+  if (buffers.has(row.slug)) return buffers.get(row.slug);
+  const res = await fetch(AUDIO + row.file);
+  if (!res.ok) throw new Error(`${row.file} (${res.status})`);
+  const buf = await ac.decodeAudioData(await res.arrayBuffer());
+  buffers.set(row.slug, buf);
+  return buf;
+}
+
+function stop() {
+  if (playing) {
+    try { playing.source.stop(); } catch { /* already ended */ }
+    document.querySelector(`[data-slug="${playing.slug}"]`)?.classList.remove('playing');
+    playing = null;
+  }
+}
+
+async function start(row, card) {
+  const same = playing?.slug === row.slug;
+  stop();
+  if (same) return;
+  if (ac.state === 'suspended') await ac.resume();
+  const raw = await bufferFor(row);
+  const trimmed = card.querySelector('.trimmed').checked;
+  const fadeMs = card.querySelector('.cross').checked ? 12 : 0;
+  const buf = trimmed && row.trim
+    ? prepare(raw, { start: row.trim.startSec, end: row.trim.endSec, fadeMs })
+    : (fadeMs ? prepare(raw, { start: 0, end: raw.duration, fadeMs }) : raw);
+
+  drawJoin(card.querySelector('canvas'), buf);
+  const source = ac.createBufferSource();
+  source.buffer = buf;
+  source.loop = true;
+  source.connect(ac.destination);
+  source.start();
+  playing = { slug: row.slug, source };
+  card.classList.add('playing');
+}
+
+const grade = (v, ok, warn) => (v <= ok ? 'ok' : v <= warn ? 'warn' : 'bad');
+
+for (const r of rows) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.slug = r.slug;
+  const repeats = Math.round(75 / (r.trim ? r.trim.lengthSec : r.seconds));
+  card.innerHTML = `
+    <div class="head">
+      <div>
+        <p class="name">${r.title.replace(/\.wav$/, '')}</p>
+        <p class="by">${r.author} · ${r.licence} · ${r.host} ·
+          <a href="${r.source}" target="_blank" rel="noopener">source</a></p>
+        <div class="scores">
+          <div class="score"><div class="lab">loops</div><div class="pips">${pips(r.loop)}</div></div>
+          <div class="score"><div class="lab">fits the game</div><div class="pips">${pips(r.fit)}</div></div>
+        </div>
+      </div>
+      <button type="button" class="play">▶ loop it</button>
+    </div>
+
+    <div class="nums">
+      <div><div class="k">tempo</div><div class="v">${r.bpm} <small>bpm</small></div></div>
+      <div><div class="k">trimmed to</div><div class="v">${r.trim.bars} <small>bars · ${r.trim.lengthSec}s</small></div></div>
+      <div><div class="k">length was off by</div><div class="v ${grade(Math.abs(r.barFit.offMs), 10, 60)}">${Math.abs(r.barFit.offMs)} <small>ms</small></div></div>
+      <div><div class="k">step at the join</div><div class="v ${grade(r.joinPercentile, 60, 90)}">${r.joinPercentile}<small>%</small></div></div>
+      <div><div class="k">fade over the track</div><div class="v ok">${r.fadeRatio}</div></div>
+      <div><div class="k">brightness</div><div class="v">${r.brightnessHz} <small>Hz</small></div></div>
+      <div><div class="k">level swing</div><div class="v">${r.swingDb} <small>dB</small></div></div>
+      <div><div class="k">in the game's band</div><div class="v ${grade(r.gameBandPct, 15, 30)}">${r.gameBandPct}<small>%</small></div></div>
+      <div><div class="k">heard per stage</div><div class="v">${repeats}× <small>in 75s</small></div></div>
+    </div>
+
+    <div class="join"><span class="cap">the wrap — 60ms in, 60ms out</span>
+      <canvas></canvas><div class="mid"></div></div>
+
+    <div class="opts">
+      <label><input type="checkbox" class="trimmed" checked> trimmed to whole bars</label>
+      <label><input type="checkbox" class="cross" ${r.joinPercentile > 60 ? 'checked' : ''}> 12ms crossfade at the join</label>
+    </div>
+
+    <p class="why"><b>Loops:</b> ${r.loopWhy}</p>
+    <p class="why"><b>Fits the game:</b> ${r.fitWhy}</p>`;
+
+  card.querySelector('.play').addEventListener('click', () => {
+    start(r, card).catch((e) => {
+      gone.hidden = false;
+      gone.innerHTML = `<strong>Not on disk:</strong> ${e.message}. Run the fetch `
+        + `scripts in <code>research/disco-loops/</code> from the repo root.`;
+    });
+  });
+  for (const el of card.querySelectorAll('.trimmed, .cross')) {
+    el.addEventListener('change', () => {
+      if (playing?.slug === r.slug) { stop(); start(r, card); }
+    });
+  }
+  list.append(card);
+}
+
+document.getElementById('stopAll').addEventListener('click', stop);
+document.getElementById('loadGame').addEventListener('click', (e) => {
+  const holder = document.getElementById('gameHolder');
+  if (holder.firstChild) { holder.replaceChildren(); e.target.classList.remove('on'); return; }
+  const frame = document.createElement('iframe');
+  frame.src = '../../index.html';
+  frame.title = 'parts disco';
+  holder.append(frame);
+  e.target.classList.add('on');
+});
+</script>

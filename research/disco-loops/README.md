@@ -56,6 +56,29 @@ playback is Web Audio with `loop = true`, which is sample-accurate. An HTML `<au
 loop>` inserts a gap of its own in some browsers, which would make every candidate
 sound broken.
 
+## The shortlist
+
+`shortlist.html` rates the earmarked few and is where a choice gets made.
+`shortlist.py` measures them and `shortlist.json` carries the numbers and the written
+reasoning behind each rating.
+
+It separates two questions that are not the same kind. **How well it loops** is
+measured: the length against a whole number of bars, the step across the join scored
+as a percentile of the track's own steps, the silence at either end. **How well it
+fits the game** is a judgement, argued on each card against measurements rather than
+derived from them.
+
+One of those measurements is worth keeping: `src/audio.js` puts the board's clicks,
+refusals and find blips between roughly 130 and 900Hz, so the share of a loop's energy
+inside that span says how much it will compete with the sounds a player needs to hear.
+It ranges from 8% to 48% across the four, which is the widest spread of anything
+measured.
+
+The page plays everything trimmed to whole bars, because none of the candidates was
+cut to one, and offers a 12ms equal-power crossfade for the joins that tick. It will
+also load the game in a frame so a loop can be heard under a real stage, which is the
+only thing that actually answers the second question.
+
 ## Where it stands
 
 Of the candidates gathered, twelve loop as they stand — the rest carry at least one of

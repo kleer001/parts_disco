@@ -1,0 +1,192 @@
+[
+ {
+  "slug": "fs-572397",
+  "title": "Disco funk loops 001 remix 3 short loop with drums 120 bpm.wav",
+  "author": "josefpres",
+  "licence": "CC0",
+  "source": "https://freesound.org/s/572397/",
+  "host": "Freesound",
+  "file": "fs-572397.ogg",
+  "note": "Freesound preview, not the master",
+  "seconds": 32.0,
+  "headPadMs": 4.2,
+  "tailPadMs": 0.0,
+  "spliceStep": 0.0627,
+  "tailOverHead": 0.209,
+  "faults": [
+   "fades out"
+  ],
+  "bpm": 120.2,
+  "pulseStrength": 0.9,
+  "joinPercentile": 90.7,
+  "meanDb": -20.0,
+  "swingDb": 5.4,
+  "brightnessHz": 3653,
+  "peak": 0.661,
+  "fadeRatio": 0.975,
+  "gameBandPct": 22.0,
+  "barFit": {
+   "bars": 16.025,
+   "offBars": 0.025,
+   "offMs": 49.3
+  },
+  "trim": {
+   "startSec": 0.004,
+   "endSec": 31.955,
+   "bars": 16,
+   "lengthSec": 31.951
+  },
+  "trimBarFit": {
+   "bars": 16.0,
+   "offBars": 0.0,
+   "offMs": 0.3
+  },
+  "loop": 3,
+  "fit": 4,
+  "loopWhy": "Sixteen bars at 120, 49ms long, so the length is an easy fix. The join is not: its step is sharper than 90.7% of the music's own, which is heard as a tick every thirty-two seconds. A short crossfade removes it \u2014 the toggle above plays it both ways.",
+  "fitWhy": "The steadiest bed of the four bar one, at 5.4dB of level swing, and mid-bright at 3653Hz. 22% of its energy is in the board's band, so it will want to sit a few dB lower than the disco track to keep the blips clear. Thirty-two seconds is a good length: long enough not to nag, short enough to keep a pulse under a search."
+ },
+ {
+  "slug": "fs-832693",
+  "title": "Piano Drum Loop Disco Organic Melodic #002 at 120 bpm",
+  "author": "bassimat",
+  "licence": "CC0",
+  "source": "https://freesound.org/s/832693/",
+  "host": "Freesound",
+  "file": "fs-832693.ogg",
+  "note": "Freesound preview, not the master",
+  "seconds": 16.0,
+  "headPadMs": 6.0,
+  "tailPadMs": 0.0,
+  "spliceStep": 0.1176,
+  "tailOverHead": 0.339,
+  "faults": [
+   "fades out"
+  ],
+  "bpm": 120.2,
+  "pulseStrength": 0.545,
+  "joinPercentile": 99.9,
+  "meanDb": -15.0,
+  "swingDb": 5.0,
+  "brightnessHz": 846,
+  "peak": 1.353,
+  "fadeRatio": 0.906,
+  "gameBandPct": 47.8,
+  "barFit": {
+   "bars": 8.012,
+   "offBars": 0.012,
+   "offMs": 24.7
+  },
+  "trim": {
+   "startSec": 0.006,
+   "endSec": 15.981,
+   "bars": 8,
+   "lengthSec": 15.975
+  },
+  "trimBarFit": {
+   "bars": 8.0,
+   "offBars": -0.0,
+   "offMs": -0.3
+  },
+  "loop": 2,
+  "fit": 2,
+  "loopWhy": "The worst join of the four, and by the widest margin: the step across the wrap is sharper than 99.9% of every step inside the track, which means the loudest transient a listener hears is the loop point itself. Eight bars at 120 and 25ms long, so the length is fine \u2014 it is the wrap that needs the crossfade, and it needs it more than any other here.",
+  "fitWhy": "Warm and steady \u2014 846Hz and 5.0dB, the darkest and least busy of the four, which is what a bed should be. The trouble is where that warmth sits: 47.8% of its energy is inside the band the game's own clicks, refusals and find blips occupy, twice any other candidate. It would mask the thing the player needs to hear. Ducking it under a find would fix that, and that is a feature nobody has asked for yet."
+ },
+ {
+  "slug": "fs-447576",
+  "title": "Techno-ish Kind of Loop.wav",
+  "author": "deleted_user_9051603",
+  "licence": "CC0",
+  "source": "https://freesound.org/s/447576/",
+  "host": "Freesound",
+  "file": "fs-447576.ogg",
+  "note": "Freesound preview, not the master",
+  "seconds": 8.22,
+  "headPadMs": 0.0,
+  "tailPadMs": 224.3,
+  "spliceStep": 0.0005,
+  "tailOverHead": 0.001,
+  "faults": [
+   "224ms of silence at an end",
+   "fades out"
+  ],
+  "bpm": 120.2,
+  "pulseStrength": 0.711,
+  "joinPercentile": 10.4,
+  "meanDb": -31.7,
+  "swingDb": 10.5,
+  "brightnessHz": 6750,
+  "peak": 0.422,
+  "fadeRatio": 0.948,
+  "gameBandPct": 25.7,
+  "barFit": {
+   "bars": 4.116,
+   "offBars": 0.116,
+   "offMs": 232.3
+  },
+  "trim": {
+   "startSec": 0.0,
+   "endSec": 7.988,
+   "bars": 4,
+   "lengthSec": 7.988
+  },
+  "trimBarFit": {
+   "bars": 4.0,
+   "offBars": 0.0,
+   "offMs": 0.3
+  },
+  "loop": 5,
+  "fit": 3,
+  "loopWhy": "The best join of the four by a distance: its step across the wrap is more ordinary than 90% of the steps inside the music, so nothing clicks. All it needs is the 232ms of silence trimmed off the tail, and it is exactly four bars.",
+  "fitWhy": "Two things pull against each other. It is the brightest of the four at 6750Hz and the most dynamic at 10.5dB, which is what makes it the one that asks to be listened to \u2014 over sixteen stages that is a cost. But it is also the one that leaves the board's own voice alone: a quarter of its energy is in the band the clicks and blips live in, and the rest is above them. Four bars is the real problem \u2014 a ninety-second stage hears it eleven times."
+ },
+ {
+  "slug": "funky-disco-beats-to-boogiewoogie-to",
+  "title": "Funky Disco Beats to Boogie/Woogie to",
+  "author": "Fupi",
+  "licence": "CC0",
+  "source": "https://opengameart.org/content/funky-disco-beats-to-boogiewoogie-to",
+  "host": "OpenGameArt",
+  "file": "funky-disco-beats-to-boogiewoogie-to.ogg",
+  "note": "",
+  "seconds": 133.09,
+  "headPadMs": 0.0,
+  "tailPadMs": 39.3,
+  "spliceStep": 0.0068,
+  "tailOverHead": 0.052,
+  "faults": [
+   "39ms of silence at an end",
+   "fades out"
+  ],
+  "bpm": 110.0,
+  "pulseStrength": 0.604,
+  "joinPercentile": 46.5,
+  "meanDb": -16.9,
+  "swingDb": 7.9,
+  "brightnessHz": 2839,
+  "peak": 1.18,
+  "fadeRatio": 0.887,
+  "gameBandPct": 8.4,
+  "barFit": {
+   "bars": 60.976,
+   "offBars": -0.024,
+   "offMs": -53.2
+  },
+  "trim": {
+   "startSec": 0.0,
+   "endSec": 130.961,
+   "bars": 60,
+   "lengthSec": 130.961
+  },
+  "trimBarFit": {
+   "bars": 60.0,
+   "offBars": 0.0,
+   "offMs": 0.5
+  },
+  "loop": 4,
+  "fit": 5,
+  "loopWhy": "Sixty-one bars at 110bpm and only 53ms off a whole one, so trimming to 60 bars squares it. The join is unremarkable \u2014 sharper than 47% of the music's own steps, which is inside what a groove does anyway.",
+  "fitWhy": "The one that sounds like the game is called parts disco. It is also the one that stays out of the way: 8.4% of its energy sits in the band the board's clicks and blips occupy, the lowest of the four by a factor of three, so it can be louder than the others and still not bury a find. At 131 seconds a stage mostly hears it once, which is the opposite of the four-bar problem. The cost is that it is an arrangement rather than a bed \u2014 it goes places, and over sixteen stages a player may start following it instead of the board."
+ }
+]
