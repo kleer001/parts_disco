@@ -23,6 +23,8 @@ its seed. `dev/README.md` covers the tuning bench.
 
 Everything below the renderer is pure: no module but `main.js` touches the DOM, a
 clock or an event, which is what lets the whole board be tested without a browser.
+`layers.js` and `audio.js` are the two boundaries onto a device -- the canvas and the
+audio graph -- and neither reads the round; they are handed what to draw and say.
 
 | | |
 |---|---|
@@ -36,6 +38,7 @@ clock or an event, which is what lets the whole board be tested without a browse
 | `src/layout.js` | Where the board and the panel sit, given a viewport. Pure. |
 | `src/layers.js`, `src/compositor.js` | Ordered draw passes over one canvas. |
 | `src/rng.js` | `mulberry32`. Every draw in game logic comes from here, so a run reproduces from its seed. |
+| `src/audio.js` | The voice: a table of beeps made from an oscillator, and the one recorded win. |
 | `src/main.js` | The only file with a DOM in it. Loads the fleet, wires the loop. |
 
 ## The board is thrown, not arranged

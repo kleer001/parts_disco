@@ -322,3 +322,38 @@ different volumes.
 `REFUSED` and `createRefuseLayer` in `src/layers.js`; `round.refused` in
 `src/game.js`, which is the only place a refusal is recorded.
 
+### [2026-09-09] The board gets a voice: three beeps from a table, one recorded win
+
+**Decision:** `src/audio.js` holds a `VOICES` table with a row per outcome of
+`round.choose` — a click on nothing, a click on an already-found car, a refusal, and a
+find. Each row is a wave, a start and end frequency, a length and a gain, played
+through one oscillator and one gain. The win is `assets/sfx/win-chime.mp3`, decoded
+once. The find climbs in pitch with its rank, capped at `TUNING.rampCap`, which is the
+same escalation the find pulse runs on.
+
+**Pressure:** the game was silent. The engine and the chime were both already written
+in the sibling repo `treasure_trash`, which is where this pattern comes from.
+
+**Rejected: recording all four.** A beep that is a row in a table is retuned by editing
+the table; a recorded one needs a tool and a round trip. Four samples is also four
+downloads for three sounds nobody will notice the timbre of.
+
+**Rejected: synthesising the win as well.** A chord is not something two oscillators do
+convincingly, and the win is the one moment in the game worth a download.
+
+**Rejected: opening the audio context on the first click, as `treasure_trash` does.**
+A context may be constructed before any gesture — it starts suspended — and decoding
+into a suspended context works. Building it up front and decoding the chime alongside
+the fleet removes the race where a level won in a single click wins before its sound
+has been decoded, and with it the null check that race would otherwise need. The first
+click resumes the context; that is all the gesture is needed for.
+
+**Rejected: the find beep sounding under the chime on the winning find.** The win is
+the louder statement and the beep says nothing the chime does not.
+
+**Open:** the chime's provenance is not recorded anywhere in `treasure_trash` — no
+licence, no source, no credit in its README or git history. It is fine to develop
+against and is a question to settle before a store page.
+
+**Threaded:** `src/audio.js` in full; `src/main.js`, where the pointer handler asks for
+one sound per outcome and hands the chime the find that ends the round.

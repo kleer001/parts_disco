@@ -97,6 +97,16 @@ it went; it is never a reason to refuse a change he asks for.
 - **Tuning lives as a module constant in `src/juice.js`.** REJECTED: a JSON file the
   bench writes directly — nothing else in this game loads data at runtime, and a fetch
   on the critical path buys an edit round trip the bench's copy-out already covers.
+- **Three of the four sounds are made from an oscillator; the win is a sample.**
+  REJECTED: recording all four — a beep that is a row in a table is retuned by editing
+  the table, and four samples is four downloads for three sounds nobody will notice
+  the timbre of. REJECTED: synthesising the win too — a chord is not something two
+  oscillators do convincingly, and the win is the one moment worth a download.
+- **The audio context is built before any gesture and the chime decoded with the
+  fleet.** REJECTED: opening it on the first click, as `treasure_trash` does — a
+  context may be built suspended and decoded into, so doing it up front removes the
+  race in which a one-click level wins before its sound has finished decoding, and
+  with it the null check that race would need.
 - **A hit stop belongs to the clock.** REJECTED: each effect holding its own timer —
   a hold has to stop the whole board, and effects that each freeze themselves drift
   apart the moment two overlap.

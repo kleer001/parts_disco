@@ -12,6 +12,7 @@ import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
 import { planBoard } from './paint.js';
 import { TUNING, createClock } from './juice.js';
 import { layoutFor } from './layout.js';
+import { createVoice } from './audio.js';
 
 const SEED = 1983;
 
@@ -32,7 +33,13 @@ export async function start(canvas, seed = SEED) {
   // alongside the fleet rather than ahead of it -- the fleet is megabytes and the
   // face is kilobytes, so waiting for one before starting the other is a round trip
   // spent on nothing.
-  const [views] = await Promise.all([loadViews(), document.fonts.load('16px VT323')]);
+  // The chime joins them for the same reason: it is decoded before the first frame,
+  // so no win can ever arrive ahead of its sound. Its context starts suspended, which
+  // is allowed without a gesture; the first click resumes it.
+  const voice = createVoice();
+  const [views] = await Promise.all([
+    loadViews(), document.fonts.load('16px VT323'), voice.load(),
+  ]);
   const viewOf = (slot) => views.view(slot.model, slot.angle);
 
   // The canvas is a shape, not a size: it takes the viewport's proportions and a
@@ -134,6 +141,11 @@ export async function start(canvas, seed = SEED) {
     const now = performance.now();
     const { outcome } = round.choose(point, span, clock.tick(now));
     if (outcome === 'found') clock.freeze(now, TUNING.hitStopMs);
+    // The find that ends the round hands its sound to the chime rather than sounding
+    // twice: the win is the louder statement and the beep under it says nothing the
+    // chime does not. Rank is the size of the found set, which this click just grew.
+    if (outcome === 'found' && round.wonAt !== null) voice.win();
+    else voice.play(outcome, round.found.size);
   });
 
   const frame = (now) => {
