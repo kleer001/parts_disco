@@ -722,6 +722,60 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
     return from;
   };
 
+  /**
+   * The render with its ground cut away, so the paper behind it is behind it.
+   *
+   * A render arrives on an opaque white ground. Drawn as it is, that ground covers the
+   * card's paper everywhere but the margin; multiplied, the rules print straight
+   * through the vehicle. Neither is the vehicle standing on paper.
+   *
+   * So the ground is flooded away from the border inward and only what it reaches goes
+   * transparent. Connectivity is what makes this safe: a white window inside the
+   * vehicle is not reachable from outside it and stays opaque, and the dark outline
+   * every render carries is what the flood stops at.
+   *
+   * The view's silhouette would be the obvious mask and is the wrong one -- it is a
+   * simplified hull for hit-testing, and masking a render with it clips whatever
+   * detail stands outside the hull.
+   */
+  const GROUND_AT = 246;
+  const cutGround = (flat) => {
+    const out = document.createElement('canvas');
+    out.width = flat.naturalWidth ?? flat.width;
+    out.height = flat.naturalHeight ?? flat.height;
+    const c = out.getContext('2d', { willReadFrequently: true });
+    c.drawImage(flat, 0, 0);
+
+    const { width: w, height: h } = out;
+    const img = c.getImageData(0, 0, w, h);
+    const px = img.data;
+    const done = new Uint8Array(w * h);
+    const stack = new Int32Array(w * h);
+    let top = 0;
+
+    const push = (i) => {
+      if (done[i]) return;
+      const p = i * 4;
+      if (px[p] < GROUND_AT || px[p + 1] < GROUND_AT || px[p + 2] < GROUND_AT) return;
+      done[i] = 1;
+      stack[top++] = i;
+    };
+    for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+    for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+
+    while (top > 0) {
+      const i = stack[--top];
+      px[i * 4 + 3] = 0;
+      const x = i % w;
+      if (x > 0) push(i - 1);
+      if (x < w - 1) push(i + 1);
+      if (i >= w) push(i - w);
+      if (i < (h - 1) * w) push(i + w);
+    }
+    c.putImageData(img, 0, 0);
+    return out;
+  };
+
   // The card is the same picture every frame: a shadow, a rounded white ground and a
   // resampled render. Only where it sits changes. Baked once a level, because
   // shadowBlur is among the slowest things a canvas does and this one was paying it
@@ -755,13 +809,7 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
     c.stroke();
     c.imageSmoothingEnabled = true;
     c.imageSmoothingQuality = 'high';
-    // Multiplied, not pasted. The render carries an opaque white ground, and laying
-    // that over the card would cover the paper everywhere but the margin. Multiplying
-    // lets its white leave the rules alone and its greys print over them, which is
-    // what puts the paper behind the vehicle rather than merely around it.
-    c.globalCompositeOperation = 'multiply';
-    c.drawImage(flatten(prompt), 6, 6, span - 12, span - 12);
-    c.globalCompositeOperation = 'source-over';
+    c.drawImage(cutGround(flatten(prompt)), 6, 6, span - 12, span - 12);
   };
 
   /** The card, drawn centred on a point and flinching. */

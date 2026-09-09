@@ -55,10 +55,10 @@ into it: a partial wash of their own colour under a sunk edge, so the rules run 
 behind all three. `wash` is how far a block lightens the sheet — at 0 only the sunk
 edge says a block is there, at 1 the block is solid and the sheet stops at its edge.
 
-**A sheet inside the card.** The asked-for vehicle stands on it. The render is
-multiplied onto the card rather than drawn over it, because the renders carry an
-opaque white ground — drawn over, the paper survives only in the card's margin and not
-behind the vehicle, which is the one place it is wanted.
+**A sheet inside the card.** The asked-for vehicle stands on it and hides it. The
+renders carry an opaque white ground, so that ground is flooded away from the border
+inward before the render is drawn — reach is what makes it safe, since a white window
+inside a vehicle cannot be reached from outside it and stays opaque.
 
 The two shapes come from `layoutFor`, asked for a desktop and a phone, so the bench
 draws the rectangles the game really hands the panel rather than invented ones. A

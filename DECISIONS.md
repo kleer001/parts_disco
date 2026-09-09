@@ -100,10 +100,13 @@ it went; it is never a reason to refuse a change he asks for.
   panel beside it read as an empty page. REJECTED: a patch of paper under each block —
   the rules then stop at every edge, so the blocks read as cards lying on a white page
   rather than as recesses cut into one sheet.
-- **The card is printed on paper of its own and the render is multiplied onto it.**
-  REJECTED: drawing the render over the card as it is — the renders carry an opaque
-  white ground, so the paper survived only in the card's margin and not behind the
-  vehicle, which is the one place it was wanted.
+- **The card is printed on paper of its own, and the render's ground is flooded away
+  so the vehicle stands on the paper and hides it.** REJECTED: drawing the render as
+  it is — its opaque white ground covers the paper everywhere but the card's margin.
+  REJECTED: multiplying the render onto the paper — the rules then print through the
+  vehicle, which is the paper in front of it rather than behind it. REJECTED: masking
+  with the view's silhouette — that is a simplified hull for hit-testing, and it clips
+  whatever detail stands outside it.
 - **The panel's colours are separated by lightness, not hue.** REJECTED: an
   equal-lightness ramp with hue carrying the meaning — measured, it puts green and red
   0.021 apart in OKLab under simulated deuteranopia, which is the same colour.

@@ -583,3 +583,34 @@ carry the paper's ink, where before it was none of them.
 `paperFor` caches, and the `multiply` in `bakeCard`; the eleven `cardPaper*`,
 `panelPaper*`, `blockTint`, `readRecess` and `readPad` numbers in `src/juice.js`;
 `dev/panel.html`.
+
+### [2026-09-09] Behind the vehicle means the vehicle hides it
+
+**Amends the entry above it**, which multiplied the render onto the card's paper. The
+paper is still the card's own sheet; what changed is how the render meets it.
+
+**Decision:** the render's ground is flooded away from the border inward and the
+result is drawn normally, so the paper shows around the vehicle and the vehicle covers
+it. `GROUND_AT` is the lightness a pixel has to clear to count as ground.
+
+**Pressure:** multiplying put the rules straight through the vehicle. That is paper in
+front of it, not behind it.
+
+**Rejected: masking with the view's silhouette,** which is the obvious tool and the
+wrong one. It is a simplified hull — a tractor's is 27 points — built for deciding
+whether a click landed on a vehicle, where being a little loose costs nothing. Masking
+a render with it clips whatever detail stands outside the hull.
+
+**Why the flood is safe:** it only takes ground it can reach from the border. A white
+window inside a vehicle is not reachable and stays opaque, and the dark outline every
+render carries is what the flood stops at. Verified by forcing the card's paper to
+loud red: 0% of the pixels over the vehicle's body carry the paper's ink, against 10%
+on the blank card beside it, where the rules are.
+
+**Cost, measured across all twelve models:** a level change rebakes the card at 6.5ms
+mean and 12.1ms worst, against 0.27ms for a steady frame. The bake was already the
+expensive one — `shadowBlur` is why it is baked at all — and the flood is a 128x128
+walk on top of it. It lands during the wipe, which is the frame the game is already
+spending on a transition.
+
+**Threaded:** `cutGround` and `GROUND_AT` in `src/layers.js`, called from `bakeCard`.

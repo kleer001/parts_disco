@@ -102,24 +102,24 @@ export const TUNING = {
   // `blockTint` is how far a pressed-in block lightens the sheet under it: at 0 the
   // paper shows through untouched and only the sunk edge says the block is there, at
   // 1 the block is solid and the sheet stops at its edge.
-  cardPaperCell: 7,
-  cardPaperAlpha: 0.13,
+  cardPaperCell: 40,
+  cardPaperAlpha: 0.17,
   cardPaperNoise: 0.05,
   cardPaperInk: '#8d9299',
 
-  panelPaperCell: 11,
-  panelPaperAlpha: 0.2,
+  panelPaperCell: 18.5,
+  panelPaperAlpha: 0.32,
   panelPaperNoise: 0.06,
   panelPaperInk: '#9aa0a8',
 
-  blockTint: 0.45,
-  readRecess: 6,
-  readPad: 12,
+  blockTint: 1,
+  readRecess: 5,
+  readPad: 9,
 
   // -- the board and the panel blocks sitting in wells ----------------------
   recess: 9,
   recessAlpha: 0.3,
-  panelRecess: 5,
+  panelRecess: 6,
 
   // -- type and slabs -------------------------------------------------------
   typeScale: 1,
