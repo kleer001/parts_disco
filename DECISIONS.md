@@ -46,6 +46,10 @@ it went; it is never a reason to refuse a change he asks for.
 - **Meaning is coloured off the board.** REJECTED: giving "found" or "wrong" a board
   ink — the map spends every ink on the puzzle, so a semantic ink would either break
   the colouring or be mistaken for a vehicle.
+- **A found vehicle rests in one neutral grey, off the board's palette.** REJECTED:
+  rotating it onto another board ink that its neighbours are not wearing — the resting
+  colour is the only record that a vehicle was found, and an ink some unfound vehicle
+  is also wearing reads as one more thing to sort through.
 - **The panel's colours are separated by lightness, not hue.** REJECTED: an
   equal-lightness ramp with hue carrying the meaning — measured, it puts green and red
   0.021 apart in OKLab under simulated deuteranopia, which is the same colour.

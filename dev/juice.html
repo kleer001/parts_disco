@@ -208,7 +208,7 @@ import { deal, layout } from '../src/board.js';
 import { createRound } from '../src/game.js';
 import { stageAt, RANGE, PATH } from '../src/levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
-         createRecessLayer, createPanelLayer, stampRegions, settledInk, INKS,
+         createRecessLayer, createPanelLayer, stampRegions, INKS,
          rgbOf } from '../src/layers.js';
 import { planBoard } from '../src/paint.js';
 import { TUNING, SEMANTIC, createClock, gridCellAt } from '../src/juice.js';
@@ -285,8 +285,7 @@ const replan = (cars) => {
   standing = cars;
   stampRegions(scratchCtx, standing, span, viewOf, field.width, field.height);
   const px = scratchCtx.getImageData(0, 0, field.width, field.height).data;
-  plan = planBoard(px, field.width, field.height, standing.length, level.inks,
-                   settledInk);
+  plan = planBoard(px, field.width, field.height, standing.length, level.inks);
 };
 
 const nextLevel = () => {

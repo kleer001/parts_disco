@@ -158,20 +158,14 @@ export function assignInks(touching, palette) {
  *
  * A function of the placement alone, so it is settled when the board is laid and not
  * asked again every frame -- the regions do not move, and neither does which of them
- * touch. `settled` is in here for the same reason: the colour a found vehicle comes
- * to rest in is a fact about the map, and both the board and the pulse over it need
- * to agree on it.
+ * touch.
  *
  * @param {Uint8ClampedArray} px - RGBA of a pass that drew each car in its own flat colour
- * @param {Function} settledOf - a region's resting colour, given the finished plan
- * @returns {{owner: Int32Array, neighbours: Array<Set>, ink: Int32Array,
- *            settled: Array}}
+ * @returns {{owner: Int32Array, neighbours: Array<Set>, ink: Int32Array}}
  */
-export function planBoard(px, width, height, cars, palette, settledOf) {
+export function planBoard(px, width, height, cars, palette) {
   const { owner, regions } = labelRegions(px, width, height, cars);
   const neighbours = borders(owner, regions, width, height);
   const { ink } = assignInks(neighbours, palette);
-  const plan = { owner, neighbours, ink };
-  plan.settled = Array.from({ length: regions }, (_, region) => settledOf(plan, region));
-  return plan;
+  return { owner, neighbours, ink };
 }

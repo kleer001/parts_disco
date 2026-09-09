@@ -12,10 +12,6 @@ export const WIN_SECONDS = 2;
 export const FLASH_FIRST = 0.150;
 export const FLASH_LAST = 0.050;
 
-// How many colours a found car steps through before it settles. The step it lands on
-// is what `settledInk` reads, so this number chooses the colour a found car keeps.
-export const FIND_BLINKS = 5;
-
 /**
  * How many times a winner has changed colour by this point in the win.
  *

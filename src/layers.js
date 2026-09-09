@@ -53,30 +53,19 @@ function flashInk(car, flash) {
   return ink;
 }
 
-// How far a found vehicle's resting ink is rotated from the one the map gave it.
-// Far enough that the change is unmistakable, and it is the same walk the win uses.
-const SETTLE_STEPS = 5;
-
 /**
  * The colour a found vehicle comes to rest in.
  *
- * Never one its neighbours are wearing, and never the one it was already wearing.
- * The second exclusion is the point of the whole thing: the settled colour is the
- * only record that a vehicle was found, and the rotation lands back on the region's
- * own ink one time in eight, which is a find that leaves no mark.
+ * Not one of the board's inks. Every ink is spent on the puzzle, so a resting colour
+ * drawn from that set is a colour some unfound vehicle is also wearing -- the only
+ * record that a vehicle was found reads as one more thing to sort through. A neutral
+ * grey is in no one else's alphabet, so a found vehicle leaves the puzzle visibly.
  *
- * A fact about the plan and the region, so it is resolved once per region when the
- * board is planned and read from `plan.settled` after that -- the board's repaint
- * asks for it a region at a time and the pulse over it has to land on the same
- * answer, or the answer ends with the vehicle changing colour once more.
+ * Its luminance is the darkest ink's, which is what keeps the black linework reading
+ * over it exactly as it reads over the rest of the board.
  */
-export function settledInk(plan, region) {
-  const taken = new Set([plan.ink[region]]);
-  for (const j of plan.neighbours[region]) taken.add(plan.ink[j]);
-  let ink = flashInk(region, SETTLE_STEPS);
-  for (let n = 0; n < INKS.length && taken.has(ink); n++) ink = (ink + 1) % INKS.length;
-  return INK_RGB[ink];
-}
+export const SETTLED = '#4c4c4c';
+export const SETTLED_RGB = rgbOf(SETTLED);
 
 /**
  * Trace one closed ring of a view, placed and sized.
@@ -161,7 +150,7 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
       // map gave it, or in the one it came to rest in after being found.
       const restingOf = (region) => {
         if (region < 0) return PAPER_RGB;
-        if (region < standing.length && round.found.has(region)) return plan.settled[region];
+        if (region < standing.length && round.found.has(region)) return SETTLED_RGB;
         return shades[plan.ink[region]];
       };
 
@@ -380,8 +369,7 @@ export function createFindLayer(viewOf, settings = () => TUNING) {
         const view = viewOf(anchor.slot);
         // The off beat is the colour the vehicle is about to keep, so the pulse ends
         // on the board's own answer instead of changing colour once more after it.
-        const [r, g, b] = plan.settled[region];
-        ctx.fillStyle = pulse.lit ? SEMANTIC.found.loud : `rgb(${r},${g},${b})`;
+        ctx.fillStyle = pulse.lit ? SEMANTIC.found.loud : SETTLED;
         for (const points of view.silhouette) {
           ring(ctx, anchor, points, span, pulse.scale, pulse.dx, pulse.dy);
           ctx.fill();

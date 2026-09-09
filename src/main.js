@@ -7,7 +7,7 @@ import { deal, layout } from './board.js';
 import { createRound } from './game.js';
 import { stageAt, RANGE } from './levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
-         createRecessLayer, createPanelLayer, stampRegions, settledInk, INKS,
+         createRecessLayer, createPanelLayer, stampRegions, INKS,
          rgbOf } from './layers.js';
 import { planBoard } from './paint.js';
 import { TUNING, createClock } from './juice.js';
@@ -83,8 +83,7 @@ export async function start(canvas, seed = SEED) {
     standing = cars;
     stampRegions(scratchCtx, standing, span, viewOf, field.width, field.height);
     const px = scratchCtx.getImageData(0, 0, field.width, field.height).data;
-    plan = planBoard(px, field.width, field.height, standing.length, level.inks,
-                     settledInk);
+    plan = planBoard(px, field.width, field.height, standing.length, level.inks);
   };
 
   const nextLevel = () => {

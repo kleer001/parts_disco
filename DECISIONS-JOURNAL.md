@@ -241,3 +241,29 @@ first frame wait on a network round trip, and introduces a second failure mode
 (missing or malformed file) for a value that cannot vary at runtime.
 
 **Threaded:** `src/juice.js` `TUNING`; every layer factory's `settings = () => TUNING`.
+
+### [2026-09-08] A found vehicle rests in one grey, not in another board ink
+
+**Decision:** A found vehicle comes to rest in `SETTLED` (`#4c4c4c`), the same neutral
+grey for every vehicle on every board. It is not one of the eight board inks, and it is
+a constant rather than a fact worked out per region, so nothing has to be planned or
+carried on the board plan to know it.
+
+**Why:** The resting colour is the only record that a vehicle was found. Drawn from the
+board's own palette it is a colour some unfound vehicle is also wearing, so a solved
+vehicle stays inside the puzzle's alphabet and reads as one more thing to sort through.
+A colour no other vehicle can hold takes it out of the puzzle at a glance.
+
+The grey is neutral at the luminance of the darkest board ink (`#3f4a58`), which is what
+keeps the black linework reading over it exactly as it reads over the rest of the board.
+
+**Rejected:** Rotating the region's ink five steps and stepping off any colour a
+neighbour wears — the outgoing rule. It landed back on the region's own ink one time in
+eight, and every colour it could land on was in use elsewhere on the board.
+
+**What it costs:** Found vehicles no longer differ from each other, so a pile of them is
+one grey mass rather than several distinguishable solved cars.
+
+**Threaded:** `src/layers.js` `SETTLED`; the board layer's `restingOf` and the find
+layer's off beat, which read the one constant so the pulse ends on the colour the board
+keeps.
