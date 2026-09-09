@@ -1,0 +1,276 @@
+<meta charset="utf-8">
+<title>parts disco — loop auditions</title>
+<style>
+:root{--paper:#E7E2D8;--panel:#F4F2ED;--sunk:#DCD7CB;--ink1:#1A1A1A;--ink2:#54514A;
+      --ink3:#8A857A;--rule:#C6C0B2;--good:#03A14A;--warn:#E39A00;--bad:#810009}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink1);
+     font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 90px}
+header{border-bottom:2px solid var(--ink1);padding-bottom:18px;margin-bottom:20px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.17em;text-transform:uppercase;
+         color:var(--ink3)}
+h1{font-size:38px;font-weight:400;margin:6px 0 0;line-height:1;letter-spacing:-.01em}
+.lede{margin:12px 0 0;max-width:76ch;color:var(--ink2);line-height:1.6}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 6px}
+button{font:inherit;font-size:12px;padding:6px 11px;background:#fff;
+       border:1px solid var(--rule);border-radius:3px;cursor:pointer}
+button:hover{border-color:var(--ink1)}
+button.on{background:var(--ink1);color:var(--paper);border-color:var(--ink1)}
+.card{background:var(--panel);border:1px solid var(--rule);padding:13px 14px;
+      margin-bottom:10px;display:grid;grid-template-columns:1fr auto;gap:10px 16px;
+      align-items:start}
+.card.playing{border-color:var(--ink1);box-shadow:inset 3px 0 0 var(--good)}
+.name{font-size:16px;font-weight:600;margin:0}
+.by{font-size:11.5px;color:var(--ink2);margin:3px 0 0}
+.by a{color:var(--ink2)}
+.caveat{color:#842521}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0 0}
+.tag{font-size:10px;letter-spacing:.04em;padding:2px 6px;border-radius:2px;
+     background:var(--sunk);color:var(--ink2);white-space:nowrap}
+.tag.ok{background:#D4F8DA;color:#005C27}
+.tag.warn{background:#FFE9CC;color:#674300}
+.tag.bad{background:#FFE6E3;color:#842521}
+.right{display:flex;flex-direction:column;gap:7px;align-items:stretch;min-width:210px}
+.play{font-size:13px;padding:8px 12px}
+.nums{font-size:10.5px;color:var(--ink3);font-variant-numeric:tabular-nums;
+      display:grid;grid-template-columns:auto auto;gap:1px 10px}
+.nums b{font-weight:600;color:var(--ink2);text-align:right}
+.trim{grid-column:1 / -1;border-top:1px solid var(--rule);padding-top:10px;display:none}
+.card.playing .trim{display:block}
+.trim .row{display:grid;grid-template-columns:60px 1fr 74px;align-items:center;gap:8px;
+           margin-bottom:5px;font-size:11px;color:var(--ink2)}
+.trim input[type=range]{width:100%}
+.wave{position:relative;height:46px;background:var(--sunk);border:1px solid var(--rule);
+      margin-bottom:7px;overflow:hidden}
+.wave canvas{display:block;width:100%;height:100%}
+.wave .region{position:absolute;top:0;bottom:0;background:rgba(3,161,74,.16);
+              border-left:2px solid var(--good);border-right:2px solid var(--good);
+              pointer-events:none}
+.wave .head{position:absolute;top:0;bottom:0;width:1px;background:var(--bad);
+            pointer-events:none}
+.hint{font-size:11.5px;color:var(--ink3);margin:6px 0 0;line-height:1.55}
+.miss{background:#FFE6E3;border:1px solid #f0b8b3;padding:12px 14px;margin-bottom:14px;
+      font-size:12.5px;color:#842521;line-height:1.55}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">parts disco · research</p>
+  <h1>disco loop auditions</h1>
+  <p class="lede">Every candidate here is <strong>CC0</strong> — public domain, no
+  attribution owed — and every licence was read off that sound's own page, not taken
+  from a search facet. Playback is Web Audio with <code>loop = true</code>, which is
+  sample-accurate: what you hear at the join is what the file does, not a gap the
+  player put there.</p>
+  <p class="lede">The two hosts hold different things. <strong>Freesound</strong> has
+  loops — cut to a bar, usually with a bpm in the name. <strong>OpenGameArt</strong>'s
+  funk catalogue is mostly <em>songs</em>: they open cold, fade out and trail silence.
+  Each card carries what was measured. Where a track is a song with a good groove in
+  it, drag the region to loop a bar or two out of the middle and judge it that way.</p>
+  <p class="lede">Two things to know before shipping one. A Freesound card plays that
+  site's <code>-lq</code> preview, because the master needs an account — fine to judge
+  by, but fetch the master before it goes in the game. And a few OpenGameArt entries
+  were re-encoded to ogg here purely to keep this page quick; their originals are
+  untouched on disk.</p>
+</header>
+
+<div id="gone" class="miss" hidden></div>
+
+<div class="bar">
+  <button type="button" data-filter="all" class="on">all <span id="n-all"></span></button>
+  <button type="button" data-filter="clean">loops as it stands <span id="n-clean"></span></button>
+  <button type="button" data-filter="short">under 40s <span id="n-short"></span></button>
+  <button type="button" data-filter="disco">named disco/funk <span id="n-disco"></span></button>
+  <button type="button" id="stop">stop</button>
+</div>
+
+<div id="list"></div>
+
+<p class="hint">Audio is not in the repository — it is a couple of hundred megabytes of
+other people's music. <code>harvest.py</code>, <code>download.py</code> and
+<code>freesound.py</code> in this directory fetch it into <code>tmp/loops/audio/</code>,
+six seconds apart, skipping whatever is already there; <code>build.py</code> measures
+it and writes <code>loops.json</code>.</p>
+</div>
+
+<script type="module">
+const AUDIO = '../../tmp/loops/audio/';
+const list = document.getElementById('list');
+const gone = document.getElementById('gone');
+
+const loops = await (await fetch('loops.json')).json();
+const ac = new AudioContext();
+const buffers = new Map();
+let playing = null;      // { slug, source }
+
+const secs = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+
+/** Draw the waveform as peak-per-column, which is all a 46px strip can show. */
+function drawWave(canvas, buf) {
+  const w = canvas.width = canvas.clientWidth * 2;
+  const h = canvas.height = 92;
+  const c = canvas.getContext('2d');
+  const x = buf.getChannelData(0);
+  const per = Math.floor(x.length / w);
+  c.fillStyle = '#8A857A';
+  for (let i = 0; i < w; i++) {
+    let peak = 0;
+    for (let j = 0; j < per; j += 7) {
+      const v = Math.abs(x[i * per + j]);
+      if (v > peak) peak = v;
+    }
+    const tall = Math.max(1, peak * h);
+    c.fillRect(i, (h - tall) / 2, 1, tall);
+  }
+}
+
+async function bufferFor(entry) {
+  if (buffers.has(entry.slug)) return buffers.get(entry.slug);
+  const res = await fetch(AUDIO + entry.file);
+  if (!res.ok) throw new Error(`${entry.file} (${res.status})`);
+  const buf = await ac.decodeAudioData(await res.arrayBuffer());
+  buffers.set(entry.slug, buf);
+  return buf;
+}
+
+function stop() {
+  if (playing) {
+    try { playing.source.stop(); } catch { /* already ended */ }
+    document.querySelector(`[data-slug="${playing.slug}"]`)?.classList.remove('playing');
+    playing = null;
+  }
+}
+
+async function play(entry, card) {
+  const wasSame = playing?.slug === entry.slug;
+  stop();
+  if (wasSame) return;
+  if (ac.state === 'suspended') await ac.resume();
+
+  const buf = await bufferFor(entry);
+  card.classList.add('playing');
+  const wave = card.querySelector('canvas');
+  if (!wave.dataset.drawn) { drawWave(wave, buf); wave.dataset.drawn = '1'; }
+
+  const from = card.querySelector('.from');
+  const to = card.querySelector('.to');
+  if (!from.max || from.max === '100') {
+    from.max = to.max = buf.duration.toFixed(3);
+    to.value = buf.duration.toFixed(3);
+    from.step = to.step = '0.01';
+    showRegion(card, buf);
+  }
+
+  const source = ac.createBufferSource();
+  source.buffer = buf;
+  source.loop = true;
+  source.loopStart = parseFloat(from.value);
+  source.loopEnd = parseFloat(to.value);
+  source.connect(ac.destination);
+  source.start(0, source.loopStart);
+  playing = { slug: entry.slug, source };
+  card.dataset.live = '1';
+}
+
+function showRegion(card, buf) {
+  const from = parseFloat(card.querySelector('.from').value);
+  const to = parseFloat(card.querySelector('.to').value);
+  const dur = buf ? buf.duration : parseFloat(card.dataset.seconds);
+  const region = card.querySelector('.region');
+  region.style.left = `${(from / dur) * 100}%`;
+  region.style.width = `${((to - from) / dur) * 100}%`;
+  card.querySelector('.fromOut').textContent = `${from.toFixed(2)}s`;
+  card.querySelector('.toOut').textContent = `${to.toFixed(2)}s`;
+}
+
+const missing = [];
+
+for (const e of loops) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.slug = e.slug;
+  card.dataset.seconds = e.seconds;
+  card.dataset.clean = e.faults.length === 0 ? '1' : '0';
+  card.dataset.short = e.seconds < 40 ? '1' : '0';
+  card.dataset.disco = /disco|funk|groove|boogie/i.test(e.title) ? '1' : '0';
+
+  const tags = e.faults.length
+    ? e.faults.map((f) => `<span class="tag bad">${f}</span>`).join('')
+    : '<span class="tag ok">loops as it stands</span>';
+
+  card.innerHTML = `
+    <div>
+      <p class="name">${e.title}</p>
+      <p class="by">${e.author} · ${e.licence} · ${e.host} ·
+        <a href="${e.source}" target="_blank" rel="noopener">source</a>
+        ${e.note ? ` · <span class="caveat">${e.note}</span>` : ''}
+      </p>
+      <div class="tags">${tags}</div>
+    </div>
+    <div class="right">
+      <button type="button" class="play">▶ loop it</button>
+      <div class="nums">
+        <span>length</span><b>${secs(e.seconds)}</b>
+        <span>silence, head</span><b>${e.headPadMs} ms</b>
+        <span>silence, tail</span><b>${e.tailPadMs} ms</b>
+        <span>step at join</span><b>${e.spliceStep.toFixed(3)}</b>
+        <span>tail ÷ head</span><b>${e.tailOverHead}</b>
+      </div>
+    </div>
+    <div class="trim">
+      <div class="wave"><canvas></canvas><div class="region"></div></div>
+      <div class="row"><label>from</label><input type="range" class="from" min="0" max="100" value="0"><span class="fromOut">0.00s</span></div>
+      <div class="row"><label>to</label><input type="range" class="to" min="0" max="100" value="100"><span class="toOut">—</span></div>
+      <p class="hint">The region loops live. Move an edge and it takes effect on the
+      next pass, so you can hunt the bar line by ear.</p>
+    </div>`;
+
+  card.querySelector('.play').addEventListener('click', () => {
+    play(e, card).catch((err) => {
+      missing.push(`${e.title} — ${err.message}`);
+      gone.hidden = false;
+      gone.innerHTML = `<strong>Not on disk:</strong> ${missing.join('; ')}.<br>`
+        + `Run <code>python3 research/disco-loops/download.py</code> from the repo root.`;
+    });
+  });
+
+  for (const el of card.querySelectorAll('.from, .to')) {
+    el.addEventListener('input', () => {
+      const from = card.querySelector('.from');
+      const to = card.querySelector('.to');
+      if (parseFloat(from.value) > parseFloat(to.value) - 0.2) {
+        (el === from ? from : to).value =
+          el === from ? (parseFloat(to.value) - 0.2).toFixed(2)
+                      : (parseFloat(from.value) + 0.2).toFixed(2);
+      }
+      showRegion(card, buffers.get(e.slug));
+      if (playing?.slug === e.slug) {
+        playing.source.loopStart = parseFloat(from.value);
+        playing.source.loopEnd = parseFloat(to.value);
+      }
+    });
+  }
+  list.append(card);
+}
+
+document.getElementById('stop').addEventListener('click', stop);
+for (const b of document.querySelectorAll('[data-filter]')) {
+  b.addEventListener('click', () => {
+    for (const o of document.querySelectorAll('[data-filter]')) o.classList.toggle('on', o === b);
+    const want = b.dataset.filter;
+    for (const card of document.querySelectorAll('.card')) {
+      card.style.display =
+        want === 'all' ? '' : card.dataset[want] === '1' ? '' : 'none';
+    }
+  });
+}
+document.getElementById('n-all').textContent = `(${loops.length})`;
+document.getElementById('n-clean').textContent =
+  `(${loops.filter((e) => !e.faults.length).length})`;
+document.getElementById('n-short').textContent =
+  `(${loops.filter((e) => e.seconds < 40).length})`;
+document.getElementById('n-disco').textContent =
+  `(${loops.filter((e) => /disco|funk|groove|boogie/i.test(e.title)).length})`;
+</script>
