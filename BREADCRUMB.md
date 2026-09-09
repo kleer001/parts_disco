@@ -1,4 +1,4 @@
-fresh
+stale
 
 ## Summary
 
@@ -31,15 +31,21 @@ player-facing README.
   more loud ones — the twins tier is where the difficulty actually lives. Look at what
   else Kenney ships and at other CC0 vehicle kits; `tools/model_views/` is the pipeline
   that turns a GLB into the strokes, silhouette and 1-bit render the board needs.
-- [ ] #2 Sound. No audio module exists. Wants a click, a wrong-click, a find, and a
-  win. The find already has a shape to hang a sound on — the pulse envelope.
+- [ ] #15 Settle the win chime's provenance. `assets/sfx/win-chime.mp3` came from
+  `treasure_trash`, which records no licence, source or credit for it anywhere in its
+  README or git history. Fine to develop against; a blocker for a store page.
+- [ ] #16 Tune the wrong-click wash on the bench. The three numbers were picked, not
+  chosen against a picture — `refuseMs` 620, `refuseAlpha` 0.8, `refuseRise` 0.12,
+  with knobs for all three under "Wrong click" in `dev/juice.html`. Open with it: over
+  a blue region the grey reads pale blue rather than grey, which is what a translucent
+  grey does; alpha 1 would make it opaque grey.
 - [ ] #3 A title screen and an end. The game starts mid-board on load and holds the
   last stage forever.
 - [ ] #4 Score or timer. Still "find them all, next prompt, no clock". Misses are
   counted and shown in red but do nothing.
-- [ ] #5 Play the sixteen stages start to finish and feel the ramp. Never actually
-  done. Especially: is the jump at stage 9 (twins arrive) too steep, and is stage 16
-  at one ink playable.
+- [ ] #5 Play the sixteen stages start to finish and feel the ramp. It has been
+  played and it is fun; what is still unfelt is the far end. Especially: is the jump
+  at stage 9 (twins arrive) too steep, and is stage 16 at one ink playable.
 - [ ] #14 Pull the run driver out of `main.js` so `dev/juice.html` stops carrying its
   own copy. ~60 near-identical lines: `proxyFor`, the scratch and held canvases,
   `replan`, `nextLevel`, the pointer handler and the frame loop. The bench is the
@@ -122,14 +128,23 @@ checking remotely. Its module list is hand-maintained — a new file in `src/` t
 bench imports has to be added to it. Live at
 https://claude.ai/code/artifact/5dbf3d8f-9696-4098-87a3-cc9ba31bd0ce
 
+**The board has a voice and a refusal.** `src/audio.js` is the audio boundary: a
+`VOICES` table with a row per outcome of `round.choose`, played through one oscillator,
+plus the one decoded chime for the win. Its context is built before any gesture and the
+chime decoded alongside the fleet, which is what removes the race a first-click win
+would otherwise have. A wrong click washes the vehicle it hit in `REFUSED` (`#c9c9c9`)
+via `createRefuseLayer`, under the find pulse; the wash fades and records nothing,
+because a permanent grey-out crosses a candidate off the list and turns the difficulty
+dial. Both rulings, and what they rejected, are in `DECISIONS.md`.
+
 **Copy decisions are recorded.** `.claude/skills/copy/plain/terms.md` holds the
 plain-language calls for the README's reader, so the next run starts quiet. The player
 half of the README says *yard*; *board* is developer vocabulary.
 
 ## Next Step
 
-#5 — play the sixteen stages through and feel the ramp. It is the oldest open item,
-everything about difficulty is still reasoned rather than felt, and #12's design tweaks
-and #13's fleet research both get sharper once someone has actually played to the end.
+#5 — play to the far end of the path. It is the oldest open item and the only one that
+answers whether stage 9's jump and stage 16's single ink are playable; #12's design
+tweaks and #13's fleet research both get sharper once someone has.
 
 /home/menser/Dropbox/ai/code/parts_disco
