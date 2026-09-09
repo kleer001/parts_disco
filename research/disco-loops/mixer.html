@@ -1,0 +1,241 @@
+<meta charset="utf-8">
+<title>parts disco — the desk</title>
+<style>
+:root{--paper:#E7E2D8;--panel:#F4F2ED;--sunk:#DCD7CB;--ink1:#1A1A1A;--ink2:#54514A;
+      --ink3:#8A857A;--rule:#C6C0B2;--good:#03A14A;--warn:#E39A00;--bad:#810009;
+      --target:#763EBD}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink1);
+     font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px}
+.wrap{max-width:1140px;margin:0 auto;padding:26px 22px 80px}
+header{border-bottom:2px solid var(--ink1);padding-bottom:18px;margin-bottom:20px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.17em;text-transform:uppercase;
+         color:var(--ink3)}
+h1{font-size:38px;font-weight:400;margin:6px 0 0;line-height:1}
+.lede{margin:12px 0 0;max-width:76ch;color:var(--ink2);line-height:1.6}
+.lede b{color:var(--ink1)}
+h2{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+   margin:0 0 11px;color:var(--ink1)}
+.cols{display:grid;grid-template-columns:300px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:880px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--rule);padding:15px 14px;
+       margin-bottom:14px}
+.row{display:grid;grid-template-columns:74px 1fr 52px;align-items:center;gap:8px;
+     margin-bottom:7px}
+.row label{font-size:11.5px;color:var(--ink2)}
+.row output{font-size:10.5px;text-align:right;font-variant-numeric:tabular-nums;
+            color:var(--ink2)}
+.row input[type=range]{width:100%}
+button{font:inherit;font-size:12px;padding:7px 11px;background:#fff;
+       border:1px solid var(--rule);border-radius:3px;cursor:pointer}
+button:hover{border-color:var(--ink1)}
+button.on{background:var(--ink1);color:var(--paper);border-color:var(--ink1)}
+.bar{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.pads{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.pad{padding:14px 10px;font-size:13px;text-align:center;line-height:1.35}
+.pad small{display:block;font-size:9.5px;color:var(--ink3);letter-spacing:.05em;
+           text-transform:uppercase;margin-top:3px}
+.pad.found{border-color:var(--good)}
+.pad.wrong{border-color:var(--bad)}
+.meters{display:grid;grid-template-columns:64px 1fr;gap:7px 10px;align-items:center;
+        margin-top:4px}
+.meters .lab{font-size:10.5px;color:var(--ink2)}
+.meter{height:15px;background:var(--sunk);border:1px solid var(--rule);position:relative;
+       overflow:hidden}
+.meter i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--ink2);
+         transition:width .04s linear}
+.meter.music i{background:var(--target)}
+.meter.sfx i{background:var(--good)}
+.meter.duck i{background:var(--warn)}
+.tracks label{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;
+              color:var(--ink2);padding:7px 0;border-bottom:1px solid var(--rule);
+              cursor:pointer;line-height:1.4}
+.tracks label:last-child{border-bottom:0}
+.tracks b{color:var(--ink1);font-weight:600}
+.tracks small{color:var(--ink3)}
+iframe{width:100%;height:600px;border:1px solid var(--rule);background:#fff;display:block;
+       margin-top:11px}
+.hint{font-size:11.5px;color:var(--ink3);margin:9px 0 0;line-height:1.55}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px}
+.miss{background:#FFE6E3;border:1px solid #f0b8b3;padding:11px 13px;margin-bottom:13px;
+      font-size:12.5px;color:#842521}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">parts disco · research</p>
+  <h1>the desk</h1>
+  <p class="lede">The loop and the board's own sounds through <b>one</b> mixer, which is
+  the only way to hear whether a find still cuts through. Both run on
+  <code>src/audio.js</code> — the same module the game uses, the same voices, the same
+  bus. Nothing here is a mock-up of the mix; it <em>is</em> the mix.</p>
+  <p class="lede">The music sits on its own fader with a duck between it and the master.
+  Every effect presses it down and lets it back up, by an amount the effect carries: a
+  find and a wrong click take the whole duck, a click on bare ground takes a third of
+  one. Set <b>depth</b> to zero to hear what the loop does to the blips without it.</p>
+</header>
+
+<div id="gone" class="miss" hidden></div>
+
+<div class="cols">
+  <div>
+    <div class="panel">
+      <h2>Faders</h2>
+      <div class="row"><label for="master">master</label><input type="range" id="master" min="0" max="1.5" step="0.01"><output id="master-o"></output></div>
+      <div class="row"><label for="music">music</label><input type="range" id="music" min="0" max="1.5" step="0.01"><output id="music-o"></output></div>
+      <div class="row"><label for="sfx">the board</label><input type="range" id="sfx" min="0" max="2" step="0.01"><output id="sfx-o"></output></div>
+    </div>
+
+    <div class="panel">
+      <h2>The duck</h2>
+      <div class="row"><label for="depth">depth</label><input type="range" id="depth" min="0" max="1" step="0.01"><output id="depth-o"></output></div>
+      <div class="row"><label for="attackMs">down ms</label><input type="range" id="attackMs" min="1" max="200" step="1"><output id="attackMs-o"></output></div>
+      <div class="row"><label for="holdMs">hold ms</label><input type="range" id="holdMs" min="0" max="400" step="5"><output id="holdMs-o"></output></div>
+      <div class="row"><label for="releaseMs">up ms</label><input type="range" id="releaseMs" min="20" max="1500" step="10"><output id="releaseMs-o"></output></div>
+      <div class="meters">
+        <span class="lab">music</span><div class="meter music"><i id="m-music"></i></div>
+        <span class="lab">board</span><div class="meter sfx"><i id="m-sfx"></i></div>
+        <span class="lab">duck</span><div class="meter duck"><i id="m-duck"></i></div>
+      </div>
+      <p class="hint">The duck meter is the gain the music is being held at — full
+      width is untouched, and it dips on every hit.</p>
+    </div>
+
+    <div class="panel">
+      <h2>The loop</h2>
+      <div class="tracks" id="tracks"></div>
+      <div class="bar" style="margin-top:11px">
+        <button type="button" id="silence">no music</button>
+      </div>
+      <p class="hint">Each plays trimmed to whole bars, the way the ratings page found
+      them.</p>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2>Fire the board's sounds</h2>
+      <div class="pads">
+        <button type="button" class="pad found" data-fire="find">find<small>rank climbs</small></button>
+        <button type="button" class="pad wrong" data-fire="wrong">wrong<small>refusal</small></button>
+        <button type="button" class="pad" data-fire="ground">ground<small>clicked paper</small></button>
+        <button type="button" class="pad" data-fire="again">again<small>already found</small></button>
+        <button type="button" class="pad" data-fire="win">win<small>blip, gap, chime</small></button>
+        <button type="button" class="pad" data-fire="run">a run of finds<small>six, in time</small></button>
+      </div>
+      <p class="hint">A find climbs the Shepard ladder each time, so hit it repeatedly
+      to hear where the escalation sits against the loop. <b>A run of finds</b> fires
+      six at a bar's pace, which is the worst case for a duck that recovers too slowly.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Under a real stage</h2>
+      <div class="bar">
+        <button type="button" id="loadGame">load the board</button>
+      </div>
+      <p class="hint">The board keeps its own audio, so this is the loop from here
+      against the game's sounds from there — two contexts, no shared duck. It answers
+      "does the track suit the game"; the pads above answer "can I still hear a find".</p>
+      <div id="gameHolder"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script type="module">
+import { createVoice, MIX, DUCK, VOICES } from '../../src/audio.js';
+
+const AUDIO = '../../tmp/loops/audio/';
+const rows = (await (await fetch('shortlist.json')).json())
+  .sort((a, b) => (b.loop + b.fit) - (a.loop + a.fit));
+const gone = document.getElementById('gone');
+
+// The game's own module, driven directly. It fetches the win chime on load, the way
+// `start()` does, so the win pad has something to play.
+const voice = createVoice('../../assets/sfx/win-chime.mp3');
+await voice.load();
+
+const state = { mix: { ...MIX }, duck: { ...DUCK } };
+const bind = (id, group) => {
+  const el = document.getElementById(id);
+  const out = document.getElementById(`${id}-o`);
+  el.value = state[group][id];
+  out.textContent = state[group][id];
+  el.addEventListener('input', () => {
+    state[group][id] = parseFloat(el.value);
+    out.textContent = el.value;
+    voice.levels({ [group]: { [id]: state[group][id] } });
+  });
+};
+for (const id of ['master', 'music', 'sfx']) bind(id, 'mix');
+for (const id of ['depth', 'attackMs', 'holdMs', 'releaseMs']) bind(id, 'duck');
+
+// ---- the loop picker -----------------------------------------------------
+const tracks = document.getElementById('tracks');
+for (const r of rows) {
+  const id = `t-${r.slug}`;
+  const label = document.createElement('label');
+  label.innerHTML = `<input type="radio" name="track" id="${id}">
+    <span><b>${r.title.replace(/\.wav$/, '')}</b><br>
+    <small>${r.bpm} bpm · ${r.trim.bars} bars · ${r.gameBandPct}% in the board's band</small></span>`;
+  label.querySelector('input').addEventListener('change', async () => {
+    try {
+      await voice.setMusic(AUDIO + r.file,
+                           { startSec: r.trim.startSec, endSec: r.trim.endSec });
+      gone.hidden = true;
+    } catch (e) {
+      gone.hidden = false;
+      gone.innerHTML = `<strong>Not on disk:</strong> ${e.message}. Run the fetch `
+        + `scripts in <code>research/disco-loops/</code>.`;
+    }
+  });
+  tracks.append(label);
+}
+document.getElementById('silence').addEventListener('click', () => {
+  voice.setMusic(null);
+  for (const el of document.querySelectorAll('input[name=track]')) el.checked = false;
+});
+
+// ---- the pads ------------------------------------------------------------
+let rank = 0;
+const fire = {
+  find: () => voice.find(++rank, false),
+  wrong: () => voice.play('wrong'),
+  ground: () => voice.play('ground'),
+  again: () => voice.play('again'),
+  win: () => voice.find(++rank, true),
+  run: async () => {
+    for (let i = 0; i < 6; i++) {
+      voice.find(++rank, false);
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  },
+};
+for (const b of document.querySelectorAll('[data-fire]')) {
+  b.addEventListener('click', () => fire[b.dataset.fire]());
+}
+
+// ---- meters --------------------------------------------------------------
+const bars = {
+  music: document.getElementById('m-music'),
+  sfx: document.getElementById('m-sfx'),
+  duck: document.getElementById('m-duck'),
+};
+const paint = () => {
+  bars.music.style.width = `${Math.min(1, state.mix.music / 1.5) * 100}%`;
+  bars.sfx.style.width = `${Math.min(1, state.mix.sfx / 2) * 100}%`;
+  bars.duck.style.width = `${voice.duckedTo() * 100}%`;
+  requestAnimationFrame(paint);
+};
+paint();
+
+document.getElementById('loadGame').addEventListener('click', (e) => {
+  const holder = document.getElementById('gameHolder');
+  if (holder.firstChild) { holder.replaceChildren(); e.target.classList.remove('on'); return; }
+  const frame = document.createElement('iframe');
+  frame.src = '../../index.html';
+  frame.title = 'parts disco';
+  holder.append(frame);
+  e.target.classList.add('on');
+});
+</script>

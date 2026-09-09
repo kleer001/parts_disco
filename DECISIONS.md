@@ -161,6 +161,15 @@ it went; it is never a reason to refuse a change he asks for.
   the win says back, so they are two statements and not one. REJECTED: timing the gap
   on the frame loop — it is booked on the audio clock, where a stalled frame cannot
   smear it.
+- **Music and effects have their own faders, and the music ducks under every
+  effect.** REJECTED: one bus and a quiet music level — the find blips sit between 220
+  and 1760Hz and a disco loop has most of its energy under that, so a level low enough
+  not to bury them is too low to hear. REJECTED: a `DynamicsCompressor` sidechain — a
+  scheduled dip on a gain is exact, reproducible and readable, and the compressor
+  behaves differently offline than in a browser.
+- **How far a sound ducks the music is a column in the voice table.** REJECTED: one
+  duck for everything — a click on bare ground is not worth the hole a find is worth,
+  and the difference is a number per row rather than a branch.
 - **The audio context is built before any gesture and the chime decoded with the
   fleet.** REJECTED: opening it on the first click, as `treasure_trash` does — a
   context may be built suspended and decoded into, so doing it up front removes the

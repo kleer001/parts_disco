@@ -79,6 +79,22 @@ cut to one, and offers a 12ms equal-power crossfade for the joins that tick. It 
 also load the game in a frame so a loop can be heard under a real stage, which is the
 only thing that actually answers the second question.
 
+## The desk
+
+`mixer.html` runs a candidate loop and the board's own sounds through **one** mixer,
+which is the only way to hear whether a find still cuts through. It imports
+`src/audio.js` — the same module the game uses, the same voices, the same bus — so
+nothing on that page is a mock-up of the mix.
+
+The music sits on its own fader with a duck between it and the master. Every effect
+presses it down and lets it back up by an amount the effect carries, held as a `duck`
+column in the voice table. Set depth to zero to hear what a loop does to the blips
+without it.
+
+Ducking rather than a low music level, because the two cannot be traded: the find
+blips sit between 220 and 1760Hz and a disco loop has most of its energy under that,
+so a level low enough to leave them clear is too low to hear.
+
 ## Where it stands
 
 Of the candidates gathered, twelve loop as they stand — the rest carry at least one of

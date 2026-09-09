@@ -7,11 +7,21 @@
 // recorded sample: it is the only moment worth a download, and a chord of that kind
 // is not something three oscillators do convincingly.
 //
+// Everything runs through a small desk: a music bus and an effects bus into a master.
+// It is here because a loop under the board buries the very sounds the board is
+// answering with -- the find blips sit between 220 and 1760Hz and a disco track has
+// most of its energy under that. So the music ducks out of the way of every effect and
+// rides back, which is what lets it be loud enough to hear at all.
+//
 // This is a boundary, the way `layers.js` is the boundary onto the canvas. Nothing
 // upstream of `main.js` knows a sound exists, and nothing here reads the round.
 
-/** Where the win lives, relative to the page -- the same rule the views follow. */
-const CHIME = 'assets/sfx/win-chime.mp3';
+/**
+ * Where the win lives, relative to the page -- the same rule the views follow, and
+ * overridable the same way, because a bench sitting a directory or two down resolves
+ * it against itself.
+ */
+export const CHIME = 'assets/sfx/win-chime.mp3';
 
 /**
  * A voice per outcome of `round.choose` that answers with a single tone.
@@ -21,9 +31,9 @@ const CHIME = 'assets/sfx/win-chime.mp3';
  * kind of thing from a bend.
  */
 export const VOICES = {
-  ground: { wave: 'sine',   from: 210, to: 165, ms: 70,  gain: 0.030 },
-  again:  { wave: 'sine',   from: 330, to: 330, ms: 45,  gain: 0.022 },
-  wrong:  { wave: 'square', from: 190, to: 135, ms: 175, gain: 0.070 },
+  ground: { wave: 'sine',   from: 210, to: 165, ms: 70,  gain: 0.030, duck: 0.35 },
+  again:  { wave: 'sine',   from: 330, to: 330, ms: 45,  gain: 0.022, duck: 0.25 },
+  wrong:  { wave: 'square', from: 190, to: 135, ms: 175, gain: 0.070, duck: 1 },
 };
 
 /**
@@ -52,10 +62,28 @@ export const FIND = {
   gain: 0.055,
   /** A sine started at full volume clicks. This is the ramp that stops it. */
   attackMs: 8,
+  /** A find is the thing a player is listening for, so it takes the whole duck. */
+  duck: 1,
 };
 
 /** How long the board holds its breath between the find and the win, in ms. */
 export const WIN_PAUSE = 250;
+
+/**
+ * Where the faders sit, as gains rather than decibels, because every one of them ends
+ * up multiplying a sample.
+ */
+export const MIX = { master: 1, music: 0.55, sfx: 1 };
+
+/**
+ * How far the music gets out of the way, and how quickly it comes back.
+ *
+ * `depth` is what a full duck takes off the music -- a voice with `duck: 0.35` takes
+ * that share of it. Down fast, hold while the sound is still speaking, up slowly: a
+ * duck that returns as fast as it left pumps, and one that returns too slowly leaves
+ * a hole where the music was.
+ */
+export const DUCK = { depth: 0.65, attackMs: 25, holdMs: 90, releaseMs: 420 };
 
 /** How loud the win sits over the rest. */
 const WIN_GAIN = 0.35;
@@ -82,14 +110,53 @@ export function gainAt(x, partials = FIND.partials) {
  * decoded up front with the fleet, so no win can ever arrive ahead of its sound.
  * The first click resumes it.
  */
-export function createVoice() {
+export function createVoice(chimeUrl = CHIME) {
   const ac = new AudioContext();
   let chime = null;
+
+  // The desk. Effects and music each have a fader, and between the music fader and
+  // the master sits the thing every effect leans on to make room for itself.
+  const master = ac.createGain();
+  const sfx = ac.createGain();
+  const music = ac.createGain();
+  const duck = ac.createGain();
+  master.gain.value = MIX.master;
+  sfx.gain.value = MIX.sfx;
+  music.gain.value = MIX.music;
+  duck.gain.value = 1;
+  sfx.connect(master);
+  music.connect(duck).connect(master);
+  master.connect(ac.destination);
+
+  let loop = null;      // the music source, while one is playing
+  const mix = { ...MIX };
+  const dip = { ...DUCK };
 
   // Suspended is where a context starts and where a backgrounded tab puts it back,
   // so it is asked every time rather than once.
   const resume = () => {
     if (ac.state === 'suspended') ac.resume();
+  };
+
+  /**
+   * Take the music down and walk it back up.
+   *
+   * Read off wherever the gain actually is rather than from a remembered value: two
+   * finds in quick succession would otherwise have the second one ramp up from a
+   * level the first had already left, and the music would surge between them.
+   *
+   * @param {number} share - how much of a full duck this sound is worth, 0..1
+   */
+  const makeRoom = (share) => {
+    if (share <= 0 || dip.depth <= 0) return;
+    const at = ac.currentTime;
+    const floor = Math.max(0.0001, 1 - dip.depth * share);
+    const down = at + dip.attackMs / 1000;
+    duck.gain.cancelScheduledValues(at);
+    duck.gain.setValueAtTime(duck.gain.value, at);
+    duck.gain.linearRampToValueAtTime(floor, down);
+    duck.gain.setValueAtTime(floor, down + dip.holdMs / 1000);
+    duck.gain.linearRampToValueAtTime(1, down + (dip.holdMs + dip.releaseMs) / 1000);
   };
 
   /** One sine, held at a pitch, faded in and rung out. */
@@ -101,7 +168,7 @@ export function createVoice() {
     gain.gain.setValueAtTime(FLOOR, at);
     gain.gain.exponentialRampToValueAtTime(peak, at + FIND.attackMs / 1000);
     gain.gain.exponentialRampToValueAtTime(FLOOR, at + secs);
-    osc.connect(gain).connect(ac.destination);
+    osc.connect(gain).connect(sfx);
     osc.start(at);
     osc.stop(at + secs);
   };
@@ -109,9 +176,9 @@ export function createVoice() {
   return {
     /** Fetch and decode the win. Awaited by `start()`, before the first frame. */
     async load() {
-      const res = await fetch(CHIME);
+      const res = await fetch(chimeUrl);
       if (!res.ok) {
-        throw new Error(`cannot load ${CHIME} (${res.status}) -- serve with ./run.sh`);
+        throw new Error(`cannot load ${chimeUrl} (${res.status}) -- serve with ./run.sh`);
       }
       chime = await ac.decodeAudioData(await res.arrayBuffer());
     },
@@ -132,9 +199,68 @@ export function createVoice() {
       osc.frequency.exponentialRampToValueAtTime(voice.to, at + secs);
       gain.gain.setValueAtTime(voice.gain, at);
       gain.gain.exponentialRampToValueAtTime(FLOOR, at + secs);
-      osc.connect(gain).connect(ac.destination);
+      osc.connect(gain).connect(sfx);
       osc.start(at);
       osc.stop(at + secs);
+      makeRoom(voice.duck);
+    },
+
+    /**
+     * Put a loop under the board, or take it off.
+     *
+     * The trim is the loop's, not the file's: a candidate is rarely cut to a whole
+     * bar, and coming round a few tens of milliseconds early drags the pulse forward
+     * on every repeat. Passing the bar-aligned points is what stops that.
+     *
+     * @param {string|null} url - the loop, or null to stop
+     * @param {{startSec?: number, endSec?: number}} [trim]
+     */
+    async setMusic(url, trim = {}) {
+      if (loop) {
+        try { loop.stop(); } catch { /* already ended */ }
+        loop = null;
+      }
+      if (!url) return;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`cannot load ${url} (${res.status})`);
+      const buffer = await ac.decodeAudioData(await res.arrayBuffer());
+      resume();
+      loop = ac.createBufferSource();
+      loop.buffer = buffer;
+      loop.loop = true;
+      loop.loopStart = trim.startSec ?? 0;
+      loop.loopEnd = trim.endSec ?? buffer.duration;
+      loop.connect(music);
+      loop.start(0, loop.loopStart);
+      return buffer;
+    },
+
+    /**
+     * Move the faders, or the duck. Only what is named changes.
+     * @returns {{mix: object, duck: object}} where everything now sits
+     */
+    levels(next = {}) {
+      for (const [k, v] of Object.entries(next.mix ?? {})) {
+        if (!(k in mix)) throw new Error(`no fader "${k}"`); // boundary
+        mix[k] = v;
+      }
+      for (const [k, v] of Object.entries(next.duck ?? {})) {
+        if (!(k in dip)) throw new Error(`no duck knob "${k}"`); // boundary
+        dip[k] = v;
+      }
+      const at = ac.currentTime;
+      // Ramped rather than set: a fader that jumps clicks, and these are moved live.
+      for (const [node, value] of [[master, mix.master], [sfx, mix.sfx], [music, mix.music]]) {
+        node.gain.cancelScheduledValues(at);
+        node.gain.setValueAtTime(node.gain.value, at);
+        node.gain.linearRampToValueAtTime(value, at + 0.02);
+      }
+      return { mix: { ...mix }, duck: { ...dip } };
+    },
+
+    /** What the duck is doing right now, 1 when the music is unpressed. */
+    duckedTo() {
+      return duck.gain.value;
     },
 
     /**
@@ -156,6 +282,7 @@ export function createVoice() {
       const secs = FIND.ms / 1000;
       // Where the bottom partial stands, in octaves above the window's floor. It
       // wraps, which is the point: rank 7 is rank 1 and still reads as higher than 6.
+      makeRoom(FIND.duck);
       const rung = ((rank - 1) * FIND.step) % 1;
       for (let k = 0; k < FIND.partials; k++) {
         const x = rung + k;
@@ -168,7 +295,7 @@ export function createVoice() {
         const gain = ac.createGain();
         source.buffer = chime;
         gain.gain.value = WIN_GAIN;
-        source.connect(gain).connect(ac.destination);
+        source.connect(gain).connect(sfx);
         // Nothing keeps a handle on it, so it rings on over the wipe and into the
         // level that follows -- which is the point of it.
         source.start(at + secs + WIN_PAUSE / 1000);

@@ -614,3 +614,48 @@ walk on top of it. It lands during the wipe, which is the frame the game is alre
 spending on a transition.
 
 **Threaded:** `cutGround` and `GROUND_AT` in `src/layers.js`, called from `bakeCard`.
+
+### [2026-09-09] A desk, because the music was burying the board
+
+**Decision:** `src/audio.js` grows a mixer. Effects and music each have a fader into a
+master, and between the music fader and the master sits a gain every effect presses
+down and lets back up. How far each sound presses is a `duck` column in the voice
+table: a find and a refusal take the whole duck, a click on bare ground a third of one,
+an already-found click a quarter. `MIX` and `DUCK` hold the defaults, `levels()` moves
+them live, and `setMusic(url, trim)` puts a loop under the board.
+
+**Pressure:** auditioning loops against the game, the board's own sounds could not be
+heard. That is not a level problem: the find blips sit between 220 and 1760Hz and a
+disco loop has most of its energy under that, so a music level low enough to leave them
+clear is too low to hear. The room has to be made at the moment it is needed.
+
+**Rejected: one bus with the music simply turned down.** It trades one of the two
+things away permanently. Ducking gives both — the loop can sit where it belongs and
+still get out of the way sixty times a round.
+
+**Rejected: a `DynamicsCompressor` fed from the effects bus,** which is how a sidechain
+is usually built. `music_loom`'s master chain records why not: under
+`node-web-audio-api` that node does not limit, it inflates towards a constant level, so
+a graph leaning on it measures as a lie outside a browser. A dip scheduled on a gain is
+exact, reproducible, and legible in a way a compressor's attack and knee are not.
+
+**Rejected: one duck depth for every sound.** A click on bare ground is not worth the
+hole a find is worth. Because the depth is a share carried by the voice, the difference
+is a number in the table rather than a branch in the code.
+
+**Read off wherever the gain is, not from a remembered value.** Two finds in quick
+succession would otherwise have the second ramp up from a level the first had already
+left, and the music would surge between them. `cancelScheduledValues` then
+`setValueAtTime(gain.value)` is what makes overlapping ducks compose.
+
+**Also settled here:** the chime's path is now a parameter with the old constant as its
+default, following `loadViews(root)`. A bench sitting two directories down was
+resolving `assets/sfx/...` against itself and getting a 404.
+
+**Measured on the bench, driving the game's own module:** a find takes the music to 35%
+and a ground click to 77%, which is `1 - depth × share` for both, and it rides back to
+full in the release. `research/disco-loops/mixer.html` is where that is heard rather
+than read — it fires the real voices against a real loop through the real bus.
+
+**Threaded:** `MIX`, `DUCK`, the `duck` column in `VOICES` and `FIND`, and the desk
+inside `createVoice` in `src/audio.js`; `research/disco-loops/mixer.html`.
