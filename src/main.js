@@ -7,8 +7,8 @@ import { deal, layout } from './board.js';
 import { createRound } from './game.js';
 import { stageAt, RANGE } from './levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
-         createRecessLayer, createPanelLayer, createWipeLayer, stampRegions,
-         wipeFrom, INKS, rgbOf } from './layers.js';
+         createRefuseLayer, createRecessLayer, createPanelLayer, createWipeLayer,
+         stampRegions, wipeFrom, INKS, rgbOf } from './layers.js';
 import { planBoard } from './paint.js';
 import { TUNING, createClock } from './juice.js';
 import { layoutFor } from './layout.js';
@@ -113,6 +113,7 @@ export async function start(canvas, seed = SEED) {
     .add(createPaperLayer())
     .add(createBoardLayer(viewOf, held))
     .add(createGridLayer())
+    .add(createRefuseLayer(viewOf))
     .add(createFindLayer(viewOf))
     .add(createRecessLayer())
     .add(createPanelLayer(RANGE))

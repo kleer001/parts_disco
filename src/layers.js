@@ -10,7 +10,7 @@
 
 import { mulberry32 } from './rng.js';
 import { flashesBy } from './game.js';
-import { SEMANTIC, TUNING, cardShake, findPulse, gridCellAt } from './juice.js';
+import { SEMANTIC, TUNING, cardShake, findPulse, gridCellAt, refuseWash } from './juice.js';
 
 export const PALETTE = {
   paper: '#f4f1ea',
@@ -66,6 +66,9 @@ function flashInk(car, flash) {
  */
 export const SETTLED = '#4c4c4c';
 export const SETTLED_RGB = rgbOf(SETTLED);
+
+/** The wash a refused vehicle wears for as long as the refusal lasts. */
+export const REFUSED = '#c9c9c9';
 
 /**
  * Trace one closed ring of a view, placed and sized.
@@ -379,6 +382,54 @@ export function createFindLayer(viewOf, settings = () => TUNING) {
           ring(ctx, anchor, points, span, pulse.scale, pulse.dx, pulse.dy);
           ctx.stroke();
         }
+      }
+    },
+  };
+}
+
+/**
+ * The vehicles refusing a click: a light wash over the one that was hit in error.
+ *
+ * Drawn over the board and not into it, for the reason the find pulse is -- the board
+ * is a kept bitmap and a wash that is gone in half a second is not worth rebuilding
+ * it. The linework is redrawn at the wash's own alpha so the vehicle keeps the edge
+ * it had, and the wash reads as the colour draining out of it rather than as a shape
+ * being painted over.
+ *
+ * It sits under the find pulse: a wrong click and a find can overlap, and the answer
+ * is the thing that should be on top.
+ */
+export function createRefuseLayer(viewOf, settings = () => TUNING) {
+  return {
+    name: 'refuse',
+    draw(ctx, frame) {
+      const s = settings();
+      const { standing, span, round, at } = frame;
+      if (round.winning(at) > 0) return;
+
+      const alive = s.refuseMs / 1000;
+      for (const [region, when] of round.refused) {
+        // Most entries are refusals that finished seconds ago. Skipping those on a
+        // subtraction keeps a round full of misses from costing a wash's work each.
+        if (at - when >= alive || region >= standing.length) continue;
+        const wash = refuseWash(at - when, s);
+        if (!wash.alive) continue;
+
+        const anchor = standing[region];
+        const view = viewOf(anchor.slot);
+        ctx.save();
+        ctx.globalAlpha = wash.alpha;
+        ctx.fillStyle = REFUSED;
+        for (const points of view.silhouette) {
+          ring(ctx, anchor, points, span);
+          ctx.fill();
+        }
+        inkStroke(ctx);
+        for (const points of view.strokes) {
+          ring(ctx, anchor, points, span);
+          ctx.stroke();
+        }
+        ctx.restore();
       }
     },
   };

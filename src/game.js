@@ -62,6 +62,12 @@ export function createRound(anchors, target, viewOf) {
     target,
     /** Index of every car found, against the moment it was found. */
     found: new Map(),
+    /**
+     * Index of every car clicked in error, against the moment it last was. Only the
+     * last one counts: clicking the same wrong car twice is two refusals, and the
+     * second has to answer rather than land inside the first one's silence.
+     */
+    refused: new Map(),
     misses: 0,
     /** When the last car was found, in seconds. Null until it is. */
     wonAt: null,
@@ -88,6 +94,7 @@ export function createRound(anchors, target, viewOf) {
       if (round.found.has(hit.index)) return { outcome: 'again', slot: hit.slot };
       if (hit.slot.model !== target) {
         round.misses++;
+        round.refused.set(hit.index, now);
         return { outcome: 'wrong', slot: hit.slot };
       }
 

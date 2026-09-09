@@ -52,6 +52,11 @@ export const TUNING = {
   // -- the beat the board holds at the instant of a find ---------------------
   hitStopMs: 95,
 
+  // -- the wash a wrong click leaves on the vehicle it hit -------------------
+  refuseMs: 620,
+  refuseAlpha: 0.8,
+  refuseRise: 0.12,
+
   // -- one level being taken off the screen and the next put down ------------
   wipeMs: 750,
 
@@ -139,6 +144,23 @@ export function findPulse(since, s = TUNING, rank = 1) {
     dy: Math.cos(phase * 0.77) * amp * 0.6,
     lit: Math.floor(t * s.strobes) % 2 === 0,
   };
+}
+
+/**
+ * What a vehicle clicked in error `since` seconds ago is doing.
+ *
+ * One wash of light grey over it, on in a snap and off slowly. No shake and no
+ * strobe: a find is the board answering and a wrong click is it going quiet, so the
+ * two are told apart by what they do and not only by the colour they do it in.
+ *
+ * @returns {{alive: boolean, alpha: number}}
+ */
+export function refuseWash(since, s = TUNING) {
+  const t = since / (s.refuseMs / 1000);
+  if (t < 0 || t >= 1) return { alive: false, alpha: 0 };
+  const up = s.refuseRise;
+  const shape = t < up ? t / up : (1 - (t - up) / (1 - up)) ** 2;
+  return { alive: true, alpha: shape * s.refuseAlpha };
 }
 
 /**

@@ -292,3 +292,33 @@ stops, because the screen it was taken from no longer exists.
 
 **Threaded:** `src/layers.js` `createWipeLayer`, `wipeFrom` and the `WIPES` table;
 `src/main.js`, which takes the picture in the same breath as it deals the next level.
+
+### [2026-09-09] A wrong click washes the vehicle it hit, and the wash fades
+
+**Decision:** clicking a vehicle that is not the one being asked for washes it in a
+light grey (`REFUSED`, `#c9c9c9`) at up to 0.8 alpha, drawn over the board and gone in
+`TUNING.refuseMs` (620ms). The linework is redrawn at the wash's own alpha, so the
+vehicle keeps its edge and the wash reads as the colour draining out of it. The layer
+sits under the find pulse.
+
+**Pressure:** a wrong click was silent. Every other outcome on the board answers — a
+find pulses, the panel flinches, a win wipes — and the one outcome a player gets most
+often did nothing but move a number in the corner of the panel.
+
+**Rejected: leaving the wash on for the rest of the round.** A vehicle permanently
+greyed out is a candidate crossed off, and crossing candidates off is the search the
+game is asking the player to do in their head. That is the difficulty dial, not the
+legibility one, and the two are separate on purpose: softening the search spends the
+moment the player solves it. A fading wash answers the click and remembers nothing.
+The change is one number if the call goes the other way — `refuseMs` to something
+longer than a round.
+
+**Rejected: shaking or strobing it, the way a find does.** A find is the board
+answering and a wrong click is the board going quiet. Giving both motion would leave
+colour as the only thing telling them apart, and the two would read as one event at
+different volumes.
+
+**Threaded:** `refuseWash` and the three `refuse*` numbers in `src/juice.js`;
+`REFUSED` and `createRefuseLayer` in `src/layers.js`; `round.refused` in
+`src/game.js`, which is the only place a refusal is recorded.
+

@@ -54,6 +54,10 @@ it went; it is never a reason to refuse a change he asks for.
   rotating it onto another board ink that its neighbours are not wearing — the resting
   colour is the only record that a vehicle was found, and an ink some unfound vehicle
   is also wearing reads as one more thing to sort through.
+- **A wrong click washes the vehicle it hit in light grey, and the wash fades.**
+  REJECTED: leaving the wash on for the rest of the round — a permanently greyed
+  vehicle is a candidate crossed off the list, which turns the difficulty dial rather
+  than answering the click; the owner picks that dial, not the feedback.
 - **The panel's colours are separated by lightness, not hue.** REJECTED: an
   equal-lightness ramp with hue carrying the meaning — measured, it puts green and red
   0.021 apart in OKLab under simulated deuteranopia, which is the same colour.

@@ -101,6 +101,12 @@ pre{background:var(--sunk);border:1px solid var(--rule);padding:10px;
         <h2>Hit stop</h2>
         <div class="row"><label for="hitStopMs">hold ms</label><input type="range" id="hitStopMs" min="0" max="300" step="5"><output id="hitStopMs-o"></output></div>
       </div>
+      <div class="grp">
+        <h2>Wrong click</h2>
+        <div class="row"><label for="refuseMs">wash ms</label><input type="range" id="refuseMs" min="120" max="1600" step="20"><output id="refuseMs-o"></output></div>
+        <div class="row"><label for="refuseAlpha">opacity</label><input type="range" id="refuseAlpha" min="0" max="1" step="0.02"><output id="refuseAlpha-o"></output></div>
+        <div class="row"><label for="refuseRise">rise</label><input type="range" id="refuseRise" min="0.02" max="0.6" step="0.01"><output id="refuseRise-o"></output></div>
+      </div>
     </div>
 
     <div class="panel">
@@ -208,8 +214,8 @@ import { deal, layout } from '../src/board.js';
 import { createRound } from '../src/game.js';
 import { stageAt, RANGE, PATH } from '../src/levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
-         createRecessLayer, createPanelLayer, createWipeLayer, stampRegions,
-         wipeFrom, INKS, rgbOf } from '../src/layers.js';
+         createRefuseLayer, createRecessLayer, createPanelLayer, createWipeLayer,
+         stampRegions, wipeFrom, INKS, rgbOf } from '../src/layers.js';
 import { planBoard } from '../src/paint.js';
 import { TUNING, SEMANTIC, createClock, gridCellAt } from '../src/juice.js';
 import { layoutFor } from '../src/layout.js';
@@ -314,6 +320,7 @@ const scene = createCompositor()
   .add(createPaperLayer())
   .add(createBoardLayer(viewOf, held))
   .add(createGridLayer(settings))
+  .add(createRefuseLayer(viewOf, settings))
   .add(createFindLayer(viewOf, settings))
   .add(createRecessLayer(settings))
   .add({ name: 'panel', draw: (c, f) => (useShipped ? asShipped : tuned).draw(c, f) })
