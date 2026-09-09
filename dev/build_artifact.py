@@ -33,6 +33,7 @@ MODULES = [
     'src/game.js',
     'src/levels.js',
     'src/layout.js',
+    'src/meter.js',
     'src/juice.js',
     'src/layers.js',
 ]

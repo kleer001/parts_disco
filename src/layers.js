@@ -10,7 +10,8 @@
 
 import { mulberry32 } from './rng.js';
 import { flashesBy } from './game.js';
-import { SEMANTIC, TUNING, cardShake, findPulse, gridCellAt, refuseWash } from './juice.js';
+import { SEMANTIC, TUNING, cardShake, findPulse, gridCellAt, meterKick,
+         refuseWash } from './juice.js';
 
 export const PALETTE = {
   paper: '#f4f1ea',
@@ -85,6 +86,9 @@ function ring(ctx, anchor, points, span, scale = 1, dx = 0, dy = 0) {
     if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
 }
+
+/** How type is set, wherever it is set. */
+const face = (px, s) => `${Math.round(px * s.typeScale)}px VT323, monospace`;
 
 /** How a vehicle's linework is drawn, wherever it is drawn. */
 function inkStroke(ctx) {
@@ -514,8 +518,53 @@ function well(ctx, x, y, w, h, depth, fill) {
  * are spent on the puzzle and cannot say anything. The asked-for vehicle sits on a
  * card that hangs straight and flinches when the board answers.
  */
+/**
+ * Where a unit of the meter sits in the run's remaining patience, as a colour.
+ *
+ * The zones are the meter's scale and not the fill's state: a unit is amber because
+ * it is the eighth unit, not because the needle has reached it. That is what lets a
+ * player read how much trouble is left from the ladder alone, before anything has
+ * lit up.
+ */
+const zoneOf = (fraction) => {
+  if (fraction < 0.6) return SEMANTIC.quiet;
+  if (fraction < 0.85) return SEMANTIC.last;
+  return SEMANTIC.miss;
+};
+
+/**
+ * The run's damage, as a ladder of units that light from the left.
+ *
+ * A unit lights in proportion, not all at once: late on the path a wrong vehicle
+ * costs a quarter of a unit, and a ladder that could only light whole ones would show
+ * nothing for three mistakes and then jump.
+ *
+ * @returns {number} the height it filled.
+ */
+function meterBar(ctx, x, y, w, meter, kick, s) {
+  const h = 22 * 0.86 + s.slabPad * 2;
+  const units = meter.capacity;
+  const gap = 3;
+  const cell = (w - gap * (units - 1)) / units;
+  // The needle may be thrown past the end; the ladder cannot show more than it has.
+  const shown = Math.max(0, Math.min(1, meter.level() + kick));
+  for (let i = 0; i < units; i++) {
+    const zone = zoneOf(i / units);
+    const cx = x + i * (cell + gap);
+    ctx.fillStyle = zone.tint;
+    roundRect(ctx, cx, y, cell, h, s.slabRadius);
+    ctx.fill();
+    const part = Math.max(0, Math.min(1, shown * units - i));
+    if (part > 0) {
+      ctx.fillStyle = zone.loud;
+      roundRect(ctx, cx, y, cell * part, h, s.slabRadius);
+      ctx.fill();
+    }
+  }
+  return h;
+}
+
 export function createPanelLayer(range, settings = () => TUNING, palette = PALETTE) {
-  const face = (px, s) => `${Math.round(px * s.typeScale)}px VT323, monospace`;
 
   /**
    * The largest of these sizes whose text fits the width, or the smallest if none
@@ -668,7 +717,9 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
     name: 'panel',
     draw(ctx, frame) {
       const s = settings();
-      const { panel, round, level, prompt, at } = frame;
+      const { panel, round, level, prompt, at, meter } = frame;
+      // The needle rings down from the last hit, whichever stage it landed on.
+      const kick = meter.hitAt === null ? 0 : meterKick(at - meter.hitAt, s);
 
       ctx.fillStyle = palette.panel;
       ctx.fillRect(panel.x, panel.y, panel.width, panel.height);
@@ -705,7 +756,7 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
         // too. Starting them at the top leaves the panel bottom-heavy and empty.
         const height = (px) => px * 0.86 + s.slabPad * 2;
         const readout = 24 + 20 + height(30) + 10 + height(countSize(round))
-                        + 8 + height(22);
+                        + 8 + 18 + height(22);
         let y = panel.y + (panel.height - readout) / 2;
 
         ctx.font = face(19, s);
@@ -720,8 +771,10 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
                   0, colW) + 10;
         y += slab(ctx, colX, y, countText(round), countRole(round),
                   countSize(round), s, colW, colW) + 8;
-        slab(ctx, colX, y, `MISSES ${round.misses}`,
-             round.misses ? SEMANTIC.miss : SEMANTIC.quiet, 22, s, colW, colW);
+        ctx.font = face(17, s);
+        ctx.fillStyle = SEMANTIC.quiet.loud;
+        ctx.fillText('MISSES', colX, y);
+        meterBar(ctx, colX, y + 18, colW, meter, kick, s);
 
         const rows = dialsOf(level);
         const step = Math.min(40, (panel.height - pad * 2) / rows.length);
@@ -757,8 +810,11 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
 
       y += slab(ctx, left, y, countText(round), countRole(round),
                 countSize(round), s, span) + 10;
-      y += slab(ctx, left, y, `MISSES ${round.misses}`,
-                round.misses ? SEMANTIC.miss : SEMANTIC.quiet, 24, s, span) + 22;
+      ctx.font = face(17, s);
+      ctx.fillStyle = SEMANTIC.quiet.loud;
+      ctx.fillText('MISSES', left, y);
+      y += 18;
+      y += meterBar(ctx, left, y, span, meter, kick, s) + 22;
 
       well(ctx, left - 10, y - 8, span + 20, 4 * 34 + 22, s.panelRecess,
            SEMANTIC.quiet.tint);
@@ -771,6 +827,39 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
   };
 }
 
+
+/**
+ * The end of a life: the yard behind frosted paper, and what to do about it.
+ *
+ * Over the board only. The panel keeps working, because the full meter beside the
+ * message is the explanation -- a player who has just died should be able to see the
+ * thing that killed them, not a screen that has replaced it.
+ */
+export function createOverLayer(settings = () => TUNING, palette = PALETTE) {
+  return {
+    name: 'over',
+    draw(ctx, frame) {
+      const { width, height, dead } = frame;
+      if (!dead) return;
+      const s = settings();
+
+      ctx.fillStyle = `rgba(255,255,255,0.82)`;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const mid = Math.min(width, height);
+      ctx.font = face(Math.round(mid * 0.11), s);
+      ctx.fillStyle = SEMANTIC.miss.ink;
+      ctx.fillText('GAME OVER', width / 2, height / 2 - mid * 0.05);
+      ctx.font = face(Math.round(mid * 0.038), s);
+      ctx.fillStyle = SEMANTIC.quiet.loud;
+      ctx.fillText('CLICK TO TRY THIS YARD AGAIN', width / 2, height / 2 + mid * 0.06);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+    },
+  };
+}
 
 /**
  * The four wipes, as the rectangle of the old screen the edge has not passed yet.

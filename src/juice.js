@@ -57,6 +57,11 @@ export const TUNING = {
   refuseAlpha: 0.8,
   refuseRise: 0.12,
 
+  // -- the needle thrown when a wrong vehicle is charged for -----------------
+  meterKickMs: 520,
+  meterKick: 0.08,
+  meterRingHz: 3.5,
+
   // -- one level being taken off the screen and the next put down ------------
   wipeMs: 750,
 
@@ -161,6 +166,22 @@ export function refuseWash(since, s = TUNING) {
   const up = s.refuseRise;
   const shape = t < up ? t / up : (1 - (t - up) / (1 - up)) ** 2;
   return { alive: true, alpha: shape * s.refuseAlpha };
+}
+
+/**
+ * How far past its reading the meter's needle is thrown, `since` seconds after a hit.
+ *
+ * A needle thrown at a new value overshoots it and rings down; a bar that simply
+ * becomes longer reads as a number being set. The ring is what makes the meter a
+ * physical thing on the panel, which is the only reason to draw one rather than
+ * print the count.
+ *
+ * @returns {number} an overshoot in the meter's own units, 0..1.
+ */
+export function meterKick(since, s = TUNING) {
+  const t = since / (s.meterKickMs / 1000);
+  if (t < 0 || t >= 1) return 0;
+  return s.meterKick * (1 - t) ** 2 * Math.cos(t * s.meterRingHz * Math.PI * 2);
 }
 
 /**

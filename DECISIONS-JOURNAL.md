@@ -404,3 +404,56 @@ constant across every rank, so the chord does not pump as it climbs.
 **Threaded:** `FIND`, `WIN_PAUSE` and `gainAt` in `src/audio.js`, and the `find` method
 that reads them; `src/main.js`, whose pointer handler now asks the find whether it won
 rather than choosing the sound itself.
+
+### [2026-09-09] Losing: a meter that fills, and what a death costs
+
+**Decision:** a run carries a damage meter of ten units that spans stages. Only a
+wrong vehicle charges it, and what one costs falls geometrically along the path — a
+whole unit at the first stage, a quarter at the last, so ten mistakes end the first
+stage and forty end the sixteenth. Filling it stops the board, frosts the yard and
+offers the same stage again; taking that offer empties the meter and deals a different
+yard from the same numbers. Nothing else ever empties it.
+
+**Pressure:** the game had no way to lose. It ran stages forever and a wrong click
+moved a red number that did nothing.
+
+**Rejected: a fixed cost with a capacity that grows by stage.** The arithmetic is
+nearly the same and the display is much worse: a bar whose length changes cannot be
+read as progress at a glance, and reading it at a glance is the only reason to draw a
+meter rather than print a count. Holding the ladder still and moving the price keeps
+one picture meaning one thing for the whole run.
+
+**Rejected: charging for a click on bare ground,** which is what the old counter did —
+it incremented on both the `!hit` branch and the wrong-model branch. Once the count
+decides a death those two stop being the same event: a click on paper is a slip or a
+look, and only a vehicle named wrongly is a wrong answer. `round.misses` is gone
+rather than kept alongside the meter, because two tallies of the same idea drift.
+
+**Rejected: giving damage back for clearing a board.** Clearing buys progress, not
+patience. It is the obvious first dial if playtesting says the meter is too harsh, and
+it is deliberately not turned yet: two numbers moving at once makes a balance
+impossible to read while it is still being found.
+
+**Rejected: keeping the meter full through a death.** The player would respawn and die
+to the next wrong click. Death has to be the thing that empties it, which makes the
+meter a life rather than a run-long budget.
+
+**Rejected: sending a death back to the first stage.** What a death costs is the board
+you were partway through — on a stage asking for thirty-three, that is real work — and
+not your place on the path.
+
+**Rejected: dealing the identical board on a retry.** The stage's numbers come back;
+the yard does not. Replaying a memorised board rewards recall rather than the search
+the stage is asking for. `RETRY_STRIDE` moves the deal by the attempt, so a run is
+still reproducible from its seed and the attempt count.
+
+**Open, and needing play rather than argument:** ten units and a quarter-price floor
+are guesses. The asymmetry most likely to bite is that a stage's target count swings
+from two to thirty-three, so two stages at the same point on the path can ask for very
+different numbers of clicks while charging the same. Dividing the cost by the stage's
+target count is the first thing to try if one stage turns into a wall.
+
+**Threaded:** `src/meter.js` in full; `meterKick` and the three `meter*` numbers in
+`src/juice.js`; `meterBar`, `zoneOf` and `createOverLayer` in `src/layers.js`;
+`RETRY_STRIDE` and the death branch of the pointer handler in `src/main.js`;
+`tests/meter.test.js`.

@@ -68,7 +68,6 @@ export function createRound(anchors, target, viewOf) {
      * second has to answer rather than land inside the first one's silence.
      */
     refused: new Map(),
-    misses: 0,
     /** When the last car was found, in seconds. Null until it is. */
     wonAt: null,
 
@@ -87,13 +86,12 @@ export function createRound(anchors, target, viewOf) {
       if (round.wonAt !== null) return { outcome: 'again', slot: null };
 
       const hit = pick(anchors, span, point, viewOf);
-      if (!hit) {
-        round.misses++;
-        return { outcome: 'ground', slot: null };
-      }
+      // Bare ground is not an answer. A click that lands on paper is a slip or a
+      // look, and only a vehicle named wrongly is a wrong answer -- which is why the
+      // round reports the two apart and does not add them up.
+      if (!hit) return { outcome: 'ground', slot: null };
       if (round.found.has(hit.index)) return { outcome: 'again', slot: hit.slot };
       if (hit.slot.model !== target) {
-        round.misses++;
         round.refused.set(hit.index, now);
         return { outcome: 'wrong', slot: hit.slot };
       }

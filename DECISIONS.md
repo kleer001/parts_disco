@@ -30,6 +30,27 @@ it went; it is never a reason to refuse a change he asks for.
   for a callout numeral ("click part 42") — leader lines run from the numeral to the
   part, so it degrades into a text search and reads as easier, not harder.
 
+## Losing
+
+- **The meter is a fixed ten units wide and a wrong vehicle costs less the further
+  down the path it is.** REJECTED: a fixed cost and a capacity that grows with the
+  stage — a bar whose length changes cannot be read as progress at a glance, and
+  reading it at a glance is the only reason to draw one instead of printing a count.
+- **Only a wrong vehicle costs. A click on bare ground is free.** REJECTED: charging
+  for both, which is what the old miss counter did — a click on paper is a slip or a
+  look, and only a vehicle named wrongly is a wrong answer.
+- **Damage carries across stages and is never given back by playing well.** REJECTED:
+  credit for clearing a board — clearing buys progress, not patience, and two numbers
+  moving at once makes the balance impossible to read while it is being tuned.
+- **A death empties the meter and deals the same stage again.** REJECTED: keeping the
+  meter full through a death — the player respawns and dies to the next wrong click,
+  which is not a retry. REJECTED: sending the run back to the first stage — what a
+  death costs is the board you were partway through, not your place on the path.
+- **A retry deals a different yard from the same stage numbers.** REJECTED: repeating
+  the identical board — the retry then rewards recall rather than the search the stage
+  is asking for. The run still reproduces, because the attempt is counted and not
+  rolled.
+
 ## Feel
 
 - **Parts are drawn as outlines, nothing filled.** REJECTED: filled silhouettes — a

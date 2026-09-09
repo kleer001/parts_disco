@@ -102,6 +102,12 @@ pre{background:var(--sunk);border:1px solid var(--rule);padding:10px;
         <div class="row"><label for="hitStopMs">hold ms</label><input type="range" id="hitStopMs" min="0" max="300" step="5"><output id="hitStopMs-o"></output></div>
       </div>
       <div class="grp">
+        <h2>The meter</h2>
+        <div class="row"><label for="meterKick">overshoot</label><input type="range" id="meterKick" min="0" max="0.3" step="0.005"><output id="meterKick-o"></output></div>
+        <div class="row"><label for="meterKickMs">ring ms</label><input type="range" id="meterKickMs" min="80" max="1600" step="20"><output id="meterKickMs-o"></output></div>
+        <div class="row"><label for="meterRingHz">ring hz</label><input type="range" id="meterRingHz" min="0.5" max="12" step="0.1"><output id="meterRingHz-o"></output></div>
+      </div>
+      <div class="grp">
         <h2>Wrong click</h2>
         <div class="row"><label for="refuseMs">wash ms</label><input type="range" id="refuseMs" min="120" max="1600" step="20"><output id="refuseMs-o"></output></div>
         <div class="row"><label for="refuseAlpha">opacity</label><input type="range" id="refuseAlpha" min="0" max="1" step="0.02"><output id="refuseAlpha-o"></output></div>
@@ -219,6 +225,7 @@ import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
 import { planBoard } from '../src/paint.js';
 import { TUNING, SEMANTIC, createClock, gridCellAt } from '../src/juice.js';
 import { layoutFor } from '../src/layout.js';
+import { createMeter } from '../src/meter.js';
 
 // The bench holds one shape on purpose: a slider is judged against a fixed picture,
 // and a panel that reflowed with the window would move while it was being tuned.
@@ -288,6 +295,10 @@ let seed = 1983;
 let depth = 0;
 let level, round, span, prompt, standing, plan, shades;
 
+// The bench never dies -- it is here so the meter's needle can be watched while the
+// kick is tuned, and a wrong click is the only thing that moves it.
+const meter = createMeter();
+
 const replan = (cars) => {
   standing = cars;
   stampRegions(scratchCtx, standing, span, viewOf, field.width, field.height);
@@ -351,6 +362,7 @@ canvas.addEventListener('pointerdown', (event) => {
   if (point[0] > field.width || point[1] > field.height) return;
   const at = clock.tick(scaled);
   const { outcome } = round.choose(point, span, at);
+  if (outcome === 'wrong') meter.take(level.along, at);
   if (outcome === 'found') clock.freeze(scaled, state.hitStopMs);
 });
 
@@ -366,7 +378,7 @@ const frame = (now) => {
   const t0 = performance.now();
   scene.render(ctx, {
     width: field.width, height: field.height, panel: PLACE.panel,
-    standing, plan, shades, span, round, level, prompt, at,
+    standing, plan, shades, span, round, level, prompt, meter, dead: false, at,
   });
   lastPaint = lastPaint * 0.9 + (performance.now() - t0) * 0.1;
   readout.textContent =

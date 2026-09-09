@@ -7,14 +7,25 @@ import { deal, layout } from './board.js';
 import { createRound } from './game.js';
 import { stageAt, RANGE } from './levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
-         createRefuseLayer, createRecessLayer, createPanelLayer, createWipeLayer,
-         stampRegions, wipeFrom, INKS, rgbOf } from './layers.js';
+         createRefuseLayer, createRecessLayer, createOverLayer, createPanelLayer,
+         createWipeLayer, stampRegions, wipeFrom, INKS, rgbOf } from './layers.js';
 import { planBoard } from './paint.js';
 import { TUNING, createClock } from './juice.js';
 import { layoutFor } from './layout.js';
 import { createVoice } from './audio.js';
+import { createMeter } from './meter.js';
 
 const SEED = 1983;
+
+/**
+ * How far a retry's deal is moved from the one it replaces.
+ *
+ * A death hands back the same stage, not the same yard. Replaying the board you just
+ * memorised is a recall exercise and not the search the stage is asking for, so the
+ * attempt is part of what the deal is drawn from -- and the run still reproduces,
+ * because the attempt is counted rather than rolled.
+ */
+const RETRY_STRIDE = 7919;
 
 /**
  * Wire a canvas to a run and start the loop.
@@ -73,6 +84,7 @@ export async function start(canvas, seed = SEED) {
   resize();
 
   let depth = 0;
+  let attempt = 0;
   let level;
   let round;
   let span;
@@ -98,8 +110,9 @@ export async function start(canvas, seed = SEED) {
     level = stageAt(depth);
     // Off the short edge, so a vehicle is the same size in a tall field as a wide one.
     span = Math.min(field.width, field.height) * level.size;
-    const { placed, target, askedAt } = deal(seed + depth, level, views);
-    round = createRound(layout(placed, seed + depth, span, field, proxyFor),
+    const draw = seed + depth + attempt * RETRY_STRIDE;
+    const { placed, target, askedAt } = deal(draw, level, views);
+    round = createRound(layout(placed, draw, span, field, proxyFor),
                         target, viewOf);
     prompt = new Image();
     prompt.src = views.promptFor(target, askedAt ?? views.anglesOf(target)[0]);
@@ -107,6 +120,10 @@ export async function start(canvas, seed = SEED) {
     replan(round.anchors);
   };
   nextLevel();
+
+  // The damage a life can take. It outlives a round on purpose -- it is the run that
+  // is being spent, not the board.
+  const meter = createMeter();
 
   // The wipe is kept rather than added and forgotten, because the loop is what hands
   // it the screen it takes off.
@@ -123,6 +140,7 @@ export async function start(canvas, seed = SEED) {
     .add(createRefuseLayer(viewOf))
     .add(createFindLayer(viewOf))
     .add(createRecessLayer())
+    .add(createOverLayer())
     .add(createPanelLayer(RANGE))
     .add(wipe);
 
@@ -139,25 +157,40 @@ export async function start(canvas, seed = SEED) {
     if (point[0] > field.width || point[1] > field.height) return;
     event.preventDefault();
     const now = performance.now();
-    const { outcome } = round.choose(point, span, clock.tick(now));
+    const at = clock.tick(now);
+
+    // A dead run is owed a board, and the click that says so is not a guess about
+    // this one. The stage is dealt again from a fresh attempt, so the same numbers
+    // come back as a different yard.
+    if (meter.full()) {
+      attempt++;
+      meter.clear();
+      nextLevel();
+      return;
+    }
+
+    const { outcome } = round.choose(point, span, at);
     // Rank is the size of the found set, which this click just grew. The find knows
     // whether it won, because the win is a sound it queues behind itself.
     if (outcome === 'found') {
       clock.freeze(now, TUNING.hitStopMs);
       voice.find(round.found.size, round.wonAt !== null);
     } else {
+      if (outcome === 'wrong') meter.take(level.along, at);
       voice.play(outcome);
     }
   });
 
   const frame = (now) => {
     const at = clock.tick(now);
+    const dead = meter.full();
     // The win plays itself out on the board, and when it has run its two seconds the
     // next level is dealt. Nothing is timed here beyond that. What is on the canvas at
     // that moment is the win's last frame, so the wipe takes the picture first: after
     // this line the state behind it is the new level's.
-    if (round.done(at)) {
+    if (!dead && round.done(at)) {
       depth++;
+      attempt = 0;
       wipe.take(ctx, at, wipeFrom(seed + depth));
       nextLevel();
     }
@@ -179,6 +212,8 @@ export async function start(canvas, seed = SEED) {
       round,
       level,
       prompt,
+      meter,
+      dead,
       at,
     });
     requestAnimationFrame(frame);

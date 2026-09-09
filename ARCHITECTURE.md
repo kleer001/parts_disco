@@ -33,6 +33,7 @@ audio graph -- and neither reads the round; they are handed what to draw and say
 | `src/paint.js` | The colouring, as a map: which regions exist, which share a border, and which ink each one takes. |
 | `src/game.js` | What is being asked for, what a click did about it, and how far through the win the board is. |
 | `src/levels.js` | The difficulty path. Data only. |
+| `src/meter.js` | The run's damage: what a wrong vehicle costs where, and when a life is spent. Pure. |
 | `src/juice.js` | How the board answers: the tuning, the envelopes, and the colours that carry meaning. Pure. |
 | `src/geometry.js` | Polygon containment, for hit-testing. |
 | `src/layout.js` | Where the board and the panel sit, given a viewport. Pure. |
