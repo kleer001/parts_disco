@@ -659,3 +659,47 @@ than read — it fires the real voices against a real loop through the real bus.
 
 **Threaded:** `MIX`, `DUCK`, the `duck` column in `VOICES` and `FIND`, and the desk
 inside `createVoice` in `src/audio.js`; `research/disco-loops/mixer.html`.
+
+### [2026-09-09] The voices are balanced against each other, not chosen one at a time
+
+**Decision:** `BALANCE` in `src/audio.js` declares how loud each sound is meant to be
+against a find, in decibels, and the gains are solved to hit it. The find is the
+reference because it is what the player is hunting for. Loudness is the loudest 50ms,
+K-weighted per ITU-R BS.1770.
+
+**Pressure:** five gains picked by ear are five unrelated numbers. Rendered offline and
+measured, the refusal sat 3.8dB *above* the find and the win 10.3dB above — so the
+sound that costs you shouted over the sound you were listening for, and the win was
+close to twice the perceived loudness of anything else.
+
+**Why the numbers were that far out:** a gain is not a loudness. The three offenders
+are exactly the three whose waveform makes gain a bad proxy — a 135Hz square, a stack
+of sines, and a recorded sample. The two plain sines, `ground` and `again`, barely
+moved when solved, which is the tell.
+
+**Rejected: plain RMS as the measure.** It reads the refusal as quieter than it sounds,
+because most of its energy is at 135Hz where the ear is least sensitive. K-weighting —
+a high shelf at 1681Hz and a high-pass at 38Hz — is what makes a low square and an
+880Hz sine comparable, and it is a standard rather than something invented here.
+
+**Rejected: integrated loudness over each sound's own length.** A 45ms blip and a
+two-second chime are not comparable that way: the chime would measure quiet for being
+mostly decay. The loudest 50ms asks how loud a thing seems at its loudest, and 50ms is
+short enough that the shortest blip nearly fills the window.
+
+**Rejected: leaving the refusal above the find.** There is an argument for it — the
+refusal is what costs you the run. But the wash and the meter already say so, and a
+buzzer that shouts twenty times a stage is what makes a player reach for the mute. It
+sits 2dB under the find, and that is a dial rather than a law.
+
+**What this cost elsewhere:** `buildTone` and `buildFind` came out of `createVoice` to
+module scope, so the thing measured is the thing played. A loudness read off a second
+copy of the arithmetic measures the copy.
+
+**Measured after solving, twice around:** every voice within 0.03dB of its declared
+place. The refusal needed the second pass — a square's loudness is not quite linear in
+its gain through the weighting and the decay envelope together.
+
+**Threaded:** `BALANCE` and the solved gains in `src/audio.js`; `buildTone` and
+`buildFind`; the balance panel in `research/disco-loops/mixer.html`, which re-measures
+the shipped voices against the table.

@@ -31,10 +31,36 @@ export const CHIME = 'assets/sfx/win-chime.mp3';
  * kind of thing from a bend.
  */
 export const VOICES = {
-  ground: { wave: 'sine',   from: 210, to: 165, ms: 70,  gain: 0.030, duck: 0.35 },
-  again:  { wave: 'sine',   from: 330, to: 330, ms: 45,  gain: 0.022, duck: 0.25 },
-  wrong:  { wave: 'square', from: 190, to: 135, ms: 175, gain: 0.070, duck: 1 },
+  ground: { wave: 'sine',   from: 210, to: 165, ms: 70,  gain: 0.0289, duck: 0.35 },
+  again:  { wave: 'sine',   from: 330, to: 330, ms: 45,  gain: 0.0224, duck: 0.25 },
+  wrong:  { wave: 'square', from: 190, to: 135, ms: 175, gain: 0.0343, duck: 1 },
 };
+
+/**
+ * How loud each sound is meant to be against a find, in decibels.
+ *
+ * A gain is not a loudness. A square at 0.07 and a sine at 0.07 are nowhere near each
+ * other, and a recorded chime is a third thing again -- measured, the refusal came out
+ * 3.8dB *above* the find it was supposed to sit under, and the win 10.3dB above.
+ * Picking five gains by ear picks five unrelated numbers.
+ *
+ * So the ordering is declared here and the gains are solved to hit it. The find is the
+ * reference because it is the sound the player is hunting for; everything else is
+ * placed against it:
+ *
+ *   win    the round is over, and it should feel bigger -- but not twice as loud
+ *   wrong  under the find on purpose. The wash and the meter already say it, and a
+ *          buzzer that shouts twenty times a stage is what makes people mute a game
+ *   ground a click on nothing, barely worth a sound
+ *   again  the least informative click there is
+ *
+ * Loudness is the loudest 50ms, K-weighted per ITU-R BS.1770 -- the weighting is what
+ * makes a 135Hz square and an 880Hz sine comparable, and 50ms is short enough that the
+ * 45ms blip fills the window. The balance panel in `research/disco-loops/mixer.html`
+ * measures the shipped voices against this table, and is the thing to re-run when one
+ * of them moves.
+ */
+export const BALANCE = { find: 0, win: 4, wrong: -2, ground: -9, again: -13 };
 
 /**
  * The find, which climbs and never runs out of ladder.
@@ -85,11 +111,58 @@ export const MIX = { master: 1, music: 0.55, sfx: 1 };
  */
 export const DUCK = { depth: 0.65, attackMs: 25, holdMs: 90, releaseMs: 420 };
 
-/** How loud the win sits over the rest. */
-const WIN_GAIN = 0.35;
+/** How loud the win sits over the rest. Solved against `BALANCE`, not chosen. */
+const WIN_GAIN = 0.1699;
 
 /** Below this a partial is inaudible, and an oscillator for it is one nobody hears. */
 const FLOOR = 1e-4;
+
+/**
+ * One bent tone, built into whatever context and wired to whatever it should reach.
+ *
+ * Taken out of the player so the same construction can be rendered offline and
+ * measured. A loudness read off a second copy of this arithmetic measures the copy.
+ */
+export function buildTone(ctx, dest, voice, at) {
+  const secs = voice.ms / 1000;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = voice.wave;
+  osc.frequency.setValueAtTime(voice.from, at);
+  osc.frequency.exponentialRampToValueAtTime(voice.to, at + secs);
+  gain.gain.setValueAtTime(voice.gain, at);
+  gain.gain.exponentialRampToValueAtTime(FLOOR, at + secs);
+  osc.connect(gain).connect(dest);
+  osc.start(at);
+  osc.stop(at + secs);
+  return secs;
+}
+
+/**
+ * One rung of the endless ladder: the partials that are audible at this rank.
+ *
+ * @returns {number} how long it lasts, in seconds.
+ */
+export function buildFind(ctx, dest, rank, at) {
+  const secs = FIND.ms / 1000;
+  const rung = ((rank - 1) * FIND.step) % 1;
+  for (let k = 0; k < FIND.partials; k++) {
+    const x = rung + k;
+    const peak = FIND.gain * gainAt(x);
+    if (peak < FLOOR) continue;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(FIND.bottom * 2 ** x, at);
+    gain.gain.setValueAtTime(FLOOR, at);
+    gain.gain.exponentialRampToValueAtTime(peak, at + FIND.attackMs / 1000);
+    gain.gain.exponentialRampToValueAtTime(FLOOR, at + secs);
+    osc.connect(gain).connect(dest);
+    osc.start(at);
+    osc.stop(at + secs);
+  }
+  return secs;
+}
 
 /**
  * How loud a partial `x` octaves above the bottom of the window is.
@@ -159,20 +232,6 @@ export function createVoice(chimeUrl = CHIME) {
     duck.gain.linearRampToValueAtTime(1, down + (dip.holdMs + dip.releaseMs) / 1000);
   };
 
-  /** One sine, held at a pitch, faded in and rung out. */
-  const partial = (hz, peak, at, secs) => {
-    const osc = ac.createOscillator();
-    const gain = ac.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(hz, at);
-    gain.gain.setValueAtTime(FLOOR, at);
-    gain.gain.exponentialRampToValueAtTime(peak, at + FIND.attackMs / 1000);
-    gain.gain.exponentialRampToValueAtTime(FLOOR, at + secs);
-    osc.connect(gain).connect(sfx);
-    osc.start(at);
-    osc.stop(at + secs);
-  };
-
   return {
     /** Fetch and decode the win. Awaited by `start()`, before the first frame. */
     async load() {
@@ -190,18 +249,7 @@ export function createVoice(chimeUrl = CHIME) {
     play(name) {
       resume();
       const voice = VOICES[name];
-      const at = ac.currentTime;
-      const secs = voice.ms / 1000;
-      const osc = ac.createOscillator();
-      const gain = ac.createGain();
-      osc.type = voice.wave;
-      osc.frequency.setValueAtTime(voice.from, at);
-      osc.frequency.exponentialRampToValueAtTime(voice.to, at + secs);
-      gain.gain.setValueAtTime(voice.gain, at);
-      gain.gain.exponentialRampToValueAtTime(FLOOR, at + secs);
-      osc.connect(gain).connect(sfx);
-      osc.start(at);
-      osc.stop(at + secs);
+      buildTone(ac, sfx, voice, ac.currentTime);
       makeRoom(voice.duck);
     },
 
@@ -279,17 +327,8 @@ export function createVoice(chimeUrl = CHIME) {
     find(rank, last) {
       resume();
       const at = ac.currentTime;
-      const secs = FIND.ms / 1000;
-      // Where the bottom partial stands, in octaves above the window's floor. It
-      // wraps, which is the point: rank 7 is rank 1 and still reads as higher than 6.
       makeRoom(FIND.duck);
-      const rung = ((rank - 1) * FIND.step) % 1;
-      for (let k = 0; k < FIND.partials; k++) {
-        const x = rung + k;
-        const peak = FIND.gain * gainAt(x);
-        if (peak < FLOOR) continue;
-        partial(FIND.bottom * 2 ** x, peak, at, secs);
-      }
+      const secs = buildFind(ac, sfx, rank, at);
       if (last) {
         const source = ac.createBufferSource();
         const gain = ac.createGain();

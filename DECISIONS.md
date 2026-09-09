@@ -167,6 +167,11 @@ it went; it is never a reason to refuse a change he asks for.
   not to bury them is too low to hear. REJECTED: a `DynamicsCompressor` sidechain — a
   scheduled dip on a gain is exact, reproducible and readable, and the compressor
   behaves differently offline than in a browser.
+- **The voices' relative loudness is declared, and their gains are solved to hit
+  it.** REJECTED: choosing five gains by ear — a gain is not a loudness. Measured, the
+  refusal came out 3.8dB *above* the find it was meant to sit under and the win 10.3dB
+  above, because a square, a sine and a recorded sample at the same gain are three
+  different loudnesses.
 - **How far a sound ducks the music is a column in the voice table.** REJECTED: one
   duck for everything — a click on bare ground is not worth the hole a find is worth,
   and the difference is a number per row rather than a branch.

@@ -59,6 +59,15 @@ iframe{width:100%;height:600px;border:1px solid var(--rule);background:#fff;disp
 code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px}
 .miss{background:#FFE6E3;border:1px solid #f0b8b3;padding:11px 13px;margin-bottom:13px;
       font-size:12.5px;color:#842521}
+table{border-collapse:collapse;width:100%;margin-top:11px;font-size:12px}
+th{text-align:right;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;
+   color:var(--ink3);font-weight:700;padding:0 8px 5px;border-bottom:1px solid var(--rule)}
+th:first-child{text-align:left}
+td{padding:5px 8px;font-variant-numeric:tabular-nums;text-align:right;
+   border-bottom:1px solid var(--rule)}
+td:first-child{text-align:left}
+td.off{color:var(--bad);font-weight:600}
+td.near{color:#005C27}
 </style>
 
 <div class="wrap">
@@ -129,6 +138,18 @@ code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px
     </div>
 
     <div class="panel">
+      <h2>Balance</h2>
+      <p class="hint" style="margin:0 0 10px">Each voice rendered offline through the
+      same builders the game plays, K-weighted per ITU-R BS.1770 and read at its
+      loudest 50ms. <b>Want</b> is <code>BALANCE</code> in <code>src/audio.js</code>;
+      <b>got</b> is what the shipped gains actually produce. They should agree within a
+      few tenths of a decibel — a row that has drifted is a gain someone changed
+      without re-solving it.</p>
+      <div class="bar"><button type="button" id="measure">measure the voices</button></div>
+      <table id="balance" hidden></table>
+    </div>
+
+    <div class="panel">
       <h2>Under a real stage</h2>
       <div class="bar">
         <button type="button" id="loadGame">load the board</button>
@@ -143,7 +164,8 @@ code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px
 </div>
 
 <script type="module">
-import { createVoice, MIX, DUCK, VOICES } from '../../src/audio.js';
+import { createVoice, MIX, DUCK, VOICES, FIND, BALANCE,
+         buildTone, buildFind } from '../../src/audio.js';
 
 const AUDIO = '../../tmp/loops/audio/';
 const rows = (await (await fetch('shortlist.json')).json())
@@ -228,6 +250,87 @@ const paint = () => {
   requestAnimationFrame(paint);
 };
 paint();
+
+// ---- the balance panel ---------------------------------------------------
+const SR = 44100;
+
+/** ITU-R BS.1770 K-weighting: a high shelf, then a high-pass. */
+const kWeight = (ctx) => {
+  const shelf = ctx.createBiquadFilter();
+  shelf.type = 'highshelf';
+  shelf.frequency.value = 1681;
+  shelf.gain.value = 4;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 38;
+  hp.Q.value = 0.5;
+  shelf.connect(hp);
+  return { head: shelf, tail: hp };
+};
+
+/** The loudest 50ms of a render, in LUFS. */
+const loudest = (buf) => {
+  const x = buf.getChannelData(0);
+  const w = Math.round(SR * 0.05);
+  let best = 0, sum = 0;
+  for (let i = 0; i < x.length; i++) {
+    sum += x[i] * x[i];
+    if (i >= w) sum -= x[i - w] * x[i - w];
+    if (i >= w && sum > best) best = sum;
+  }
+  return -0.691 + 10 * Math.log10(best / w + 1e-12);
+};
+
+const renderVoice = async (build, seconds) => {
+  const ctx = new OfflineAudioContext(1, Math.ceil(SR * seconds), SR);
+  const k = kWeight(ctx);
+  k.tail.connect(ctx.destination);
+  build(ctx, k.head);
+  return loudest(await ctx.startRendering());
+};
+
+document.getElementById('measure').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  const rows = [];
+  for (const [name, v] of Object.entries(VOICES)) {
+    rows.push({ name, gain: v.gain,
+                got: await renderVoice((c, d) => buildTone(c, d, v, 0), v.ms / 1000 + 0.2) });
+  }
+  rows.push({ name: 'find', gain: FIND.gain,
+              got: await renderVoice((c, d) => buildFind(c, d, 4, 0), FIND.ms / 1000 + 0.2) });
+
+  // The win, through the same weighting at the gain the module ships.
+  const bytes = await (await fetch('../../assets/sfx/win-chime.mp3')).arrayBuffer();
+  const probe = new OfflineAudioContext(1, SR, SR);
+  const chime = await probe.decodeAudioData(bytes);
+  const winGain = 0.1699;
+  const ctx = new OfflineAudioContext(1, Math.ceil(SR * (chime.duration + 0.2)), SR);
+  const k = kWeight(ctx);
+  k.tail.connect(ctx.destination);
+  const src = ctx.createBufferSource();
+  const g = ctx.createGain();
+  g.gain.value = winGain;
+  src.buffer = chime;
+  src.connect(g).connect(k.head);
+  src.start(0);
+  rows.push({ name: 'win', gain: winGain, got: loudest(await ctx.startRendering()) });
+
+  const ref = rows.find((r) => r.name === 'find').got;
+  const table = document.getElementById('balance');
+  table.hidden = false;
+  table.innerHTML = '<tr><th>voice</th><th>gain</th><th>want</th><th>got</th><th>off by</th></tr>'
+    + rows.map((r) => {
+        const want = BALANCE[r.name];
+        const got = r.got - ref;
+        const off = got - want;
+        const cls = Math.abs(off) < 0.5 ? 'near' : 'off';
+        return `<tr><td>${r.name}</td><td>${r.gain}</td>`
+          + `<td>${want > 0 ? '+' : ''}${want.toFixed(1)}</td>`
+          + `<td>${got > 0 ? '+' : ''}${got.toFixed(2)}</td>`
+          + `<td class="${cls}">${off > 0 ? '+' : ''}${off.toFixed(2)} dB</td></tr>`;
+      }).join('');
+  e.target.disabled = false;
+});
 
 document.getElementById('loadGame').addEventListener('click', (e) => {
   const holder = document.getElementById('gameHolder');
