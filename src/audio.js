@@ -128,8 +128,67 @@ export const DUCK = { depth: 0.65, attackMs: 25, holdMs: 90, releaseMs: 420 };
 /** How loud the win sits over the rest. Solved against `BALANCE`, not chosen. */
 export const WIN_GAIN = 0.7509;
 
+/**
+ * How long the loop's tail and head are mixed across, in ms.
+ *
+ * Measured on the four shipped loops: at the wrap each one is a sharper edge than
+ * most of what is inside it -- Funky and Piano sharper than everything, so they tick
+ * once a bar. Blending drops all four into the ordinary run of the track (Funky from
+ * the 100th percentile to the 21st, Piano to the 66th, Disco 77th to 51st, Techno-ish
+ * 63rd to 31st). Twelve milliseconds is under a hi-hat and long enough to have no
+ * step left in it; past that nothing improves, because what is being smoothed is a
+ * single-sample jump.
+ */
+export const LOOP_CROSSFADE_MS = 12;
+
 /** Below this a partial is inaudible, and an oscillator for it is one nobody hears. */
 const FLOOR = 1e-4;
+
+/**
+ * Cut the loop out of a decoded file and blend the join shut.
+ *
+ * A `loopStart`/`loopEnd` on the source is a hard splice: the last sample of the bar
+ * is followed by the first, and wherever those two do not meet the wrap is a step
+ * that no music covers. So the loop is rendered once instead, and its head is mixed
+ * under an equal-power pair with what the file does *after* `endSec` -- the take
+ * carrying on past the bar, which is exactly the sound the wrap interrupts. Fading
+ * the head up from what comes *before* `startSec` is the version that looks right and
+ * is not: at the head of a file there is nothing there, so the loop fades in from
+ * silence and the tick becomes a hole.
+ *
+ * Blending forwards is also what keeps the loop its stated length. Shortening it by
+ * the fade is the other way round and drags the pulse forward by that much on every
+ * repeat, which is the drift the bar-aligned trim exists to prevent.
+ *
+ * @param {BaseAudioContext} ctx - what the buffer is made in
+ * @param {AudioBuffer} buffer - the whole decoded file
+ * @param {{startSec?: number, endSec?: number}} trim - the bar-aligned loop
+ * @returns {AudioBuffer} the loop, joined, to be played whole
+ */
+export function buildLoop(ctx, buffer, { startSec = 0, endSec = buffer.duration } = {}) {
+  const rate = buffer.sampleRate;
+  const from = Math.round(startSec * rate);
+  const to = Math.round(endSec * rate);
+  const fade = Math.round((LOOP_CROSSFADE_MS / 1000) * rate);
+  if (to + fade > buffer.length) {
+    // A boundary: the trim is data, and one cut this close to the end of the file has
+    // nothing left to blend with. Silently skipping the fade would ship the tick.
+    throw new Error(`loop ends ${((buffer.length - to) / rate * 1000).toFixed(0)}ms `
+      + `before the file does, and the join needs ${LOOP_CROSSFADE_MS}ms`);
+  }
+  const out = ctx.createBuffer(buffer.numberOfChannels, to - from, rate);
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const src = buffer.getChannelData(ch);
+    const dst = out.getChannelData(ch);
+    dst.set(src.subarray(from, to));
+    for (let i = 0; i < fade; i++) {
+      // Equal power, so the level holds across the join instead of dipping through it.
+      const t = ((i / fade) * Math.PI) / 2;
+      dst[i] = dst[i] * Math.sin(t) + src[to + i] * Math.cos(t);
+    }
+  }
+  return out;
+}
 
 /**
  * One bent tone, built into whatever context and wired to whatever it should reach.
@@ -272,7 +331,9 @@ export function createVoice(chimeUrl = CHIME) {
      *
      * The trim is the loop's, not the file's: a candidate is rarely cut to a whole
      * bar, and coming round a few tens of milliseconds early drags the pulse forward
-     * on every repeat. Passing the bar-aligned points is what stops that.
+     * on every repeat. Passing the bar-aligned points is what stops that. The loop is
+     * cut out and its join blended by `buildLoop`, so the whole buffer is the loop and
+     * the source needs no loop points of its own.
      *
      * `gain` is the loop's own, not the fader's: published loops vary by more than ten
      * decibels, so without one the music fader means a different thing per track --
@@ -290,17 +351,15 @@ export function createVoice(chimeUrl = CHIME) {
       if (!url) return;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`cannot load ${url} (${res.status})`);
-      const buffer = await ac.decodeAudioData(await res.arrayBuffer());
+      const buffer = buildLoop(ac, await ac.decodeAudioData(await res.arrayBuffer()), trim);
       resume();
       loop = ac.createBufferSource();
       loop.buffer = buffer;
       loop.loop = true;
-      loop.loopStart = trim.startSec ?? 0;
-      loop.loopEnd = trim.endSec ?? buffer.duration;
       const trackGain = ac.createGain();
       trackGain.gain.value = trim.gain ?? 1;
       loop.connect(trackGain).connect(music);
-      loop.start(0, loop.loopStart);
+      loop.start();
       return buffer;
     },
 

@@ -68,8 +68,13 @@ code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px
   measurements but not derived from them; the reasoning is written out on each card so
   you can disagree with it.</p>
   <p class="lede">All four play <b>trimmed to whole bars</b> by default, because none of
-  them was cut to one. Two of them tick at the join, and the crossfade switch is what
-  that costs to fix — turn it off to hear what you would be shipping without it.</p>
+  them was cut to one. All four tick at that trim, so the crossfade switch is on — turn
+  it off to hear what you would be shipping without it.</p>
+  <p class="lede">The <b>step at the file's wrap</b> below is the end of the whole file
+  meeting its start, which is a join none of these ever plays. Measured at the trim
+  instead — the wrap the game does play — the step is sharper than 100% of the track's
+  own movement in Funky and Piano, 77% in Disco and 63% in Techno-ish. Read the number
+  as a property of the download, not of the loop.</p>
   <p class="lede">A correction on the earlier page: it called all four of these
   <em>fades out</em>. That was wrong. It compared the last 100ms against the first,
   which misreads any loop that leaves air before a downbeat. Measured over a fifth of
@@ -99,6 +104,8 @@ in this directory put it there.</p>
 </div>
 
 <script type="module">
+import { buildLoop } from '../../src/audio.js';
+
 const AUDIO = '../../tmp/loops/audio/';
 const rows = (await (await fetch('shortlist.json')).json())
   // Best first: how well it loops is fixable, how well it fits is not, so the fit
@@ -113,29 +120,13 @@ let playing = null;
 const pips = (n) => `<span class="on">${'●'.repeat(n)}</span>`
                   + `<span class="off">${'●'.repeat(5 - n)}</span>`;
 
-/** Slice the trim out and crossfade the head over the tail, so the wrap has no step. */
-function prepare(buf, { start, end, fadeMs }) {
-  const from = Math.round(start * buf.sampleRate);
-  const to = Math.round(end * buf.sampleRate);
-  const fade = Math.min(Math.round((fadeMs / 1000) * buf.sampleRate),
-                        Math.floor((to - from) / 4));
-  const len = to - from;
-  const out = ac.createBuffer(buf.numberOfChannels, len, buf.sampleRate);
+/** The trim, cut out and left spliced -- what the join sounds like unhelped. */
+function slice(buf, { startSec, endSec }) {
+  const from = Math.round(startSec * buf.sampleRate);
+  const to = Math.round(endSec * buf.sampleRate);
+  const out = ac.createBuffer(buf.numberOfChannels, to - from, buf.sampleRate);
   for (let ch = 0; ch < buf.numberOfChannels; ch++) {
-    const src = buf.getChannelData(ch);
-    const dst = out.getChannelData(ch);
-    dst.set(src.subarray(from, to));
-    if (fade > 0) {
-      // The tail is mixed into the head under an equal-power pair, which is what keeps
-      // the level steady across the join instead of dipping through it.
-      for (let i = 0; i < fade; i++) {
-        const t = i / fade;
-        const a = Math.cos(t * Math.PI / 2);
-        const b = Math.sin(t * Math.PI / 2);
-        const before = src[from - fade + i] ?? 0;
-        dst[i] = dst[i] * b + before * a;
-      }
-    }
+    out.getChannelData(ch).set(buf.getChannelData(ch).subarray(from, to));
   }
   return out;
 }
@@ -183,11 +174,13 @@ async function start(row, card) {
   if (same) return;
   if (ac.state === 'suspended') await ac.resume();
   const raw = await bufferFor(row);
-  const trimmed = card.querySelector('.trimmed').checked;
-  const fadeMs = card.querySelector('.cross').checked ? 12 : 0;
-  const buf = trimmed && row.trim
-    ? prepare(raw, { start: row.trim.startSec, end: row.trim.endSec, fadeMs })
-    : (fadeMs ? prepare(raw, { start: 0, end: raw.duration, fadeMs }) : raw);
+  // The blend needs the take carrying on past the trim, so it only means anything on
+  // a trimmed loop: the whole file has nothing after its own end.
+  const trimmed = card.querySelector('.trimmed').checked && !!row.trim;
+  const cross = card.querySelector('.cross').checked;
+  const buf = !trimmed ? raw
+    : cross ? buildLoop(ac, raw, row.trim)
+    : slice(raw, row.trim);
 
   drawJoin(card.querySelector('canvas'), buf);
   const source = ac.createBufferSource();
@@ -224,7 +217,7 @@ for (const r of rows) {
       <div><div class="k">tempo</div><div class="v">${r.bpm} <small>bpm</small></div></div>
       <div><div class="k">trimmed to</div><div class="v">${r.trim.bars} <small>bars · ${r.trim.lengthSec}s</small></div></div>
       <div><div class="k">length was off by</div><div class="v ${grade(Math.abs(r.barFit.offMs), 10, 60)}">${Math.abs(r.barFit.offMs)} <small>ms</small></div></div>
-      <div><div class="k">step at the join</div><div class="v ${grade(r.joinPercentile, 60, 90)}">${r.joinPercentile}<small>%</small></div></div>
+      <div><div class="k">step at the file's wrap</div><div class="v ${grade(r.joinPercentile, 60, 90)}">${r.joinPercentile}<small>%</small></div></div>
       <div><div class="k">fade over the track</div><div class="v ok">${r.fadeRatio}</div></div>
       <div><div class="k">brightness</div><div class="v">${r.brightnessHz} <small>Hz</small></div></div>
       <div><div class="k">level swing</div><div class="v">${r.swingDb} <small>dB</small></div></div>
@@ -237,7 +230,7 @@ for (const r of rows) {
 
     <div class="opts">
       <label><input type="checkbox" class="trimmed" checked> trimmed to whole bars</label>
-      <label><input type="checkbox" class="cross" ${r.joinPercentile > 60 ? 'checked' : ''}> 12ms crossfade at the join</label>
+      <label><input type="checkbox" class="cross" checked> 12ms crossfade at the join</label>
     </div>
 
     <p class="why"><b>Loops:</b> ${r.loopWhy}</p>

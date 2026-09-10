@@ -198,6 +198,15 @@ it went; it is never a reason to refuse a change he asks for.
   context may be built suspended and decoded into, so doing it up front removes the
   race in which a one-click level wins before its sound has finished decoding, and
   with it the null check that race would need.
+- **A music loop is rendered once with its join blended forward, not played through
+  `loopStart`/`loopEnd`.** REJECTED: the source's own loop points — a hard splice, and
+  measured at the trim every one of the four shipped tracks is a sharper edge there
+  than most of what is inside it, Funky and Piano sharper than all of it. REJECTED:
+  blending the head up from what comes *before* `startSec` — at the head of a file
+  there is nothing there, so the loop fades in from silence and the tick becomes a
+  hole (Funky, -2.5dB across the wrap). REJECTED: shortening the loop by the fade and
+  folding its own tail over its head — it drags the pulse forward by the fade on every
+  repeat, which is the drift the bar-aligned trim exists to prevent.
 - **A hit stop belongs to the clock.** REJECTED: each effect holding its own timer —
   a hold has to stop the whole board, and effects that each freeze themselves drift
   apart the moment two overlap.

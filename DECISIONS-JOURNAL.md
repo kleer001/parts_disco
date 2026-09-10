@@ -784,3 +784,30 @@ file that also holds an argument.
 
 **Threaded:** `src/options.js` and `src/music.js`; the `.opts-*` rules in `styles.css`;
 the one `createOptions` call in `src/main.js`; `assets/music/`.
+
+### [2026-09-10] A music loop is rendered once, with its join blended forward
+**Decision:** `buildLoop` in `src/audio.js` cuts the bar-aligned trim out of the decoded
+file and mixes the loop's head, under an equal-power pair over 12ms, with what the file
+does *after* `endSec`. `setMusic` plays that buffer whole; the source carries no loop
+points. A trim with less than 12ms of file left after it is refused rather than spliced.
+**Why:** `loopStart`/`loopEnd` is a hard splice, and the trim is where the splice lands —
+not the end of the file. Measured at the trim as a percentile of each track's own
+sample-to-sample movement, the wrap is sharper than 100% of Funky, 100% of Piano, 77% of
+Disco and 63% of Techno-ish. Blending forward drops those to 21%, 66%, 51% and 31%, and
+the sample-value step across the join falls by roughly 25× on the two worst. The material
+after `endSec` is the take carrying on past the bar, which is exactly the sound the wrap
+interrupts, and using it leaves the loop its stated length.
+**Rejected:** blending the head up from what comes *before* `startSec`, which is what
+`research/disco-loops/shortlist.html` did — three of the four trims start at or within
+6ms of the file's head, so there is nothing there to blend with and the loop fades in
+from silence. It closes no step and digs a hole: Funky lost 2.5dB across the wrap.
+Rejected: shortening the loop by the fade and folding its own tail over its head — the
+classic, and the best number of the three on two tracks, but it drags the pulse forward
+12ms on every repeat, which is the drift the bar-aligned trim exists to prevent.
+**Caught while doing it:** `shortlist.py`'s `joinPercentile` measures the *untrimmed*
+file's wrap — the end of the download meeting its start — which is a join nothing plays.
+It is what said Funky (46.5%) and Techno-ish (10.4%) loop cleanly and only two tracks
+needed help. At the trim all four need it. The number is still on the cards, relabelled
+as a property of the download; `shortlist.py` still computes the old one.
+**Threaded:** `buildLoop` and `LOOP_CROSSFADE_MS` in `src/audio.js`, used by `setMusic`
+there and by `research/disco-loops/shortlist.html`; `tests/audio.test.js`.
