@@ -1,0 +1,337 @@
+<meta charset="utf-8">
+<title>parts disco — what does a moving board cost?</title>
+<style>
+:root{--paper:#E7E2D8;--panel:#F4F2ED;--sunk:#DCD7CB;--ink1:#1A1A1A;--ink2:#54514A;
+      --ink3:#8A857A;--rule:#C6C0B2}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink1);
+     font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 22px 70px}
+header{border-bottom:2px solid var(--ink1);padding-bottom:15px;margin-bottom:18px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.17em;text-transform:uppercase;
+         color:var(--ink3)}
+h1{font-size:28px;font-weight:600;margin:6px 0 0;line-height:1.1}
+.lede{margin:9px 0 0;max-width:78ch;color:var(--ink2);line-height:1.6}
+.cols{display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--rule);padding:13px}
+h2{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+   margin:0 0 9px;color:var(--ink1)}
+.row{display:grid;grid-template-columns:74px 1fr 44px;align-items:center;gap:7px;
+     margin-bottom:6px;font-size:11.5px;color:var(--ink2)}
+.row input{width:100%}
+.row output{text-align:right;font-variant-numeric:tabular-nums;font-size:10.5px}
+button{font:inherit;font-size:11.5px;padding:5px 9px;background:#fff;
+       border:1px solid var(--rule);border-radius:3px;cursor:pointer}
+button:hover{border-color:var(--ink1)}
+button.on{background:var(--ink1);color:var(--paper);border-color:var(--ink1)}
+.bar{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px}
+canvas{display:block;width:100%;height:auto;border:1px solid var(--rule);
+       background:#fff}
+table{border-collapse:collapse;width:100%;margin-top:14px;font-size:12.5px}
+th,td{text-align:left;padding:5px 9px;border-bottom:1px solid var(--rule)}
+th{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+.verdict{margin-top:14px;padding:12px 14px;border:1px solid var(--rule);
+         background:var(--panel);line-height:1.6;font-size:13px}
+.readout{margin-top:9px;font-size:12px;color:var(--ink2);
+         font-variant-numeric:tabular-nums}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">parts disco · dev</p>
+  <h1>What does a moving board cost?</h1>
+  <p class="lede">The still board is cached and blitted, which is why it costs 0.22ms a
+  frame at any density. A conveyor belt takes that away — or looks like it does. This
+  measures three ways of drawing a moving board so the choice is made on numbers rather
+  than on the one figure that killed the idea last time.</p>
+  <p class="lede"><strong>Redrawn</strong> strokes every visible vehicle every frame,
+  ground and all — the obvious way, and the one the 14fps figure came from.
+  <strong>Strip</strong> renders the board once into a long canvas and blits it at an
+  offset, which is what a scrolling game has always done. <strong>Strip, snapped</strong>
+  is the same with the offset rounded to whole pixels: a one-pixel unantialiased line
+  cannot move a third of a pixel, so an unsnapped blit resamples the linework every
+  frame and a snapped one copies it exactly.</p>
+</header>
+
+<div class="cols">
+  <div>
+    <div class="panel">
+      <h2>How</h2>
+      <div class="bar">
+        <button data-mode="redraw">Redrawn</button>
+        <button data-mode="strip">Strip</button>
+        <button data-mode="snapped" class="on">Strip, snapped</button>
+      </div>
+      <h2>Which way</h2>
+      <div class="bar">
+        <button data-dir="0" class="on">← R2L</button>
+        <button data-dir="1">→ L2R</button>
+        <button data-dir="2">↓ U2D</button>
+        <button data-dir="3">↑ D2U</button>
+      </div>
+      <h2>Belt</h2>
+      <div class="row"><label for="cars">vehicles</label>
+        <input type="range" id="cars" min="6" max="160" step="2" value="40">
+        <output id="cars-o">40</output></div>
+      <div class="row"><label for="size">size</label>
+        <input type="range" id="size" min="10" max="50" step="1" value="30">
+        <output id="size-o">30%</output></div>
+      <div class="row"><label for="speed">px / sec</label>
+        <input type="range" id="speed" min="0" max="900" step="10" value="220">
+        <output id="speed-o">220</output></div>
+      <div class="row"><label for="inks">inks</label>
+        <input type="range" id="inks" min="1" max="8" step="1" value="6">
+        <output id="inks-o">6</output></div>
+      <div class="bar" style="margin-top:10px">
+        <button id="sweep">Sweep all three</button>
+      </div>
+      <div class="readout" id="readout"></div>
+    </div>
+  </div>
+  <div>
+    <canvas id="screen"></canvas>
+    <div id="out"></div>
+  </div>
+</div>
+
+<script type="module">
+import { deal, layout } from '../src/board.js';
+import { stageAt } from '../src/levels.js';
+import { stampRegions, createPaperLayer, INKS, rgbOf, ring, inkStroke,
+         PAPER_RGB } from '../src/layers.js';
+import { planBoard } from '../src/paint.js';
+import { loadViews, proxyOf } from '../src/views.js';
+
+// One fixed shape, because a number measured on a resizing canvas is not comparable
+// with the next one.
+const W = 900, H = 620;
+// How much longer than the screen the strip is. The belt has to hold what is coming
+// as well as what is on, and a strip shorter than two screens wraps visibly.
+const STRIP = 2;
+
+const DIRS = [
+  { name: 'R2L', ax: 'x', sign: -1 }, { name: 'L2R', ax: 'x', sign: 1 },
+  { name: 'U2D', ax: 'y', sign: 1 },  { name: 'D2U', ax: 'y', sign: -1 },
+];
+
+const views = await loadViews('../assets/views');
+const viewOf = (slot) => views.view(slot.model, slot.angle);
+const proxies = new Map();
+const proxyFor = (slot) => {
+  const key = `${slot.model}/${slot.angle}`;
+  if (!proxies.has(key)) proxies.set(key, proxyOf(viewOf(slot)));
+  return proxies.get(key);
+};
+
+const canvas = document.getElementById('screen');
+canvas.width = W; canvas.height = H;
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const paper = createPaperLayer();
+
+const state = { mode: 'snapped', dir: 0, cars: 40, size: 0.30, speed: 220, inks: 6 };
+
+let strip = null;        // the pre-rendered belt
+let anchors = [];        // where its vehicles stand, in strip coordinates
+let stripW = 0, stripH = 0;
+let span = 0;
+
+/** Lay a belt out and, for the strip modes, render it once. */
+function build() {
+  const along = DIRS[state.dir].ax === 'x';
+  stripW = along ? W * STRIP : W;
+  stripH = along ? H : H * STRIP;
+  span = Math.min(W, H) * state.size;
+
+  const field = { x: 0, y: 0, width: stripW, height: stripH };
+  const level = { ...stageAt(0), cars: state.cars, inks: state.inks,
+                  size: state.size, fleet: stageAt(15).fleet };
+  const { placed } = deal(20260910, level, views);
+  anchors = layout(placed, 20260910, span, field, proxyFor);
+
+  strip = document.createElement('canvas');
+  strip.width = stripW; strip.height = stripH;
+  const g = strip.getContext('2d', { willReadFrequently: true });
+
+  // The ground is the expensive half and the reason a moving board looked impossible:
+  // it is a per-pixel colouring of the whole field, not a fill.
+  const scratch = document.createElement('canvas');
+  scratch.width = stripW; scratch.height = stripH;
+  const sg = scratch.getContext('2d', { willReadFrequently: true });
+  stampRegions(sg, anchors, span, viewOf, stripW, stripH);
+  const stamp = sg.getImageData(0, 0, stripW, stripH).data;
+  const plan = planBoard(stamp, stripW, stripH, anchors.length, state.inks);
+  const shades = INKS.slice(0, state.inks).map(rgbOf);
+
+  const img = g.createImageData(stripW, stripH);
+  const out = img.data;
+  for (let i = 0, p = 0; i < out.length; i += 4, p++) {
+    const region = stamp[i] + stamp[i + 1] === 255 ? stamp[i] : -1;
+    const rgb = region < 0 ? PAPER_RGB
+      : region < anchors.length ? shades[plan.ink[region] ?? 0] : PAPER_RGB;
+    out[i] = rgb[0]; out[i + 1] = rgb[1]; out[i + 2] = rgb[2]; out[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  inkStroke(g);
+  for (const anchor of anchors) {
+    for (const points of viewOf(anchor.slot).strokes) {
+      ring(g, anchor, points, span);
+      g.stroke();
+    }
+  }
+}
+
+/**
+ * Make the browser finish what it has been told to do.
+ *
+ * Canvas2D hands work to the GPU and returns, so a timer wrapped around `drawImage`
+ * measures how long it took to *ask*. Reading one pixel back cannot be answered until
+ * the drawing has actually happened, which is what turns the ask into a measurement.
+ * Without it the strip modes read as 0.00ms, which is not a fast number -- it is no
+ * number at all.
+ */
+function flush() {
+  ctx.getImageData(0, 0, 1, 1);
+}
+
+/** Draw one frame at a given offset, and return what it cost in ms. */
+function drawAt(offset, measured = false) {
+  const t0 = performance.now();
+  const { ax, sign } = DIRS[state.dir];
+  const along = ax === 'x';
+  const len = along ? stripW : stripH;
+  // Where the strip sits this frame, wrapped so it tiles.
+  let shift = (sign * offset) % len;
+  if (shift > 0) shift -= len;
+
+  if (state.mode === 'redraw') {
+    // No cache at all: colour the ground with a fill and stroke every vehicle.
+    paper.draw(ctx, { width: W, height: H });
+    inkStroke(ctx);
+    for (const anchor of anchors) {
+      const moved = { ...anchor,
+        cx: anchor.cx + (along ? shift : 0), cy: anchor.cy + (along ? 0 : shift) };
+      for (const wrap of [0, len]) {
+        const cx = moved.cx + (along ? wrap : 0);
+        const cy = moved.cy + (along ? 0 : wrap);
+        if (cx < -span || cx > W + span || cy < -span || cy > H + span) continue;
+        const at = { ...moved, cx, cy };
+        ctx.fillStyle = INKS[anchor.slot.model.length % state.inks];
+        for (const points of viewOf(anchor.slot).silhouette) {
+          ring(ctx, at, points, span); ctx.fill();
+        }
+        inkStroke(ctx);
+        for (const points of viewOf(anchor.slot).strokes) {
+          ring(ctx, at, points, span); ctx.stroke();
+        }
+      }
+    }
+  } else {
+    const s = state.mode === 'snapped' ? Math.round(shift) : shift;
+    ctx.clearRect(0, 0, W, H);
+    if (along) {
+      ctx.drawImage(strip, s, 0);
+      ctx.drawImage(strip, s + len, 0);
+    } else {
+      ctx.drawImage(strip, 0, s);
+      ctx.drawImage(strip, 0, s + len);
+    }
+  }
+  if (measured) flush();
+  return performance.now() - t0;
+}
+
+/* ---- the live view -------------------------------------------------------- */
+let offset = 0, last = null, cost = 0;
+const readout = document.getElementById('readout');
+
+function frame(now) {
+  if (last === null) last = now;
+  offset += (state.speed * (now - last)) / 1000;
+  last = now;
+  cost = cost * 0.9 + drawAt(offset, true) * 0.1;
+  readout.textContent =
+    `${DIRS[state.dir].name} · ${state.cars} vehicles · ${cost.toFixed(2)}ms a frame`
+    + ` · a 60fps budget is 16.7ms`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---- controls ------------------------------------------------------------- */
+const bind = (id, key, scale = 1, fmt = (v) => v) => {
+  const el = document.getElementById(id), out = document.getElementById(`${id}-o`);
+  el.addEventListener('input', () => {
+    state[key] = Number(el.value) * scale;
+    out.textContent = fmt(el.value);
+    build();
+  });
+};
+bind('cars', 'cars');
+bind('size', 'size', 0.01, (v) => `${v}%`);
+bind('speed', 'speed');
+bind('inks', 'inks');
+
+for (const b of document.querySelectorAll('[data-mode]')) {
+  b.addEventListener('click', () => {
+    state.mode = b.dataset.mode;
+    for (const o of document.querySelectorAll('[data-mode]')) o.classList.toggle('on', o === b);
+  });
+}
+for (const b of document.querySelectorAll('[data-dir]')) {
+  b.addEventListener('click', () => {
+    state.dir = Number(b.dataset.dir);
+    for (const o of document.querySelectorAll('[data-dir]')) o.classList.toggle('on', o === b);
+    build();
+  });
+}
+
+/* ---- the sweep ------------------------------------------------------------ */
+// A slider reading is a moving average on whatever the browser felt like doing. This
+// times a fixed number of frames per cell instead, with the offset advanced by hand so
+// no two runs differ in how far they moved.
+document.getElementById('sweep').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  const was = { ...state };
+  const rows = [];
+  const FRAMES = 90;
+  for (const cars of [20, 40, 80, 120, 160]) {
+    state.cars = cars;
+    build();
+    const row = { cars };
+    for (const mode of ['redraw', 'strip', 'snapped']) {
+      state.mode = mode;
+      drawAt(0, true);                             // warm it, then measure
+      let total = 0;
+      for (let i = 0; i < FRAMES; i++) total += drawAt(i * 3.7, true);
+      row[mode] = total / FRAMES;
+    }
+    rows.push(row);
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  Object.assign(state, was);
+  build();
+
+  const worst = rows[rows.length - 1];
+  document.getElementById('out').innerHTML = `
+    <table>
+      <tr><th>vehicles</th><th class="n">redrawn</th><th class="n">strip</th>
+          <th class="n">strip, snapped</th></tr>
+      ${rows.map((r) => `<tr><td>${r.cars}</td>
+        <td class="n">${r.redraw.toFixed(2)}ms</td>
+        <td class="n">${r.strip.toFixed(2)}ms</td>
+        <td class="n">${r.snapped.toFixed(2)}ms</td></tr>`).join('')}
+    </table>
+    <div class="verdict">At ${worst.cars} vehicles, redrawing costs
+      <strong>${worst.redraw.toFixed(2)}ms</strong> a frame and blitting a snapped strip
+      costs <strong>${worst.snapped.toFixed(2)}ms</strong> —
+      ${(worst.redraw / Math.max(worst.snapped, 0.01)).toFixed(0)}× apart. A 60fps frame
+      is 16.7ms. Both figures are taken with the pipeline flushed, so they are work
+      done rather than work queued.
+      The strip does not care how many vehicles are on it, because it is one copy
+      either way; that is the whole difference.</div>`;
+  e.target.disabled = false;
+});
+
+build();
+</script>

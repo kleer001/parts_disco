@@ -198,12 +198,23 @@ it went; it is never a reason to refuse a change he asks for.
   `dev/reachability.html` re-runs the sweep, and it is the thing to re-run whenever
   density moves.
 
-- **The board holds still.** REJECTED: a drifting board — the pile is already
-  segmented by outline rather than by motion, and holding still is what lets the board
-  layer cache a bitmap and blit it while every effect draws over the top. Drifting
-  would have taken the cached board with it, and Canvas2D with it: measured, a moving
-  board at this density is 14fps, against 0.06ms a frame for a WebGL spike. The
-  measurements are kept in `research/WEBGL-RENDERER.md`; the spike is not.
+- **The board holds still in the sixteen-stage game.** REJECTED: a drifting board —
+  the pile is already segmented by outline rather than by motion, and holding still is
+  what lets the board layer cache a bitmap and blit it while every effect draws over
+  the top. Independent drift would take the cached board with it, and Canvas2D with
+  it: measured, redrawing 120 vehicles a frame is 78.5ms, about 13fps.
+- **A belt is not drift, and it costs what standing still costs.** Measured on
+  `dev/belt.html`: a board pre-rendered into a strip and blitted at a whole-pixel
+  offset is 0.23ms a frame and does not change with density — 0.25ms at 120 vehicles,
+  0.23ms at 160 — against 78.5ms for redrawing the same board. Rigid motion keeps the
+  cache; only independent motion loses it. REJECTED: reading the drift measurement as
+  a ban on all motion, and REJECTED: the WebGL renderer that finding implied — the
+  numbers are kept in `research/WEBGL-RENDERER.md` if anything ever needs it.
+- **A moving board's offset is rounded to whole pixels.** Measured: 0.23ms snapped
+  against 1.31ms unsnapped, five times apart, because a snapped blit is a copy and an
+  unsnapped one resamples. It is also the fix for line shimmer — a one-pixel
+  unantialiased line cannot move a third of a pixel, and a quarter-pixel move relocates
+  28% of the ink.
 
 - **A part's position is solved from t, not stepped.** REJECTED: integrating velocity
   each frame — a closed form lets a whole bounce cycle be searched offline for whether

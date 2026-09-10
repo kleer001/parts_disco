@@ -953,3 +953,30 @@ the seed everything it is worth. Rejected: leaving it unmeasured, since the dens
 the one thing most likely to move.
 **Threaded:** `dev/reachability.html`; `stampRegions` in `src/layers.js`; `pick` in
 `src/game.js`.
+
+### [2026-09-10] A conveyor belt costs what a still board costs
+**Decision:** a moving board is drawn by pre-rendering it into a strip and blitting the
+strip at a whole-pixel offset, not by redrawing the vehicles each frame. `dev/belt.html`
+is the bench the numbers come from and the one to re-run if the approach changes.
+**Why:** the sixteen-stage game holds still, and the measurement behind that ruling —
+a moving board being unaffordable on Canvas2D — was taken by redrawing every vehicle
+every frame. That is one way to move a board and it is the expensive one. Measured with
+the pipeline flushed, redrawing costs 12.5ms at 20 vehicles and 110ms at 160, so the
+old finding holds for what it actually measured. A strip blit costs 1.31ms and does not
+move with density at all, because it is one copy either way. Snapping the offset to
+whole pixels takes that to 0.23ms — the same as the still board's 0.22ms — because a
+snapped blit is a memory copy and an unsnapped one resamples every pixel.
+**What this overturns:** the reading that a moving board needs the WebGL renderer. It
+does not; it needs the cache kept rather than thrown away. Rigid motion moves every
+vehicle by the same offset, so the cached picture is still the right picture, just
+somewhere else. Only independent per-vehicle drift loses the cache, and that is the
+thing the still-board ruling is actually about.
+**Also settled by the same trick:** line shimmer. A quarter-pixel move relocates 28% of
+the ink because a one-pixel unantialiased line cannot move a third of a pixel. A
+whole-pixel offset never asks it to.
+**Caught while doing it:** the first sweep read 0.00ms for both strip modes. Canvas2D
+queues work and returns, so a timer around `drawImage` measures how long it took to
+ask. Reading one pixel back forces the drawing to have happened; every figure above is
+taken with that flush, and the studio's standing warning about frames per second in a
+headless browser is the same mistake wearing a different hat.
+**Threaded:** `dev/belt.html`.
