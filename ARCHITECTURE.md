@@ -44,6 +44,7 @@ audio graph -- and neither reads the round; they are handed what to draw and say
 | `src/music.js` | What can play under the board: the loops, their bar-aligned trim, and the gain that brings each to the same bed. Data only. |
 | `src/options.js` | The options panel. The one part of the game that is HTML rather than canvas. |
 | `src/title.js` | The screen the game opens on, and the cover the fleet loads behind. Draws only. |
+| `src/belt.js` | Endless: the yard on a conveyor. Sections are dealt, rendered once and blitted at a whole-pixel offset; tags go over the top. |
 | `src/run.js` | A run: the stage it stands on, the board it dealt, and the damage taken so far. What the game and the juice bench both drive, so the bench tunes against the board that ships. |
 | `src/main.js` | Loads the fleet, wires the loop, and raises the options panel. |
 

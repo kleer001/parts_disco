@@ -127,6 +127,30 @@ it went; it is never a reason to refuse a change he asks for.
   equal-lightness ramp with hue carrying the meaning — measured, it puts green and red
   0.021 apart in OKLab under simulated deuteranopia, which is the same colour.
 
+## Endless
+
+- **Endless is its own loop, not a flag through the campaign's.** REJECTED: one loop
+  serving both — they share a fleet, a voice and a hit test and agree on nothing else,
+  and a loop that served both would carry a mode flag down every line of it.
+- **The belt is pre-rendered in sections and blitted; tags are drawn over the top.**
+  REJECTED: redrawing the vehicles each frame, at 78ms for 120 of them. A section is a
+  picture taken before the click landed, so what a player has answered cannot be baked
+  into it — the overlay costs what they have earned rather than what is on screen.
+- **Each section is coloured on its own.** REJECTED: constraining a new section
+  against the ink already on screen at the join — two grounds meeting at a seam can
+  share an ink, and inside a section, where the player is actually working, the map
+  rule holds exactly.
+- **Vehicle centres are inset by half a span from a section's edges**, so nothing is
+  cut in half by the edge of its own canvas. The cost is a band at each seam where
+  centres thin out; art still reaches across from both sides, so the join stays
+  covered. Drawing the ground and the vehicles as separate layers would remove the
+  band and needs the hit test to follow the overhang.
+- **Speed climbs with the clock and density steps with the wave.** REJECTED: moving
+  both on one schedule — two dials on two schedules is what lets a player tell which
+  one is beating them.
+- **Every wrong vehicle costs the same on the belt.** REJECTED: the campaign's falling
+  price — that curve exists because the path has an end, and a belt does not.
+
 ## The opening screen
 
 - **The title screen is the loading screen.** REJECTED: a progress bar or a splash

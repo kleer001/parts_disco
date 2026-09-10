@@ -980,3 +980,28 @@ ask. Reading one pixel back forces the drawing to have happened; every figure ab
 taken with that flush, and the studio's standing warning about frames per second in a
 headless browser is the same mistake wearing a different hat.
 **Threaded:** `dev/belt.html`.
+
+### [2026-09-10] Endless: the yard on a conveyor
+**Decision:** `src/belt.js` runs a belt in one of four directions drawn from the seed,
+in two-minute waves. Speed climbs continuously with the clock; density, size, ink count
+and fleet tier step at each wave. Every wrong vehicle costs one unit of the same
+ten-unit meter the campaign uses, and it is not wiped between waves, so a run ends on
+the tenth mistake whenever it comes. The title screen now offers PLAY or ENDLESS.
+**Why the belt is drawn the way it is:** `dev/belt.html` measured redrawing at 78ms for
+120 vehicles against 0.23ms for a strip blitted at a whole-pixel offset. Sections are
+dealt and rendered once, then blitted. A section is a picture made before any click
+landed, so what the player has answered is drawn over the top — and only the answered
+ones, so the overlay costs what they have earned rather than what is on screen.
+**Rejected:** one loop serving both modes with a flag; constraining a new section's
+colouring against the ink already on screen; the campaign's falling price per mistake.
+**The known rough edge:** vehicle centres are inset half a span from each section edge
+so nothing is clipped by the edge of its own canvas, which leaves a band at every seam
+where centre density thins. Art reaches across from both sides so the join is covered,
+but the band is visible. Removing it means splitting each section into a ground layer
+and a sprite layer that may overhang, and teaching the hit test to follow the overhang.
+**Verified:** both modes start clean; the belt moves; ten wrong vehicles end a run and
+a dead run stops charging. That last one first read as a bug — thirty-two wrong clicks
+counted against a ten-unit meter — and was the test harness clicking through death and
+restart three times, not the meter.
+**Threaded:** `src/belt.js`; `runEndless` in `src/main.js`; the two buttons and `hit`
+returning a mode in `src/title.js`.

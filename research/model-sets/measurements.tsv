@@ -1,0 +1,47 @@
+set	pair	iou_mean	per_angle
+shipping fleet (cars)	sedan vs taxi	0.86	0:0.84 90:0.89 180:0.83 270:0.89 
+shipping fleet (cars)	sedan vs police	0.73	0:0.69 90:0.77 180:0.69 270:0.77 
+shipping fleet (cars)	sedan vs sedan-sports	0.85	0:0.87 90:0.84 180:0.87 270:0.84 
+shipping fleet (cars)	taxi vs police	0.75	0:0.75 90:0.76 180:0.73 270:0.76 
+shipping fleet (cars)	sedan vs suv	0.85	0:0.87 90:0.84 180:0.86 270:0.84 
+shipping fleet (cars)	sedan vs tractor	0.68	0:0.65 90:0.69 180:0.69 270:0.70 
+shipping fleet (cars)	firetruck vs tractor	0.64	0:0.63 90:0.65 180:0.63 270:0.65 
+Kenney Watercraft Kit	watercraft-kit__boat-speed-a vs watercraft-kit__boat-speed-b	0.91	0:0.94 90:0.90 180:0.91 270:0.90 
+Kenney Watercraft Kit	watercraft-kit__boat-speed-a vs watercraft-kit__boat-speed-e	0.66	0:0.59 90:0.70 180:0.64 270:0.70 
+Kenney Watercraft Kit	watercraft-kit__boat-speed-a vs watercraft-kit__boat-tug-a	0.63	0:0.71 90:0.58 180:0.67 270:0.58 
+Kenney Watercraft Kit	watercraft-kit__boat-house-a vs watercraft-kit__boat-tug-a	0.79	0:0.79 90:0.79 180:0.80 270:0.79 
+Kenney Watercraft Kit	watercraft-kit__boat-speed-a vs watercraft-kit__ship-ocean-liner	0.53	0:0.32 90:0.69 180:0.42 270:0.69 
+Kenney Watercraft Kit	watercraft-kit__boat-sail-a vs watercraft-kit__boat-fan	0.35	0:0.30 90:0.39 180:0.33 270:0.39 
+Kenney City Kit (Suburban)	city-kit-suburban__building-type-a vs city-kit-suburban__building-type-b	0.69	0:0.72 90:0.64 180:0.72 270:0.66 
+Kenney City Kit (Suburban)	city-kit-suburban__building-type-a vs city-kit-suburban__building-type-c	0.78	0:0.77 90:0.76 180:0.79 270:0.78 
+Kenney City Kit (Suburban)	city-kit-suburban__building-type-b vs city-kit-suburban__building-type-d	0.77	0:0.77 90:0.77 180:0.76 270:0.80 
+Kenney City Kit (Suburban)	city-kit-suburban__building-type-c vs city-kit-suburban__building-type-e	0.79	0:0.76 90:0.81 180:0.76 270:0.83 
+Kenney City Kit (Suburban)	city-kit-suburban__building-type-d vs city-kit-suburban__building-type-e	0.61	0:0.66 90:0.54 180:0.66 270:0.59 
+Kenney Train Kit	train-kit__train-electric-city-a vs train-kit__train-electric-subway-a	0.83	0:0.85 90:0.83 180:0.79 270:0.84 
+Kenney Train Kit	train-kit__train-electric-city-a vs train-kit__train-electric-square-a	0.73	0:0.76 90:0.71 180:0.75 270:0.71 
+Kenney Train Kit	train-kit__train-electric-square-a vs train-kit__train-electric-subway-a	0.66	0:0.68 90:0.64 180:0.68 270:0.64 
+Kenney Train Kit	train-kit__train-locomotive-a vs train-kit__train-diesel-a	0.81	0:0.79 90:0.81 180:0.85 270:0.81 
+Kenney Train Kit	train-kit__train-locomotive-a vs train-kit__train-electric-city-a	0.82	0:0.81 90:0.84 180:0.78 270:0.84 
+Kenney Cube Pets	cube-pets__animal-cat vs cube-pets__animal-dog	0.67	0:0.75 90:0.58 180:0.75 270:0.58 
+Kenney Cube Pets	cube-pets__animal-cat vs cube-pets__animal-fox	0.61	0:0.61 90:0.59 180:0.63 270:0.59 
+Kenney Cube Pets	cube-pets__animal-cow vs cube-pets__animal-dog	0.66	0:0.68 90:0.64 180:0.65 270:0.67 
+Kenney Cube Pets	cube-pets__animal-cat vs cube-pets__animal-bee	0.70	0:0.80 90:0.59 180:0.82 270:0.59 
+Kenney Cube Pets	cube-pets__animal-bee vs cube-pets__animal-penguin	0.54	0:0.48 90:0.57 180:0.49 270:0.63 
+Kenney Furniture Kit	furniture-kit__chair vs furniture-kit__chairCushion	0.94	0:0.93 90:0.95 180:0.92 270:0.94 
+Kenney Furniture Kit	furniture-kit__chair vs furniture-kit__chairRounded	0.91	0:0.91 90:0.92 180:0.90 270:0.91 
+Kenney Furniture Kit	furniture-kit__chair vs furniture-kit__stoolBar	0.46	0:0.65 90:0.32 180:0.56 270:0.32 
+Kenney Furniture Kit	furniture-kit__loungeChair vs furniture-kit__chair	0.35	0:0.39 90:0.32 180:0.37 270:0.32 
+Kenney Blaster Kit	blaster-kit__blaster-a vs blaster-kit__blaster-b	0.53	0:0.48 90:0.56 180:0.52 270:0.56 
+Kenney Blaster Kit	blaster-kit__blaster-a vs blaster-kit__blaster-c	0.56	0:0.50 90:0.59 180:0.55 270:0.58 
+Kenney Blaster Kit	blaster-kit__blaster-a vs blaster-kit__blaster-h	0.61	0:0.73 90:0.52 180:0.68 270:0.52 
+Kenney Nature Kit (trees)	nature-kit__tree_default vs nature-kit__tree_oak	0.61	0:0.66 90:0.57 180:0.66 270:0.57 
+Kenney Nature Kit (trees)	nature-kit__tree_default vs nature-kit__tree_fat	0.51	0:0.51 90:0.51 180:0.51 270:0.51 
+Kenney Nature Kit (trees)	nature-kit__tree_pineTallA vs nature-kit__tree_default	0.46	0:0.47 90:0.45 180:0.47 270:0.46 
+Kenney Nature Kit (trees)	nature-kit__tree_palm vs nature-kit__tree_oak	0.26	0:0.25 90:0.28 180:0.26 270:0.27 
+Quaternius Cute Fish	clownfish_flat vs zebraclown_flat	0.97	0:0.97 90:0.98 180:0.96 270:0.97 
+Quaternius Cute Fish	bluetang_flat vs yellowtang_flat	0.84	0:0.86 90:0.81 180:0.88 270:0.81 
+Quaternius Cute Fish	tang_flat vs bluetang_flat	0.74	0:0.82 90:0.70 180:0.74 270:0.70 
+Quaternius Cute Fish	tang_flat vs clownfish_flat	0.63	0:0.54 90:0.68 180:0.60 270:0.68 
+Quaternius Animated Animals	horse_flat vs whitehorse_flat	1.00	0:1.00 90:1.00 180:1.00 270:1.00 
+Quaternius Animated Animals	wolf_flat vs husky_flat	0.40	0:0.46 90:0.34 180:0.47 270:0.34 
+Quaternius Animated Animals	horse_flat vs wolf_flat	0.41	0:0.57 90:0.29 180:0.50 270:0.29 

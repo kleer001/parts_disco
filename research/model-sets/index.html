@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sets the yard could hold</title>
+<style>
+@font-face {
+  font-family: VT323;
+  src: url("../../assets/fonts/vt323-latin.woff2") format("woff2");
+  font-display: swap;
+}
+
+:root {
+  --wall: #e7e2d8;
+  --ink: #1a1a1a;
+  --rule: #c3bcae;
+  --card: #f1ede5;
+  --hot: #b4341f;
+  --cool: #2f5d50;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--wall);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+body { padding: 0 max(16px, 4vw) 96px; }
+
+.masthead {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 56px 0 32px;
+  border-bottom: 3px solid var(--ink);
+}
+
+h1 {
+  font-family: VT323, ui-monospace, monospace;
+  font-size: clamp(2.6rem, 7vw, 4.5rem);
+  line-height: 0.95;
+  margin: 0 0 12px;
+  letter-spacing: 0.01em;
+}
+
+.standfirst { max-width: 40rem; font-size: 1.06rem; margin: 0; }
+
+main { max-width: 60rem; margin: 0 auto; }
+
+h2 {
+  font-family: VT323, ui-monospace, monospace;
+  font-size: clamp(1.9rem, 4.5vw, 2.7rem);
+  line-height: 1.05;
+  margin: 0 0 4px;
+}
+
+h3 {
+  font-family: VT323, ui-monospace, monospace;
+  font-size: 1.5rem;
+  margin: 28px 0 6px;
+  letter-spacing: 0.02em;
+}
+
+section.chapter { padding-top: 48px; }
+
+p { max-width: 40rem; }
+
+a { color: var(--hot); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+/* ---- a set ------------------------------------------------------------- */
+
+article.set {
+  margin: 40px 0;
+  padding: 0 0 28px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.set-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 14px;
+  margin-bottom: 6px;
+}
+
+.rank {
+  font-family: VT323, ui-monospace, monospace;
+  font-size: 2.6rem;
+  line-height: 1;
+  color: var(--rule);
+}
+
+.verdict {
+  font-family: VT323, ui-monospace, monospace;
+  font-size: 1.25rem;
+  padding: 1px 10px 2px;
+  border: 2px solid currentColor;
+}
+
+.verdict.take { color: var(--cool); }
+.verdict.maybe { color: var(--ink); }
+.verdict.against { color: var(--hot); }
+
+figure { margin: 18px 0 8px; }
+
+figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #d8d2c6;
+  border: 1px solid var(--rule);
+}
+
+figcaption { font-size: 0.85rem; color: #5c564b; margin-top: 6px; }
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 2px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 18px 0;
+}
+
+.facts div { background: var(--card); padding: 8px 10px; }
+
+.facts dt {
+  font-size: 0.72rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #5c564b;
+}
+
+.facts dd { margin: 2px 0 0; font-size: 0.95rem; }
+
+/* ---- fleet grammar ----------------------------------------------------- */
+
+.tiers { display: grid; gap: 10px; margin: 16px 0; }
+
+.tier {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 12px;
+  align-items: baseline;
+  border-left: 4px solid var(--rule);
+  padding-left: 12px;
+}
+
+.tier b {
+  font-family: VT323, ui-monospace, monospace;
+  font-size: 1.2rem;
+  letter-spacing: 0.06em;
+}
+
+.tier span { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.86rem; }
+
+/* ---- measurements ------------------------------------------------------ */
+
+table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 0.9rem; }
+
+th, td { text-align: left; padding: 5px 10px 5px 0; border-bottom: 1px solid var(--rule); }
+
+th { font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase; color: #5c564b; }
+
+td.n { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+
+.bar {
+  display: inline-block;
+  height: 9px;
+  background: var(--ink);
+  vertical-align: middle;
+  margin-left: 8px;
+}
+
+.bar.twin { background: var(--hot); }
+.bar.loud { background: var(--cool); }
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.gallery figure { margin: 0; }
+.gallery img { aspect-ratio: 1; object-fit: contain; }
+.gallery figcaption { font-size: 0.75rem; text-align: center; margin-top: 2px; }
+
+.cost { border-left: 4px solid var(--hot); padding-left: 12px; margin: 16px 0; }
+.cost p { margin: 0 0 6px; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+  background: var(--card);
+  padding: 1px 4px;
+}
+
+pre {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  padding: 12px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}
+
+ul.plain { max-width: 40rem; }
+
+footer {
+  max-width: 60rem;
+  margin: 72px auto 0;
+  padding-top: 24px;
+  border-top: 3px solid var(--ink);
+  font-size: 0.9rem;
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <h1>Sets the yard could hold</h1>
+  <p class="standfirst">Free model sets that could be the next fleet: things with one
+  shared anatomy and several members you cannot tell apart at a glance. The counts come
+  from the kits' own file lists rather than from their sales copy; every overlap number
+  was measured by running the game's own tracer over the models.</p>
+</header>
+
+<main>
+
+<section class="chapter" id="test">
+  <h2>What a set has to be</h2>
+
+  <p>The board asks one question — <em>which of these is the one I was shown</em> — and
+  a set can only carry it if the members are alike enough to confuse and different
+  enough to separate. The fleet in the game splits three ways, and a candidate set is
+  worth having when it splits the same way:</p>
+
+  <div class="tiers">
+    <div class="tier"><b>LOUD</b><span>carries its own silhouette; found instantly however crowded the board</span></div>
+    <div class="tier"><b>PLAIN</b><span>ordinary members; the work is searching, not deciding</span></div>
+    <div class="tier"><b>TWINS</b><span>one shell, different trim; the work is telling them apart</span></div>
+  </div>
+
+  <h3>The tracer sees shape, and nothing else</h3>
+
+  <p>The views the board draws come out of <code>tools/model_views</code>: an outline,
+  a silhouette and a shaded card, per angle. Colour is not among them. Two things
+  follow, both checked against the packs rather than assumed:</p>
+
+  <ul class="plain">
+    <li><b>A recolour is not a second model.</b> In Kenney's Nature Kit,
+    <code>tree_default</code> and <code>tree_default_dark</code> have byte-identical
+    vertex positions — same shape, different paint, and the tracer has nothing to draw
+    the difference with. Count shapes, not files.</li>
+    <li><b>How a kit is textured decides how much of it survives.</b> The newer Kenney
+    kits — watercraft, train, cube pets, suburban, blaster, food — put everything on one
+    material named <code>colormap</code>, so nothing of the colour reaches the line art.
+    The older ones (furniture, nature, space, racing) split by material, and the tracer
+    is set to draw material boundaries, so their seams do come through as strokes.</li>
+    <li><b>A rigged model needs its rig dropped first.</b> Quaternius's animated packs
+    park the mesh under an armature; the tracer's normalise step then throws the
+    evaluated mesh out of frame and every view comes back empty. Stripping the armature
+    modifier and parent fixes it — <code>derig.py</code> beside this page does exactly
+    that, and everything measured below for those packs went through it.</li>
+  </ul>
+
+  <h3>The yardstick</h3>
+
+  <p>To compare two views: rasterise both silhouettes on one grid and take
+  intersection over union. 1.00 means the board cannot separate them at all; the
+  current fleet lives between 0.64 and 0.86. That band is the thing to judge a
+  candidate against — a set whose pairs all sit at 0.9 is unfair, and one whose pairs
+  all sit at 0.4 has no twins tier.</p>
+
+  <table>
+    <thead><tr><th>Pair in the shipping fleet</th><th>Tier</th><th>Mean IoU</th></tr></thead>
+    <tbody>
+      <tr><td>sedan vs taxi</td><td>twins</td><td class="n">0.86<span class="bar twin" style="width:86px"></span></td></tr>
+      <tr><td>sedan vs sedan-sports</td><td>twins</td><td class="n">0.85<span class="bar twin" style="width:85px"></span></td></tr>
+      <tr><td>sedan vs suv</td><td>plain</td><td class="n">0.85<span class="bar" style="width:85px"></span></td></tr>
+      <tr><td>taxi vs police</td><td>twins</td><td class="n">0.75<span class="bar twin" style="width:75px"></span></td></tr>
+      <tr><td>sedan vs police</td><td>twins</td><td class="n">0.73<span class="bar twin" style="width:73px"></span></td></tr>
+      <tr><td>sedan vs tractor</td><td>loud</td><td class="n">0.68<span class="bar loud" style="width:68px"></span></td></tr>
+      <tr><td>firetruck vs tractor</td><td>loud</td><td class="n">0.64<span class="bar loud" style="width:64px"></span></td></tr>
+    </tbody>
+  </table>
+
+  <p>Every number on this page is the mean over four angles (0°, 90°, 180°, 270°); the
+  game traces eight. Raw per-angle figures are in <code>measurements.tsv</code>.</p>
+
+  <p>IoU weighs the silhouette and nothing inside it, so it is the floor of what a
+  player gets rather than the whole of it: a chair and a cushioned chair overlap at
+  0.94, and at the same angle the tracer draws 20 strokes on one and 26 on the other.
+  A high number means the two are the same size and shape on the board — which is what
+  makes them hard to sort at a glance — not that the drawing is identical.</p>
+</section>
+
+<!-- ==================================================================== -->
+
+<section class="chapter" id="measured">
+  <h2>Nine sets, measured</h2>
+
+  <p>Ordered by how well the set's own spread matches what the difficulty path needs.
+  Previews are the packs' own art, served from the sites that give the models away.</p>
+
+  <!-- 1 ---------------------------------------------------------------- -->
+  <article class="set" id="watercraft">
+    <div class="set-head">
+      <span class="rank">01</span>
+      <h2>A harbour</h2>
+      <span class="verdict take">take it</span>
+    </div>
+    <p>Kenney's <a href="https://kenney.nl/assets/watercraft-kit">Watercraft Kit</a>.
+    Thirty-three hulls: ten speed boats that are one boat with the cabin moved, four
+    house boats, three tugs, three cargo ships, two ocean liners, two tall ships, two
+    rowing boats, two tow boats, a fan boat, a fishing boat, a ghost ship and two
+    unnamed small craft.</p>
+
+    <figure>
+      <img loading="lazy" src="https://kenney.nl/media/pages/assets/watercraft-kit/0a7953e9b7-1713354133/preview.png"
+           alt="A dark sheet laid out with low-poly boats: two ocean liners, three tall ships, a green ghost galleon, and rows of small speedboats, tugs and house boats.">
+      <figcaption>Preview by Kenney, from the kit's page.</figcaption>
+    </figure>
+
+    <div class="facts">
+      <div><dt>Models</dt><dd>45 files, 33 of them craft</dd></div>
+      <div><dt>Licence</dt><dd>CC0</dd></div>
+      <div><dt>Formats</dt><dd>GLB, FBX, OBJ</dd></div>
+      <div><dt>Pipeline</dt><dd>drops straight in</dd></div>
+    </div>
+
+    <div class="tiers">
+      <div class="tier"><b>LOUD</b><span>ship-ocean-liner, boat-sail-a, boat-fan, ship-small-ghost</span></div>
+      <div class="tier"><b>PLAIN</b><span>boat-tug-a, boat-house-a, boat-row-large, ship-cargo-a</span></div>
+      <div class="tier"><b>TWINS</b><span>boat-speed-a … boat-speed-j</span></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Pair</th><th>Mean IoU</th></tr></thead>
+      <tbody>
+        <tr><td>boat-speed-a vs boat-speed-b</td><td class="n">0.91<span class="bar twin" style="width:91px"></span></td></tr>
+        <tr><td>boat-house-a vs boat-tug-a</td><td class="n">0.79<span class="bar" style="width:79px"></span></td></tr>
+        <tr><td>boat-speed-a vs boat-speed-e</td><td class="n">0.66<span class="bar twin" style="width:66px"></span></td></tr>
+        <tr><td>boat-speed-a vs boat-tug-a</td><td class="n">0.63<span class="bar" style="width:63px"></span></td></tr>
+        <tr><td>boat-speed-a vs ship-ocean-liner</td><td class="n">0.53<span class="bar loud" style="width:53px"></span></td></tr>
+        <tr><td>boat-sail-a vs boat-fan</td><td class="n">0.35<span class="bar loud" style="width:35px"></span></td></tr>
+      </tbody>
+    </table>
+
+    <p>The spread runs 0.35 to 0.91 — wider than the cars at both ends. The tightest
+    speed-boat pair is closer than anything the game currently ships, and the sail-boat
+    against the fan boat is further apart than any two cars. That is a difficulty path
+    with more room at both ends than the one being played now.</p>
+
+    <div class="cost">
+      <p><b>What it costs.</b> The speed boats are ten of a kind, which is more twins
+      than the path has stages for; some would sit unused, or the twins levels would
+      have to grow.</p>
+      <p>A hull sits low and wide. Thrown at the same density as cars the board will
+      read as flatter — the throw separation is searched for, so this shows up as
+      density rather than as overlap, and wants a look before the numbers are copied
+      across.</p>
+    </div>
+  </article>
+
+  <!-- 2 ---------------------------------------------------------------- -->
+  <article class="set" id="furniture">
+    <div class="set-head">
+      <span class="rank">02</span>
+      <h2>A room</h2>
+      <span class="verdict take">take it</span>
+    </div>
+    <p>Kenney's <a href="https://kenney.nl/assets/furniture-kit">Furniture Kit</a>. The
+    seats alone are a fleet: six chairs, three lounge chairs, six sofas, three benches,
+    two stools, ten tables, two desks and three beds — 35 pieces that share legs, a top
+    surface and, half the time, a back.</p>
+
+    <figure>
+      <img loading="lazy" src="https://kenney.nl/media/pages/assets/furniture-kit/4573c6a40b-1677580842/sample.png"
+           alt="A cutaway low-poly apartment: bedroom, bathroom, kitchen, living room and office, furnished in orange and cream.">
+      <figcaption>Sample render by Kenney, from the kit's page.</figcaption>
+    </figure>
+
+    <div class="facts">
+      <div><dt>Models</dt><dd>140 files, 35 seats, tables and beds</dd></div>
+      <div><dt>Licence</dt><dd>CC0</dd></div>
+      <div><dt>Formats</dt><dd>GLB, FBX, OBJ</dd></div>
+      <div><dt>Pipeline</dt><dd>drops straight in</dd></div>
+    </div>
+
+    <div class="tiers">
+      <div class="tier"><b>LOUD</b><span>bedBunk, loungeSofaCorner, deskCorner, tableRound</span></div>
+      <div class="tier"><b>PLAIN</b><span>stoolBar, benchCushion, tableCoffee, loungeChair</span></div>
+      <div class="tier"><b>TWINS</b><span>chair, chairCushion, chairRounded, chairDesk, chairModernCushion</span></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Pair</th><th>Mean IoU</th></tr></thead>
+      <tbody>
+        <tr><td>chair vs chairCushion</td><td class="n">0.94<span class="bar twin" style="width:94px"></span></td></tr>
+        <tr><td>chair vs chairRounded</td><td class="n">0.91<span class="bar twin" style="width:91px"></span></td></tr>
+        <tr><td>chair vs stoolBar</td><td class="n">0.46<span class="bar" style="width:46px"></span></td></tr>
+        <tr><td>loungeChair vs chair</td><td class="n">0.35<span class="bar loud" style="width:35px"></span></td></tr>
+      </tbody>
+    </table>
+
+    <p>The widest spread of anything measured here, and the tightest twins: a chair and
+    a cushioned chair overlap at 0.94, which is past the sedan and the taxi. Four
+    kitchen chairs on a board painted in one ink is a harder final stage than the game
+    currently has.</p>
+
+    <div class="cost">
+      <p><b>What it costs.</b> Chair legs are thin. The tracer simplifies a silhouette
+      at 0.4% of the frame, and at the last stage's size a leg is near that — the
+      hit-test ring may close over the gaps between legs, which makes a click on empty
+      floor between two legs count as a hit. Worth one render at stage-16 size before
+      committing.</p>
+      <p>Furniture has no natural top and bottom on a board seen from a shallow angle:
+      a table and a stool read as the same plan view. The 0.46 above is the good case,
+      measured at four angles including the two profile ones.</p>
+    </div>
+  </article>
+
+  <!-- 3 ---------------------------------------------------------------- -->
+  <article class="set" id="fish">
+    <div class="set-head">
+      <span class="rank">03</span>
+      <h2>A reef</h2>
+      <span class="verdict take">take it</span>
+    </div>
+    <p>Quaternius's <a href="https://quaternius.com/packs/cutefish.html">Animated Cute
+    Fish Pack</a>: thirty-five named species on one body plan — Blue Tang, Yellow Tang,
+    Tang, Clownfish, Zebra Clown Fish, Lionfish, Black Lion Fish, Goldfish, Blue
+    Goldfish, Anglerfish, Swordfish, Sunfish, Blobfish, Puffer, Turbot, Koi, Betta,
+    Piranha, Goblin Shark and more. Fins and tails are the trim.</p>
+
+    <figure>
+      <img loading="lazy" src="https://quaternius.com/assets/images/fullres/cutefish.jpg"
+           alt="Rows of low-poly cartoon fish with oversized eyes, in many colours, above three wooden jetties and a row of fishing rods and lures.">
+      <figcaption>Pack render by Quaternius, from the pack's page.</figcaption>
+    </figure>
+
+    <div class="gallery">
+      <figure><img loading="lazy" src="https://static.poly.pizza/1aba9bca-f51c-4719-8787-ce629978935c.webp" alt="Low-poly Tang, a disc-shaped fish."><figcaption>Tang</figcaption></figure>
+      <figure><img loading="lazy" src="https://static.poly.pizza/f282d1d7-cf41-48e0-bbdc-a9dd0472b2cf.webp" alt="Low-poly Blue Tang."><figcaption>Blue Tang</figcaption></figure>
+      <figure><img loading="lazy" src="https://static.poly.pizza/ace51e9d-d61b-4477-834a-8e6d0361c6a6.webp" alt="Low-poly Yellow Tang."><figcaption>Yellow Tang</figcaption></figure>
+      <figure><img loading="lazy" src="https://static.poly.pizza/f28280ed-888d-4d9b-9d13-af2baf36b749.webp" alt="Low-poly clownfish."><figcaption>Clownfish</figcaption></figure>
+      <figure><img loading="lazy" src="https://static.poly.pizza/06a99b8d-e99d-4090-be53-2480fa7ad7c6.webp" alt="Low-poly zebra clownfish."><figcaption>Zebra Clown Fish</figcaption></figure>
+      <figure><img loading="lazy" src="https://static.poly.pizza/1d592042-991a-4469-aa45-8dc78f701cf3.webp" alt="Low-poly lionfish with spread spines."><figcaption>Lionfish</figcaption></figure>
+    </div>
+
+    <div class="facts">
+      <div><dt>Models</dt><dd>52 files, 35 of them fish</dd></div>
+      <div><dt>Licence</dt><dd>CC0</dd></div>
+      <div><dt>Formats</dt><dd>FBX, OBJ, Blend — GLB per model via <a href="https://poly.pizza/bundle/Animated-Fish-Bundle-44zhHN1UbT">Poly Pizza</a></dd></div>
+      <div><dt>Pipeline</dt><dd>de-rig first</dd></div>
+    </div>
+
+    <div class="tiers">
+      <div class="tier"><b>LOUD</b><span>Swordfish, Anglerfish, Lionfish, Sunfish, Puffer</span></div>
+      <div class="tier"><b>PLAIN</b><span>Koi, Betta, Piranha, Tuna, Goblin Shark</span></div>
+      <div class="tier"><b>TWINS</b><span>Tang, Blue Tang, Yellow Tang, Clownfish, Zebra Clown Fish</span></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Pair</th><th>Mean IoU</th></tr></thead>
+      <tbody>
+        <tr><td>Clownfish vs Zebra Clown Fish</td><td class="n">0.97<span class="bar twin" style="width:97px"></span></td></tr>
+        <tr><td>Blue Tang vs Yellow Tang</td><td class="n">0.84<span class="bar twin" style="width:84px"></span></td></tr>
+        <tr><td>Tang vs Blue Tang</td><td class="n">0.74<span class="bar twin" style="width:74px"></span></td></tr>
+        <tr><td>Tang vs Clownfish</td><td class="n">0.63<span class="bar" style="width:63px"></span></td></tr>
+      </tbody>
+    </table>
+
+    <p>Blue Tang against Yellow Tang lands at 0.84, a hair under the sedan and the
+    taxi — the twins tier arrives ready-made. The species names give the prompt panel
+    something the cars never had: a name a player can learn.</p>
+
+    <div class="cost">
+      <p><b>What it costs.</b> The pack sells its variety in paint. Clownfish against
+      Zebra Clown Fish is 0.97 — two orange-and-white patterns on one mesh, and the
+      tracer keeps neither. Pairs that close are not hard, they are unanswerable; a
+      fleet built from this set has to drop one of each such pair, and that is a
+      per-pair check, not a rule.</p>
+      <p>Rigged, so every model goes through <code>derig.py</code> before the tracer
+      sees it. Fifty-two models is one loop, but it is a step the car kit never needed.</p>
+    </div>
+  </article>
+
+  <!-- 4 ---------------------------------------------------------------- -->
+  <article class="set" id="houses">
+    <div class="set-head">
+      <span class="rank">04</span>
+      <h2>A street</h2>
+      <span class="verdict take">take it</span>
+    </div>
+    <p>Kenney's <a href="https://kenney.nl/assets/city-kit-suburban">City Kit
+    (Suburban)</a> is twenty-one houses named <code>building-type-a</code> through
+    <code>-u</code>: one gable-roofed idiom rearranged — garage left, garage right,
+    dormer, porch, second storey, solar panels, flat modern roof.</p>
+
+    <figure>
+      <img loading="lazy" src="https://kenney.nl/media/pages/assets/city-kit-suburban/7e46753eef-1745479411/preview-variation-b.png"
+           alt="Twenty-one low-poly suburban houses in orange and grey, laid out in rows on a dark board with fences and trees.">
+      <figcaption>Preview by Kenney, from the kit's page.</figcaption>
+    </figure>
+
+    <div class="facts">
+      <div><dt>Models</dt><dd>40 files, 21 houses</dd></div>
+      <div><dt>Licence</dt><dd>CC0</dd></div>
+      <div><dt>Formats</dt><dd>GLB, FBX, OBJ</dd></div>
+      <div><dt>Pipeline</dt><dd>drops straight in</dd></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Pair</th><th>Mean IoU</th></tr></thead>
+      <tbody>
+        <tr><td>building-type-c vs building-type-e</td><td class="n">0.79<span class="bar twin" style="width:79px"></span></td></tr>
+        <tr><td>building-type-a vs building-type-c</td><td class="n">0.78<span class="bar twin" style="width:78px"></span></td></tr>
+        <tr><td>building-type-b vs building-type-d</td><td class="n">0.77<span class="bar twin" style="width:77px"></span></td></tr>
+        <tr><td>building-type-a vs building-type-b</td><td class="n">0.69<span class="bar" style="width:69px"></span></td></tr>
+        <tr><td>building-type-d vs building-type-e</td><td class="n">0.61<span class="bar" style="width:61px"></span></td></tr>
+      </tbody>
+    </table>
+
+    <p>Everything sits between 0.61 and 0.79 — the plain and twins bands, with nothing
+    loud. The fix is in the same art style and two clicks away: Kenney's
+    <a href="https://kenney.nl/assets/city-kit-commercial">City Kit (Commercial)</a>
+    towers and <a href="https://kenney.nl/assets/city-kit-industrial">City Kit
+    (Industrial)</a> silos and warehouses are built to the same grid, and a
+    twelve-strong fleet drawn across the three reads as one town.</p>
+
+    <figure>
+      <img loading="lazy" src="https://kenney.nl/media/pages/assets/city-kit-commercial/7f226bb5d5-1747481478/preview-variation-a.png"
+           alt="Low-poly city blocks: glass towers behind rows of four- and five-storey shopfronts, all in orange and blue.">
+      <figcaption>City Kit (Commercial) preview by Kenney — the loud tier for a town fleet.</figcaption>
+    </figure>
+
+    <div class="cost">
+      <p><b>What it costs.</b> Three kits means three licences to check (all CC0) and
+      three sets of naming to reconcile, and the house numbering carries no meaning —
+      <code>building-type-k</code> tells a player nothing, where <code>taxi</code> told
+      them everything. The panel's prompt card is the whole of the fiction here.</p>
+      <p>Houses are boxes with roofs. Most of the difference between them is a garage
+      wing, which vanishes when the wing points away from the camera. The 0.61–0.79
+      band is measured on four angles; the two rear angles are the ones to look at
+      before trusting it.</p>
+    </div>
+  </article>
+
+  <!-- 5 ---------------------------------------------------------------- -->
+  <article class="set" id="pets">
+    <div class="set-head">
+      <span class="rank">05</span>
+      <h2>A menagerie</h2>
+      <span class="verdict maybe">worth a look</span>
+    </div>
+    <p>Kenney's <a href="https://kenney.nl/assets/cube-pets">Cube Pets</a>: twenty-four
+    animals that are all the same cube. Cat, dog, fox, tiger, lion, cow, pig, panda,
+    penguin, bee, crab, koala, deer, elephant, giraffe, monkey, parrot — the body never
+    changes, only the ears, the snout and the tail.</p>
+
+    <figure>
+      <img loading="lazy" src="https://kenney.nl/media/pages/assets/cube-pets/c97e02d815-1774520248/preview.png"
+           alt="Twenty-four cube-bodied cartoon animals with big eyes, arranged in rows: tiger, lion, cow, panda, penguin, bee and more.">
+      <figcaption>Preview by Kenney, from the kit's page.</figcaption>
+    </figure>
+
+    <div class="facts">
+      <div><dt>Models</dt><dd>24, all animals</dd></div>
+      <div><dt>Licence</dt><dd>CC0</dd></div>
+      <div><dt>Formats</dt><dd>GLB, FBX, OBJ</dd></div>
+      <div><dt>Pipeline</dt><dd>drops straight in</dd></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Pair</th><th>Mean IoU</th></tr></thead>
+      <tbody>
+        <tr><td>cat vs bee</td><td class="n">0.70<span class="bar" style="width:70px"></span></td></tr>
+        <tr><td>cat vs dog</td><td class="n">0.67<span class="bar twin" style="width:67px"></span></td></tr>
+        <tr><td>cow vs dog</td><td class="n">0.66<span class="bar" style="width:66px"></span></td></tr>
+        <tr><td>cat vs fox</td><td class="n">0.61<span class="bar twin" style="width:61px"></span></td></tr>
+        <tr><td>bee vs penguin</td><td class="n">0.54<span class="bar loud" style="width:54px"></span></td></tr>
+      </tbody>
+    </table>
+
+    <p>A whole set of twins by construction, and the twenty-four names are the most
+    legible prompt any of these sets offers — a player knows what a penguin is.</p>
+
+    <div class="cost">
+      <p><b>What it costs.</b> The band is 0.54 to 0.70, which is the cars' loud end,
+      not their twins end. The animals are told apart by ears, and ears survive the
+      tracer — so this set is <em>easier</em> than it looks in the preview, where the
+      colour is doing the work. It would want the small sizes and the crowded boards
+      early to be worth playing.</p>
+    </div>
+  </article>
+
+  <!-- 6 ---------------------------------------------------------------- -->
+  <article class="set" id="trains">
+    <div class="set-head">
+      <span class="rank">06</span>
+      <h2>A yard of trains</h2>
+      <span class="verdict maybe">worth a look</span>
+    </div>
+    <p>Kenney's <a href="https://kenney.nl/assets/train-kit">Train Kit</a>: nine
+    locomotive shapes with two or three body variants each — diesel, boxy diesel,
+    bullet, city electric, double-decker, square, subway, steam locomotive, passenger
+    steam — plus three trams and twelve wagons.</p>
+
+    <figure>
+      <img loading="lazy" src="https://kenney.nl/media/pages/assets/train-kit/625675b011-1722429699/preview.png"
+           alt="Low-poly trains laid out in rows: bullet trains, subway cars, steam locomotives, trams and freight wagons in several liveries.">
+      <figcaption>Preview by Kenney, from the kit's page.</figcaption>
+    </figure>
+
+    <div class="facts">
+      <div><dt>Models</dt><dd>100 files, 29 locomotives and trams, 12 wagons</dd></div>
+      <div><dt>Licence</dt><dd>CC0</dd></div>
+      <div><dt>Formats</dt><dd>GLB, FBX, OBJ</dd></div>
+      <div><dt>Pipeline</dt><dd>drops straight in</dd></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Pair</th><th>Mean IoU</th></tr></thead>
+      <tbody>
+        <tr><td>electric-city-a vs electric-subway-a</td><td class="n">0.83<span class="bar twin" style="width:83px"></span></td></tr>
+        <tr><td>locomotive-a vs electric-city-a</td><td class="n">0.82<span class="bar" style="width:82px"></span></td></tr>
+        <tr><td>locomotive-a vs diesel-a</td><td class="n">0.81<span class="bar twin" style="width:81px"></span></td></tr>
+        <tr><td>electric-city-a vs electric-square-a</td><td class="n">0.73<span class="bar twin" style="width:73px"></span></td></tr>
+        <tr><td>electric-square-a vs electric-subway-a</td><td class="n">0.66<span class="bar" style="width:66px"></span></td></tr>
+      </tbody>
+    </table>
+
+    <p>The <code>-a</code>, <code>-b</code>, <code>-c</code> suffixes are not recolours:
+    <code>train-diesel-a</code>, <code>-b</code> and <code>-c</code> carry 1054, 754 and
+    762 vertices. Nine shapes, three variants each bar the passenger steam engine's two,
+    make twenty-six bodies of one animal; three trams bring it to twenty-nine.</p>
+
+    <div class="cost">
+      <p><b>What it costs.</b> Nothing here is loud: 0.66 to 0.83, tighter than the
+      cars at the bottom and no wider at the top. A train is a box on a chassis whether
+      it is steam or electric, and the steam locomotive — the one silhouette with a
+      chimney — reads at 0.81 against a city tram. The trams and the flatbed wagons are
+      where a loud tier would have to come from.</p>
+      <p>A locomotive is long. On a board thrown at car density, long shapes bury each
+      other end-to-end and the board gets read as track rather than as a crowd.</p>
+    </div>
+  </article>
+
+  <!-- 7 ---------------------------------------------------------------- -->
+  <article class="set" id="trees">
+    <div class="set-head">
+      <span class="rank">07</span>
+      <h2>A wood</h2>
+      <span class="verdict maybe">worth a look</span>
+    </div>
+    <p>Kenney's <a href="https://kenney.nl/assets/nature-kit">Nature Kit</a> holds 61
+    tree files that are 39 distinct shapes once the recolours are dropped: twenty-two
+    pines, six palms, and eleven broadleaf shapes on one trunk-and-canopy idiom.</p>
+
+    <figure>
+      <img loading="lazy" src="https://kenney.nl/media/pages/assets/nature-kit/2d81fc716e-1677698893/preview.png"
+           alt="A low-poly landscape of trees, rocks, plants and cliffs in greens and browns.">
+      <figcaption>Preview by Kenney, from the kit's page.</figcaption>
+    </figure>
+
+    <div class="facts">
+      <div><dt>Models</dt><dd>330 files, 39 distinct tree shapes</dd></div>
+      <div><dt>Licence</dt><dd>CC0</dd></div>
+      <div><dt>Formats</dt><dd>GLB, FBX, OBJ</dd></div>
+      <div><dt>Pipeline</dt><dd>drops straight in</dd></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Pair</th><th>Mean IoU</th></tr></thead>
+      <tbody>
+        <tr><td>tree_default vs tree_oak</td><td class="n">0.61<span class="bar" style="width:61px"></span></td></tr>
+        <tr><td>tree_default vs tree_fat</td><td class="n">0.51<span class="bar" style="width:51px"></span></td></tr>
+        <tr><td>tree_pineTallA vs tree_default</td><td class="n">0.46<span class="bar loud" style="width:46px"></span></td></tr>
+        <tr><td>tree_palm vs tree_oak</td><td class="n">0.26<span class="bar loud" style="width:26px"></span></td></tr>
+      </tbody>
+    </table>
+
+    <p>This is where the recolour finding came from: <code>tree_default</code> and
+    <code>tree_default_dark</code> are the same 59 vertices in the same places. Sixty-one
+    files, thirty-nine trees.</p>
+
+    <div class="cost">
+      <p><b>What it costs.</b> The measured pairs run 0.26 to 0.61 — every one of them
+      below the cars' loudest pair. A wood is a set of loud tiers with no twins, unless
+      the twins come from within the pine run (<code>tree_pineTallA</code> to
+      <code>-D</code>, unmeasured here), which is the first thing to check.</p>
+      <p>Foliage is where line art gets expensive: a canopy of forty leaf facets is
+      forty creases, and the whole fleet loads up front. The current twelve cars come to
+      a couple of megabytes; trees would want that measured.</p>
+    </div>
+  </article>
+
+  <!-- 8 ---------------------------------------------------------------- -->
+  <article class="set" id="blasters">
+    <div class="set-head">
+      <span class="rank">08</span>
+      <h2>An armoury</h2>
+      <span class="verdict maybe">worth a look</span>
+    </div>
+    <p>Kenney's <a href="https://kenney.nl/assets/blaster-kit">Blaster Kit</a>: eighteen
+    toy blasters, <code>blaster-a</code> to <code>-r</code>, all grip, barrel and
+    magazine, plus scopes and silencers as separate parts.</p>
+
+    <figure>
+      <img loading="lazy" src="https://kenney.nl/media/pages/assets/blaster-kit/6a4e19e08a-1753959522/preview-variation-a.png"
+           alt="Eighteen low-poly toy blasters in muted purple and grey, arranged in rows with scopes, magazines and foam darts.">
+      <figcaption>Preview by Kenney, from the kit's page.</figcaption>
+    </figure>
+
+    <div class="facts">
+      <div><dt>Models</dt><dd>40 files, 18 blasters</dd></div>
+      <div><dt>Licence</dt><dd>CC0</dd></div>
+      <div><dt>Formats</dt><dd>GLB, FBX, OBJ</dd></div>
+      <div><dt>Pipeline</dt><dd>drops straight in</dd></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Pair</th><th>Mean IoU</th></tr></thead>
+      <tbody>
+        <tr><td>blaster-a vs blaster-h</td><td class="n">0.61<span class="bar" style="width:61px"></span></td></tr>
+        <tr><td>blaster-a vs blaster-c</td><td class="n">0.56<span class="bar" style="width:56px"></span></td></tr>
+        <tr><td>blaster-a vs blaster-b</td><td class="n">0.53<span class="bar" style="width:53px"></span></td></tr>
+      </tbody>
+    </table>
+
+    <p>The surprise of the batch. Eighteen blasters look interchangeable in the preview
+    and measure 0.53 to 0.61 — further apart than any two cars in the game. A long thin
+    shape puts all its difference in the outline, and the tracer keeps every bit of it.</p>
+
+    <div class="cost">
+      <p><b>What it costs.</b> No twins tier at all, so the last four stages have
+      nothing to ask. And a blaster is a sliver: the silhouette a click is tested
+      against is mostly barrel, which at the small sizes is a few pixels wide.</p>
+    </div>
+  </article>
+
+  <!-- 9 ---------------------------------------------------------------- -->
+  <article class="set" id="animals">
+    <div class="set-head">
+      <span class="rank">09</span>
+      <h2>A field</h2>
+      <span class="verdict against">not as it stands</span>
+    </div>
+    <p>Quaternius's <a href="https://quaternius.com/packs/ultimateanimatedanimals.html">Ultimate
+    Animated Animal Pack</a>: cow, bull, deer, stag, horse, white horse, donkey, alpaca,
+    wolf, husky, shiba inu, fox. Twelve models — exactly a fleet — on one quadruped
+    anatomy, and the pairs name themselves.</p>
+
+    <figure>
+      <img loading="lazy" src="https://quaternius.com/assets/images/fullres/ultimateanimatedanimal.jpg"
+           alt="Low-poly animals in a grassy landscape: deer, stag, alpaca, cow, bull, horse, donkey, wolf, husky, fox and shiba inu.">
+      <figcaption>Pack render by Quaternius, from the pack's page.</figcaption>
+    </figure>
+
+    <div class="facts">
+      <div><dt>Models</dt><dd>12</dd></div>
+      <div><dt>Licence</dt><dd>CC0</dd></div>
+      <div><dt>Formats</dt><dd>FBX, OBJ, Blend, glTF — GLB per model via <a href="https://poly.pizza/bundle/Animated-Animal-Pack-ILAPXeUYiS">Poly Pizza</a></dd></div>
+      <div><dt>Pipeline</dt><dd>de-rig first</dd></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Pair</th><th>Mean IoU</th></tr></thead>
+      <tbody>
+        <tr><td>Horse vs White Horse</td><td class="n">1.00<span class="bar twin" style="width:100px"></span></td></tr>
+        <tr><td>Horse vs Wolf</td><td class="n">0.41<span class="bar loud" style="width:41px"></span></td></tr>
+        <tr><td>Wolf vs Husky</td><td class="n">0.40<span class="bar loud" style="width:40px"></span></td></tr>
+      </tbody>
+    </table>
+
+    <p>Horse against White Horse is 1.00 at every angle — one mesh, two paint jobs, and
+    the board would be asking a question with two right answers. Wolf against Husky
+    ought to be the tightest pair in the pack and comes in at 0.40, because the wolf is
+    modelled sitting and the husky standing: pose separates them, not species.</p>
+
+    <div class="cost">
+      <p><b>What it costs.</b> Twelve models minus a duplicate leaves eleven, and the
+      spread that remains has no twins in it. The pack is the right idea — named
+      animals, one anatomy — carried by paint and pose rather than by shape. It would
+      take modelling work, not selection, to make a fleet of it.</p>
+    </div>
+  </article>
+</section>
+
+<!-- ==================================================================== -->
+
+<section class="chapter" id="unmeasured">
+  <h2>Four more, unmeasured</h2>
+  <p>Downloaded and counted, not traced. Each is a candidate the measurements above
+  would settle in an afternoon.</p>
+
+  <article class="set" id="guns">
+    <div class="set-head">
+      <h2>Ultimate Gun Pack</h2>
+      <span class="verdict maybe">worth a look</span>
+    </div>
+    <p>Forty models from
+    <a href="https://quaternius.com/packs/ultimategun.html">Quaternius</a>, CC0, and the
+    only set found that is <em>already sorted into tiers</em>: the pack render lays them
+    out in rows by class — revolvers, pistols, shotguns, AK-pattern rifles, AR-pattern
+    rifles, SMGs, bolt-action rifles — five or six to a row. Each row looks like a twins
+    tier with the rows far apart, which is a claim the tracer would settle. Kenney's
+    blasters measured 0.53–0.61 on the same shape language, so the within-row pairs here
+    are the number worth taking.</p>
+    <figure>
+      <img loading="lazy" src="https://quaternius.com/assets/images/fullres/ultimategun.jpg"
+           alt="Forty low-poly firearms arranged in rows by class: revolvers, pistols, shotguns, assault rifles, submachine guns and bolt-action rifles.">
+      <figcaption>Pack render by Quaternius, from the pack's page.</figcaption>
+    </figure>
+    <div class="cost"><p><b>What it costs.</b> It is a rack of guns, which is a
+    different game to a yard of cars whatever the geometry says. That one is not a
+    measurement.</p></div>
+  </article>
+
+  <article class="set" id="food">
+    <div class="set-head">
+      <h2>Food Kit</h2>
+      <span class="verdict maybe">worth a look</span>
+    </div>
+    <p>Two hundred models from <a href="https://kenney.nl/assets/food-kit">Kenney</a>,
+    CC0, GLB. Not one anatomy but a shelf of small ones: four burgers, three donuts,
+    five sodas, six plates, six cuts of meat, five ice creams. A fleet
+    here is one family per tier rather than one family throughout — burger, cheeseburger,
+    double burger and double cheeseburger is a twins tier that needs no explaining.</p>
+    <figure>
+      <img loading="lazy" src="https://kenney.nl/media/pages/assets/food-kit/7a37477a9c-1719418523/preview.png"
+           alt="A dense grid of low-poly food: fruit, vegetables, burgers, cakes, drinks, pots and kitchen tools.">
+      <figcaption>Preview by Kenney, from the kit's page.</figcaption>
+    </figure>
+    <div class="cost"><p><b>What it costs.</b> Two hundred models is a curation job
+    before it is a fleet, and the families are three and four deep where the path wants
+    four abreast.</p></div>
+  </article>
+
+  <article class="set" id="kaykit">
+    <div class="set-head">
+      <h2>KayKit City Builder Bits</h2>
+      <span class="verdict maybe">worth a look</span>
+    </div>
+    <p>Thirty-two-plus models from
+    <a href="https://kaylousberg.itch.io/city-builder-bits">Kay Lousberg</a>, CC0, and
+    glTF is in the download. A second, differently-drawn town to set against Kenney's
+    City Kit — the same subject in another hand, which is the cheapest way to find out
+    how much of the suburban result was the subject and how much was the artist.</p>
+    <figure>
+      <img loading="lazy" src="https://img.itch.zone/aW1hZ2UvMjE4OTQ4My8xMjk1NzMwNy5wbmc=/794x1000/qgr07e.png"
+           alt="Low-poly city buildings in a soft palette, arranged as a small town block.">
+      <figcaption>Pack art by Kay Lousberg, from the itch.io page.</figcaption>
+    </figure>
+  </article>
+
+  <article class="set" id="ultimatebuildings">
+    <div class="set-head">
+      <h2>Ultimate Buildings Pack</h2>
+      <span class="verdict against">not as it stands</span>
+    </div>
+    <p>Seventy-six models from
+    <a href="https://quaternius.com/packs/ultimatetexturedbuildings.html">Quaternius</a>,
+    CC0. Worth looking at precisely because the pack's own render answers the question:
+    the left half is textured and various, the right half is the same buildings
+    untextured, and the untextured half is a row of near-identical boxes. That right
+    half is what the tracer would see.</p>
+    <figure>
+      <img loading="lazy" src="https://quaternius.com/assets/images/fullres/ultimatebuildings.jpg"
+           alt="Left: colourful low-poly city buildings with shop signage. Right: the same buildings rendered untextured in plain white, most reduced to similar boxes.">
+      <figcaption>Pack render by Quaternius. The right-hand half is the set as the tracer sees it.</figcaption>
+    </figure>
+    <div class="cost"><p><b>What it costs.</b> A set whose variety lives in the texture
+    has none for this game. Kept here as the shape of the mistake, so the next promising
+    contact sheet gets the same test: cover the colour and look again.</p></div>
+  </article>
+</section>
+
+<!-- ==================================================================== -->
+
+<section class="chapter" id="where">
+  <h2>Where the rest are</h2>
+
+  <h3>Poly Pizza</h3>
+  <p><a href="https://poly.pizza/">poly.pizza</a> is the useful surface: it carries
+  Kenney and Quaternius among others, lists a pack's contents model by model with a
+  thumbnail and a licence for each, and hands over a GLB even where the original pack
+  ships FBX and OBJ only. Every Quaternius model measured on this page was pulled from
+  it that way rather than converted. Search it by anatomy — "tang", "sedan", "cabinet" —
+  rather than by pack.</p>
+
+  <h3>Kenney's 3D shelf</h3>
+  <p>Fifty kits at <a href="https://kenney.nl/assets/category:3D">kenney.nl</a>, all
+  CC0, all shipping GLB, all in the art language the game already speaks. The ones not
+  written up here are mostly modular — walls, tiles, track — which is a different kind
+  of set: pieces that join, not members that differ.</p>
+
+  <h3>Quaternius</h3>
+  <p>Eighty-three packs at <a href="https://quaternius.com/">quaternius.com</a>. Nearly
+  all CC0; the Bestiary kit carries a different licence, so it is a per-pack check
+  rather than a blanket one. The older packs ship FBX, OBJ and Blend only, which is what
+  Poly Pizza's GLB mirror is for.</p>
+
+  <h3>Smithsonian Open Access</h3>
+  <p>Scanned museum objects at <a href="https://3d.si.edu/">3d.si.edu</a>, released CC0
+  and downloadable as GLB and OBJ — thousands of them, on the Smithsonian's own account;
+  that figure comes from their release material rather than from a catalogue count, and
+  is the one number on this page not taken from a file. Not a set as such: real objects,
+  one at a time, at scan density rather than game density. Worth knowing about for a
+  fleet that wants to be real things rather than drawn ones, and worth costing
+  carefully — a scan is tens of thousands of triangles where a Kenney boat is
+  hundreds.</p>
+</section>
+
+<footer>
+  <p><b>How the numbers were got.</b> The Kenney counts come from each kit downloaded
+  and its model files listed; the Quaternius ones from Poly Pizza's model-by-model
+  listing of the same packs. Neither comes from a pack's own description, and where a
+  figure does — the gun pack's forty, the KayKit thirty-two, the Smithsonian's
+  thousands — the text says so. Every IoU comes from
+  running <code>tools/model_views/render_views.py</code> over the model at four angles
+  and comparing the traced silhouettes with <code>silhouette_iou.py</code>, which sits
+  beside this page along with <code>derig.py</code> and the raw
+  <code>measurements.tsv</code>.</p>
+  <p>Previews are served from the sites that publish the models, and belong to Kenney,
+  Quaternius and Kay Lousberg respectively. Licences were read off each pack's own page
+  on the day this was written; check the page before shipping anything.</p>
+</footer>
+
+</main>
+</body>
+</html>

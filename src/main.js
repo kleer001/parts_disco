@@ -6,13 +6,14 @@ import { loadViews } from './views.js';
 import { stageAt, RANGE } from './levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
          createRefuseLayer, createRecessLayer, createOverLayer, createPanelLayer,
-         createWipeLayer } from './layers.js';
+         createWipeLayer, PALETTE } from './layers.js';
 import { TUNING, createClock } from './juice.js';
 import { layoutFor } from './layout.js';
 import { createVoice } from './audio.js';
 import { createOptions } from './options.js';
 import { createRun, freshSeed } from './run.js';
 import { createTitle } from './title.js';
+import { createBelt } from './belt.js';
 
 
 /**
@@ -38,7 +39,7 @@ function pointOf(canvas, event) {
  * Nothing here is a loading screen that gets replaced -- the title simply gains its
  * yard when the yard turns up, and the button goes live at the same moment.
  *
- * @returns {Promise<{fleet: object, voice: object}>} once the player has pressed PLAY
+ * @returns {Promise<{fleet: object, voice: object, mode: string}>} once a mode is chosen
  */
 async function openOn(canvas, ctx, placeOf, seed) {
   let title = createTitle(placeOf(), seed);
@@ -68,21 +69,66 @@ async function openOn(canvas, ctx, placeOf, seed) {
   };
   requestAnimationFrame(paint);
 
-  await new Promise((pressed) => {
+  const mode = await new Promise((pressed) => {
     const press = (event) => {
-      // `hit` answers false until the fleet has landed, so there is no way to click
+      // `hit` answers null until the fleet has landed, so there is no way to click
       // past this screen into a game that has nothing to draw.
-      if (!title.hit(pointOf(canvas, event))) return;
+      const chosen = title.hit(pointOf(canvas, event));
+      if (!chosen) return;
       event.preventDefault();
       canvas.removeEventListener('pointerdown', press);
       showing = false;
-      pressed();
+      pressed(chosen);
     };
     canvas.addEventListener('pointerdown', press);
   });
 
   await loading;
-  return { fleet, voice };
+  return { fleet, voice, mode };
+}
+
+/**
+ * The endless run: a belt, a clock and a meter, and nothing that holds still.
+ *
+ * It is its own loop rather than a branch inside the campaign's. The two share a
+ * fleet, a voice and a hit test and agree on nothing else -- one deals a board and
+ * waits, the other never stops arriving -- and a loop that served both would be a
+ * loop with a mode flag threaded through every line of it.
+ */
+function runEndless(canvas, ctx, place, views, seed) {
+  const belt = createBelt(place, views.fleet, seed);
+  createOptions(document.body, views.voice, belt);
+
+  let rank = 0;
+  canvas.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    const now = performance.now() / 1000;
+    if (belt.dead) {
+      belt.restart();
+      rank = 0;
+      return;
+    }
+    const { outcome } = belt.choose(pointOf(canvas, event), now);
+    if (outcome === 'found') views.voice.find(++rank, false);
+    else if (outcome !== 'ground') views.voice.play(outcome);
+  });
+
+  let last = null;
+  const frame = (now) => {
+    const at = now / 1000;
+    if (last === null) last = at;
+    // Clamped, because a backgrounded tab hands back a gap of seconds and the belt
+    // would arrive somewhere nobody watched it travel to.
+    belt.advance(Math.min(0.1, at - last));
+    last = at;
+
+    ctx.fillStyle = PALETTE.paper;
+    ctx.fillRect(0, 0, place.width, place.height);
+    belt.draw(ctx);
+    belt.drawPanel(ctx);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
 }
 
 /**
@@ -113,6 +159,11 @@ export async function start(canvas, seed = freshSeed()) {
   // fill and some type, so the screen is up on the first frame and the wait happens
   // behind it rather than in front of a blank canvas.
   const views = await openOn(canvas, ctx, () => place, seed);
+
+  if (views.mode === 'endless') {
+    runEndless(canvas, ctx, place, views, seed);
+    return;
+  }
 
   const run = createRun(place, views.fleet, seed);
   const viewOf = (slot) => views.fleet.view(slot.model, slot.angle);

@@ -23,6 +23,7 @@ export const TAGLINE = 'A yard full of vehicles.';
 export const TASK = 'Find every copy of the one you were shown.';
 export const WAITING = 'backing the yard out';
 export const READY = 'PLAY';
+export const ENDLESS = 'ENDLESS';
 
 /**
  * The yard behind the title: how many vehicles, and how hard they crowd.
@@ -66,9 +67,9 @@ export function createTitle(place, seed) {
     });
   }
 
-  // Where PLAY lands, so a click can be tested against it. Written by `draw` because
-  // the type is measured rather than assumed, and read by `hit`.
-  let button = null;
+  // Where the buttons land, so a click can be tested against them. Written by `draw`
+  // because the type is measured rather than assumed, and read by `hit`.
+  let buttons = null;
 
   return {
     /**
@@ -115,42 +116,68 @@ export function createTitle(place, seed) {
       ctx.font = face(short * TYPE.task);
       ctx.fillText(TASK, width / 2, height * 0.645);
 
-      // The button wears the find's green once the game can start, and the colour the
-      // panel uses for anything not worth reading until it is.
-      const role = views ? SEMANTIC.found : SEMANTIC.quiet;
-      const label = views ? READY : WAITING;
+      // The buttons wear the find's green once the game can start, and the colour the
+      // panel uses for anything not worth reading until it is. While the fleet is in
+      // flight there is one of them and it is not a button, it is a status line.
       const size = short * TYPE.button;
-      ctx.font = face(size);
       const pad = size * 0.55;
-      const w = ctx.measureText(label).width + pad * 2;
       const h = size * 0.86 + pad;
-      const x = (width - w) / 2;
       const y = height * 0.74;
-      roundRect(ctx, x, y, w, h, size * 0.18);
-      ctx.fillStyle = role.tint;
-      ctx.fill();
-      ctx.strokeStyle = role.loud;
-      ctx.lineWidth = Math.max(1, short * 0.004);
-      ctx.stroke();
-      ctx.fillStyle = role.ink;
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, width / 2, y + h / 2 + 1);
+      const lay = [];
+
+      if (!views) {
+        ctx.font = face(size);
+        const w = ctx.measureText(WAITING).width + pad * 2;
+        lay.push({ label: WAITING, mode: null, x: (width - w) / 2, w });
+      } else {
+        ctx.font = face(size);
+        const widths = [READY, ENDLESS].map((t) => ctx.measureText(t).width + pad * 2);
+        const gap = size * 0.5;
+        let x = (width - (widths[0] + widths[1] + gap)) / 2;
+        [READY, ENDLESS].forEach((label, i) => {
+          lay.push({ label, mode: i === 0 ? 'campaign' : 'endless', x, w: widths[i] });
+          x += widths[i] + gap;
+        });
+      }
+
+      for (const b of lay) {
+        const role = views ? SEMANTIC.found : SEMANTIC.quiet;
+        roundRect(ctx, b.x, y, b.w, h, size * 0.18);
+        ctx.fillStyle = role.tint;
+        ctx.fill();
+        ctx.strokeStyle = role.loud;
+        ctx.lineWidth = Math.max(1, short * 0.004);
+        ctx.stroke();
+        ctx.fillStyle = role.ink;
+        ctx.textBaseline = 'middle';
+        ctx.fillText(b.label, b.x + b.w / 2, y + h / 2 + 1);
+      }
+
+      if (views) {
+        ctx.fillStyle = SEMANTIC.quiet.ink;
+        ctx.font = face(short * TYPE.task * 0.86);
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText('sixteen yards, or a belt that never stops',
+                     width / 2, y + h + short * 0.045);
+      }
 
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      button = views ? { x, y, w, h } : null;
+      buttons = views ? lay.map((b) => ({ ...b, y, h })) : null;
     },
 
     /**
-     * Whether a canvas point pressed PLAY.
+     * Which mode a click chose, or null.
      *
-     * Null until the fleet has landed, so the screen cannot be clicked past before
-     * there is anything behind it.
+     * Null for every point until the fleet has landed, so the screen cannot be clicked
+     * past before there is anything behind it.
      */
     hit(point) {
-      if (!button) return false;
-      return point[0] >= button.x && point[0] <= button.x + button.w
-          && point[1] >= button.y && point[1] <= button.y + button.h;
+      if (!buttons) return null;
+      const on = buttons.find((b) =>
+        point[0] >= b.x && point[0] <= b.x + b.w
+        && point[1] >= b.y && point[1] <= b.y + b.h);
+      return on ? on.mode : null;
     },
   };
 }
