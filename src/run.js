@@ -27,6 +27,18 @@ import { createMeter } from './meter.js';
 export const RETRY_STRIDE = 7919;
 
 /**
+ * A seed for one run, drawn fresh every launch.
+ *
+ * Six digits, so it is short enough to read off a screen, type back in and put in a
+ * message. This is the one number in the game that does not come from `mulberry32`:
+ * it is the entropy every other draw is derived from, and there is nothing to seed it
+ * with. `crypto` rather than `Math.random` says that plainly.
+ */
+export function freshSeed() {
+  return 100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000);
+}
+
+/**
  * Deal the first stage and hold everything that follows from it.
  *
  * @param {object} place - a `layoutFor` result: the board's field and the panel's
@@ -109,6 +121,24 @@ export function createRun(place, views, seed) {
     get round() { return round; },
     get span() { return span; },
     get depth() { return depth; },
+
+    /**
+     * Start again on a different draw, from the top of the path.
+     *
+     * A seed is the whole run, not a setting inside it: the same number deals the
+     * same sixteen yards in the same order. So changing it is starting over, and
+     * anything carried from the old run would be carried from a different game.
+     */
+    reseed(next) {
+      seed = next;
+      depth = 0;
+      attempt = 0;
+      meter.clear();
+      redeal();
+    },
+
+    /** What is dealing this run, so it can be shown and written down. */
+    get seed() { return seed; },
 
     /**
      * Stand the run at a stage, from a fresh attempt.

@@ -11,10 +11,9 @@ import { TUNING, createClock } from './juice.js';
 import { layoutFor } from './layout.js';
 import { createVoice } from './audio.js';
 import { createOptions } from './options.js';
-import { createRun } from './run.js';
+import { createRun, freshSeed } from './run.js';
 import { createTitle } from './title.js';
 
-const SEED = 1983;
 
 /**
  * A pointer event's position in canvas pixels.
@@ -91,7 +90,7 @@ async function openOn(canvas, ctx, placeOf, seed) {
  * @param {HTMLCanvasElement} canvas
  * @param {number} [seed]
  */
-export async function start(canvas, seed = SEED) {
+export async function start(canvas, seed = freshSeed()) {
   if (!(canvas instanceof HTMLCanvasElement)) {
     throw new Error('start() requires a <canvas> element'); // boundary
   }
@@ -120,7 +119,7 @@ export async function start(canvas, seed = SEED) {
 
   // The one piece of HTML in the game, laid over the canvas. It is raised here rather
   // than in the markup because it has nothing to say until there is a desk to move.
-  createOptions(document.body, views.voice);
+  createOptions(document.body, views.voice, run);
 
   // The wipe is kept rather than added and forgotten, because the loop is what hands
   // it the screen it takes off.
@@ -185,7 +184,7 @@ export async function start(canvas, seed = SEED) {
     // why it is asked for by depth rather than read off the run.
     if (!dead && run.round.done(at)) {
       const arriving = run.depth + 1;
-      wipe.take(ctx, at, seed + arriving, stageAt(arriving).along);
+      wipe.take(ctx, at, run.seed + arriving, stageAt(arriving).along);
       run.next();
     }
     run.settle();

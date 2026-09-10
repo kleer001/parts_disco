@@ -904,3 +904,33 @@ both use, and the run answers `onBoard(point)` instead.
 **Threaded:** `src/title.js`; `openOn` and `pointOf` in `src/main.js`; `onBoard` in
 `src/run.js`; `ring`, `inkStroke` and `roundRect` exported from `src/layers.js`;
 `tests/title.test.js`.
+
+### [2026-09-10] The seed is drawn fresh every launch and shown in the panel
+**Decision:** `freshSeed` in `src/run.js` draws six digits from `crypto` at start-up,
+`run.reseed` takes a new one and restarts from the first yard, and the options panel
+shows it in an editable field beside a "new" button. It is deliberately not saved with
+the rest of the panel's settings.
+**Why:** the seed was the constant 1983, so every launch dealt the same sixteen yards
+in the same order. A search game whose boards are memorised between sittings is not
+being searched. Verified: three cold launches gave 414667, 191761 and 762732, and
+typing a seed back reproduced its board byte for byte.
+**Rejected:** saving the seed with the faders and the chosen track — persistence is
+what the rest of that panel is for, and applying it here would restore the fixed-seed
+behaviour on the second visit. What the field is for is going back to a run you liked
+or handing it to somebody else, which is a thing you do on purpose.
+**Threaded:** `freshSeed` and `reseed` in `src/run.js`; the Run section of
+`src/options.js`; `.opts-run` and `.opts-seed` in `styles.css`.
+
+### [2026-09-10] The meter's cliff stays where it is
+**Decision:** ten units, a whole unit at stage 1 falling to a quarter at stage 16,
+carried across the whole run. Unchanged.
+**Why:** the panel round measured what the tuning actually costs — one wrong vehicle
+per stage clears all sixteen while spending 8.75 of the 10 units, and at 1.6 wrong per
+stage the run ends before stage 9, which is where the near-twins arrive. That was put
+to the owner as a content gate rather than a difficulty dial, and the owner kept it
+knowing the number: the game is meant to be hard, and reaching the twins is meant to
+be earned.
+**Rejected:** scaling the cost by a stage's target count, raising the capacity, and
+flattening the curve. All three remain available if a real player disagrees; none is
+blocked by anything but this ruling.
+**Threaded:** `CAPACITY`, `COST_FIRST` and `COST_LAST` in `src/meter.js`.

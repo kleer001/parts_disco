@@ -32,6 +32,22 @@ it went; it is never a reason to refuse a change he asks for.
 
 ## Losing
 
+- **Every launch deals a different run, and the seed is in the options panel.**
+  REJECTED: a fixed seed — it made every launch the same sixteen yards, which is
+  memorisation rather than search. REJECTED: remembering the seed with the other
+  settings — that is the fixed seed again by another route. It is six digits so it can
+  be read off a screen and typed back, and taking one starts the run over, because a
+  seed is the whole run rather than a setting inside it.
+- **The meter's cliff is the difficulty, and it stays.** Measured: one wrong vehicle a
+  stage clears all sixteen and spends 87% of the meter; 1.6 a stage never reaches
+  stage 9, where the twins arrive. REJECTED: retuning it so an imperfect player reaches
+  the twins tier — the owner's call, made knowing the number. This is a game and it is
+  supposed to be hard.
+- **A miss washes the vehicle that was clicked and says no more than that.** REJECTED:
+  showing the wrong vehicle against the wanted one — the wash already names which
+  vehicle was chosen, and what it did not have is the thing the player is there to
+  work out.
+
 - **The meter is a fixed ten units wide and a wrong vehicle costs less the further
   down the path it is.** REJECTED: a fixed cost and a capacity that grows with the
   stage — a bar whose length changes cannot be read as progress at a glance, and

@@ -10,6 +10,7 @@
 
 import { MIX } from './audio.js';
 import { TRACKS, MUSIC_ROOT } from './music.js';
+import { freshSeed as newSeed } from './run.js';
 
 /**
  * Where the panel's settings are kept between visits.
@@ -51,9 +52,10 @@ const el = (tag, className, text) => {
  *
  * @param {HTMLElement} mount - what to hang it on
  * @param {object} voice - the audio module, for `levels` and `setMusic`
+ * @param {object} run - the run, for its seed
  * @returns {{open: Function}} for anything that wants to raise it
  */
-export function createOptions(mount, voice) {
+export function createOptions(mount, voice, run) {
   // Nothing stored is the first visit, which is the shipped mix and no music. A stored
   // blob is this panel's own, so it is read straight back rather than picked over.
   const kept = localStorage.getItem(SAVED);
@@ -183,6 +185,40 @@ export function createOptions(mount, voice) {
   const credit = el('p', 'opts-note',
     'All four are CC0. Hover a name for its tempo and who made it.');
   body.append(credit);
+
+  // -- the run ---------------------------------------------------------------
+  // The seed is not kept with the settings above it on purpose. A remembered seed is
+  // the same sixteen yards every launch, which is the thing having a seed at all was
+  // meant to stop; what the field is for is going back to a run you liked, or handing
+  // it to somebody else.
+  body.append(el('h3', null, 'Run'));
+
+  const seedRow = el('div', 'opts-row opts-run');
+  const seedLabel = el('label', null, 'seed');
+  seedLabel.htmlFor = 'opt-seed';
+  const seed = el('input');
+  seed.type = 'text';
+  seed.id = 'opt-seed';
+  seed.className = 'opts-seed';
+  seed.inputMode = 'numeric';
+  seed.value = String(run.seed);
+  const shuffle = el('button', 'opts-track', 'new');
+  shuffle.type = 'button';
+  shuffle.title = 'Deal a different run';
+
+  // A seed is the whole run, so taking one starts over from the first yard.
+  const take = (next) => {
+    if (!Number.isFinite(next) || next === run.seed) return;
+    run.reseed(next);
+    seed.value = String(run.seed);
+  };
+  seed.addEventListener('change', () => take(Number(seed.value.trim())));
+  shuffle.addEventListener('click', () => take(newSeed()));
+
+  seedRow.append(seedLabel, seed, shuffle);
+  body.append(seedRow);
+  body.append(el('p', 'opts-note',
+    'Every launch deals a different run. Type a seed back in to play it again.'));
 
   // -- raising and lowering it ---------------------------------------------
   const setOpen = (open) => {
