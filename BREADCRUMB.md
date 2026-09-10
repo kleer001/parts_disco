@@ -1,9 +1,9 @@
-fresh
+stale
 
 ## Summary
 
-The game got a voice, a way to lose, a wipe with character, paper under its panel, and
-music behind a switch.
+The game got a voice, a way to lose, a wipe with character, paper under its panel,
+music behind a switch, and a panel that remembers.
 
 `src/audio.js` is now a small desk: a music bus and an effects bus into a master, with
 the music ducking out of the way of every effect. The five board sounds are balanced
@@ -18,7 +18,11 @@ Filling it frosts the yard and offers the same stage again as a different deal.
 A level now leaves on the grid the *arriving* level rules, so the wipe announces the
 next stage's density. The panel is printed on two papers with its blocks pressed into
 one sheet. An options panel — the game's only HTML — sits bottom right with the sound
-faders and four CC0 loops, music off by default.
+faders and four CC0 loops, music off until it is asked for and kept once it has been.
+
+`src/run.js` holds a run — the stage, the attempt, the meter, the dealt board and its
+colouring. The game and `dev/juice.html` both drive it, so the bench tunes against the
+board that ships.
 
 Live at **https://kleer001.github.io/parts_disco/**.
 
@@ -26,18 +30,16 @@ Live at **https://kleer001.github.io/parts_disco/**.
 
 ### Parallel
 
-- [ ] #21 The music has no crossfade at its loop point, and two of the four tracks
-  need one. `Piano`'s wrap is a sharper transient than 99.9% of anything inside it and
-  `Disco`'s is sharper than 90.7% — both will tick once a bar in the game.
-  `research/disco-loops/shortlist.html` has a working 12ms equal-power crossfade to
-  copy; `setMusic` in `src/audio.js` just sets `loopStart`/`loopEnd`. `Funky` (46.5%)
-  and `Techno-ish` (10.4%) are fine as they are.
 - [ ] #18 Swap the three Freesound previews for their masters. `music.js` records which
   is which as `master: false` — `Techno-ish`, `Disco` and `Piano` play the site's `-lq`
   preview because the master needs an account. Fine to judge by, wrong to ship.
-- [ ] #15 Settle the win chime's provenance. `assets/sfx/win-chime.mp3` came from
-  `treasure_trash`, which records no licence, source or credit for it anywhere. The
-  music now has a provenance standard the chime does not meet.
+- [ ] #15 Decide what happens to `assets/sfx/win-chime.mp3`. Its provenance is not
+  recoverable and the archaeology is written up in `assets/sfx/README.md`: one commit
+  in `treasure_trash` with no source, no credits anywhere, no other copy on disk, and
+  audio that reads as a library sample rather than anything synthesised here. So the
+  choice is to find the licence or to replace it with a CC0 sound put through the same
+  mill the music was. Replacing it moves `WIN_GAIN`, which is solved against `BALANCE`.
+
 - [ ] #17 Playtest the meter and settle its two guesses: ten units of capacity, and a
   wrong vehicle falling from a whole unit to a quarter across the path. The asymmetry
   to watch is that a stage's target count swings from 2 to 33, so two stages at the
@@ -54,8 +56,6 @@ Live at **https://kleer001.github.io/parts_disco/**.
   Near-twins are worth more than loud ones — the twins tier is where the difficulty
   lives. `tools/model_views/` is the pipeline from GLB to strokes, silhouette and
   1-bit render.
-- [ ] #19 Remember the options across a reload. Offered and not taken; it is a few
-  lines of `localStorage` in `src/options.js`.
 - [ ] #20 Tabs in the options panel. Deferred deliberately — the body is one scrolling
   column with `Sound` and `Music` headings, so this is splitting it rather than
   rebuilding it.
@@ -65,10 +65,6 @@ Live at **https://kleer001.github.io/parts_disco/**.
 - [ ] #5 Play the sixteen stages start to finish and feel the ramp. Especially whether
   stage 9's jump (twins arrive) is too steep and whether stage 16 at one ink is
   playable.
-- [ ] #14 Pull the run driver out of `main.js` so `dev/juice.html` stops carrying its
-  own copy. ~60 near-identical lines. The bench is the instrument the tuning is chosen
-  on, so a bench that has drifted from the game produces wrong numbers with nothing to
-  catch it.
 - [ ] #6 Decide what to do about `view-preview.html`, and the other root clutter a
   visitor sees: `board-default.png` (847KB), `board.txt` (134KB), `gl-spike.html`,
   `word-preview.html`.
@@ -92,6 +88,7 @@ Live at **https://kleer001.github.io/parts_disco/**.
 **Where things live.** `src/`: `views.js` loads the fleet, `board.js` deals and throws,
 `paint.js` colours the map, `game.js` holds the round, `levels.js` is the difficulty
 path as data, `meter.js` is the run's damage, `juice.js` is the tuning and envelopes,
+`run.js` is a run and what it dealt,
 `audio.js` is the voice *and* the desk, `music.js` is the track table, `layout.js` says
 where things sit, `layers.js` draws, `options.js` is the panel, `main.js` wires it.
 Benches: `dev/juice.html` (effects), `dev/panel.html` (the panel's paper),
@@ -162,9 +159,9 @@ half of the README says *yard*; *board* is developer vocabulary.
 
 ## Next Step
 
-#21 — the loop crossfade. It is the one thing shipped this session that a player will
-hear as a defect: pick `Piano` or `Disco` in the options panel and it ticks once a bar.
-The fix already exists and works in `research/disco-loops/shortlist.html`; it needs
-moving into `setMusic`.
+Everything left needs a decision rather than a keystroke. **#7 is the one that unblocks
+most** — whether the board drifts gates #8, #9 and #11 and settles whether the held
+board and the Canvas2D renderer survive at all. After that the cluster of playtest
+todos (#5, #17, #16, #12) all want the same thing: someone playing it.
 
 /home/menser/Dropbox/ai/code/parts_disco
