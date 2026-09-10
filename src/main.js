@@ -12,8 +12,79 @@ import { layoutFor } from './layout.js';
 import { createVoice } from './audio.js';
 import { createOptions } from './options.js';
 import { createRun } from './run.js';
+import { createTitle } from './title.js';
 
 const SEED = 1983;
+
+/**
+ * A pointer event's position in canvas pixels.
+ *
+ * The canvas is a fixed pixel budget stretched by CSS, so a client coordinate is not
+ * a canvas one and the ratio changes with the window. This is the only place that
+ * conversion happens.
+ */
+function pointOf(canvas, event) {
+  const box = canvas.getBoundingClientRect();
+  return [
+    ((event.clientX - box.left) / box.width) * canvas.width,
+    ((event.clientY - box.top) / box.height) * canvas.height,
+  ];
+}
+
+/**
+ * Put the title up, fetch the game behind it, and wait for PLAY.
+ *
+ * The order is the point. The title needs a fill and some type, so it is on screen
+ * within a frame; the fleet is a couple of megabytes and arrives whenever it arrives.
+ * Nothing here is a loading screen that gets replaced -- the title simply gains its
+ * yard when the yard turns up, and the button goes live at the same moment.
+ *
+ * @returns {Promise<{fleet: object, voice: object}>} once the player has pressed PLAY
+ */
+async function openOn(canvas, ctx, placeOf, seed) {
+  let title = createTitle(placeOf(), seed);
+  let shape = `${canvas.width}x${canvas.height}`;
+  let fleet = null;
+
+  // The font is asked for alongside the fleet rather than ahead of it: the panel
+  // measures text to size its slabs, and the title redraws every frame anyway, so it
+  // picks the face up the moment it lands. The chime rides along so that no win can
+  // arrive ahead of its sound; its context starts suspended, which is allowed without
+  // a gesture, and the press that leaves this screen is the gesture that resumes it.
+  const voice = createVoice();
+  const loading = Promise.all([
+    loadViews(), document.fonts.load('16px VT323'), voice.load(),
+  ]).then(([views]) => { fleet = views; });
+
+  let showing = true;
+  const paint = () => {
+    if (!showing) return;
+    const now = `${canvas.width}x${canvas.height}`;
+    if (now !== shape) {
+      title = createTitle(placeOf(), seed);
+      shape = now;
+    }
+    title.draw(ctx, fleet);
+    requestAnimationFrame(paint);
+  };
+  requestAnimationFrame(paint);
+
+  await new Promise((pressed) => {
+    const press = (event) => {
+      // `hit` answers false until the fleet has landed, so there is no way to click
+      // past this screen into a game that has nothing to draw.
+      if (!title.hit(pointOf(canvas, event))) return;
+      event.preventDefault();
+      canvas.removeEventListener('pointerdown', press);
+      showing = false;
+      pressed();
+    };
+    canvas.addEventListener('pointerdown', press);
+  });
+
+  await loading;
+  return { fleet, voice };
+}
 
 /**
  * Wire a canvas to a run and start the loop.
@@ -27,27 +98,11 @@ export async function start(canvas, seed = SEED) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) throw new Error('2D canvas context unavailable'); // boundary
 
-  // The panel measures text to size its slabs, so the face has to be there before
-  // the first frame or every slab is cut to the fallback's widths. It is asked for
-  // alongside the fleet rather than ahead of it -- the fleet is megabytes and the
-  // face is kilobytes, so waiting for one before starting the other is a round trip
-  // spent on nothing.
-  // The chime joins them for the same reason: it is decoded before the first frame,
-  // so no win can ever arrive ahead of its sound. Its context starts suspended, which
-  // is allowed without a gesture; the first click resumes it.
-  const voice = createVoice();
-  const [views] = await Promise.all([
-    loadViews(), document.fonts.load('16px VT323'), voice.load(),
-  ]);
-
   // The canvas is a shape, not a size: it takes the viewport's proportions and a
   // fixed pixel budget, and CSS scales it the rest of the way.
   const viewport = () =>
     layoutFor(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
   let place = viewport();
-
-  const run = createRun(place, views, seed);
-  const viewOf = (slot) => views.view(slot.model, slot.angle);
 
   const resize = () => {
     canvas.width = place.width;
@@ -55,9 +110,17 @@ export async function start(canvas, seed = SEED) {
   };
   resize();
 
+  // Nothing is fetched before this line. The fleet is megabytes and the title is a
+  // fill and some type, so the screen is up on the first frame and the wait happens
+  // behind it rather than in front of a blank canvas.
+  const views = await openOn(canvas, ctx, () => place, seed);
+
+  const run = createRun(place, views.fleet, seed);
+  const viewOf = (slot) => views.fleet.view(slot.model, slot.angle);
+
   // The one piece of HTML in the game, laid over the canvas. It is raised here rather
   // than in the markup because it has nothing to say until there is a desk to move.
-  createOptions(document.body, voice);
+  createOptions(document.body, views.voice);
 
   // The wipe is kept rather than added and forgotten, because the loop is what hands
   // it the screen it takes off.
@@ -83,8 +146,8 @@ export async function start(canvas, seed = SEED) {
   const clock = createClock();
 
   canvas.addEventListener('pointerdown', (event) => {
-    const point = run.pointIn(canvas, event);
-    if (!point) return;
+    const point = pointOf(canvas, event);
+    if (!run.onBoard(point)) return;
     event.preventDefault();
     const now = performance.now();
     const at = clock.tick(now);
@@ -101,10 +164,10 @@ export async function start(canvas, seed = SEED) {
     // whether it won, because the win is a sound it queues behind itself.
     if (outcome === 'found') {
       clock.freeze(now, TUNING.hitStopMs);
-      voice.find(run.round.found.size, run.round.wonAt !== null);
+      views.voice.find(run.round.found.size, run.round.wonAt !== null);
     } else {
       if (outcome === 'wrong') run.meter.take(run.level.along, at);
-      voice.play(outcome);
+      views.voice.play(outcome);
     }
   });
 

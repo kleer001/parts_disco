@@ -169,18 +169,15 @@ export function createRun(place, views, seed) {
     },
 
     /**
-     * A click's canvas point, or null if it landed outside the board.
+     * Whether a canvas point landed on the board at all.
      *
-     * The panel is under the board and takes no clicks, so a point past the field is
-     * one the round should never be asked about.
+     * The panel sits beside the board and takes no clicks, so a point past the field
+     * is one the round should never be asked about. The point arrives already in
+     * canvas coordinates: turning an event into one is the entry point's job, and
+     * nothing in here is allowed to know what an event is.
      */
-    pointIn(canvas, event) {
-      const box = canvas.getBoundingClientRect();
-      const point = [
-        ((event.clientX - box.left) / box.width) * canvas.width,
-        ((event.clientY - box.top) / box.height) * canvas.height,
-      ];
-      return point[0] > field.width || point[1] > field.height ? null : point;
+    onBoard(point) {
+      return point[0] <= field.width && point[1] <= field.height;
     },
   };
 }

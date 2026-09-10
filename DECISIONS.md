@@ -111,6 +111,26 @@ it went; it is never a reason to refuse a change he asks for.
   equal-lightness ramp with hue carrying the meaning — measured, it puts green and red
   0.021 apart in OKLab under simulated deuteranopia, which is the same colour.
 
+## The opening screen
+
+- **The title screen is the loading screen.** REJECTED: a progress bar or a splash
+  that gets replaced — the fleet is 2.2MB over ~118 requests and until it lands there
+  is nothing to draw, so the title paints on the first frame and the fetching happens
+  behind it. This is what the games this one is measured against do; none of the five
+  has a loading screen at all.
+- **What says the wait is over is the game's own content, not a readout.** REJECTED: a
+  bar or a percentage — the yard above the wordmark is empty while the fleet is in
+  flight and fills when it arrives, and the button turns from the panel's quiet grey
+  to the green a find wears. A player meets the colour here and again the first time
+  they are right.
+- **PLAY is dead until the fleet has landed.** REJECTED: letting the press queue — a
+  click that starts a game with no vehicles to deal is a click into a blank screen,
+  and `hit` answering false costs nothing.
+- **No modes.** REJECTED: a mode menu — none of the five reference games has one;
+  their variation is stakes, seeds and unlockables chosen after PLAY. Deciding which
+  of those this game wants is a question for after someone has played the sixteen
+  stages, and a mode menu splits a player base that does not exist yet.
+
 ## The options panel
 
 - **The panel's settings are kept in `localStorage`, the chosen track by name.**

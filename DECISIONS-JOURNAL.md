@@ -874,3 +874,33 @@ files at the repository root — `board-default.png`, `board.txt`, `view-preview
 and `word-preview.html`. All of it is in the history at `d571920`.
 **Threaded:** the cache in `createBoardLayer` in `src/layers.js`; the `held` canvas
 owned by `src/run.js`.
+
+### [2026-09-10] The game opens on a title, and the title is the loading screen
+**Decision:** `src/title.js` draws a wordmark, the two lines of the pitch, a yard of
+seven vehicles and one button. `main.js` paints it before it fetches anything, loads
+the fleet, the face and the chime behind it, and waits for PLAY. `hit` answers false
+until the fleet has landed, so the screen cannot be clicked past into a game with
+nothing to deal.
+**Why:** measured, the game pulls 2.2MB across 118 requests before its first frame,
+and until then there is no board. That wait was being spent on a blank canvas. The
+five games this one was measured against — Balatro, Dicey Dungeons, Hi-Lo, ploink,
+Pegs X — have no loading screen between them; Balatro's title screen is the cover, and
+its wordmark is built out of a live playing card, the game's own object doing the
+typography's job. The yard here is the same move: it is empty while the fleet is in
+flight and fills when it arrives, which is the ready signal, and the button goes from
+the panel's quiet grey to the green a find wears.
+**Rejected:** a progress bar or a percentage — it reports on the machine rather than on
+the game, and the content arriving says the same thing in the game's own language.
+Rejected: a splash screen that is replaced by the title — two screens where one will
+do. Rejected: modes on the title screen, which is what was asked for — none of the five
+references has a mode menu, their variation is stakes, seeds and unlockables chosen
+behind PLAY, and choosing which of those this game wants is a question for after
+someone other than its author has played the sixteen stages.
+**Caught while doing it:** `run.pointIn` took a DOM event and called
+`getBoundingClientRect`, against both `main.js`'s own header ("the only file that
+touches the DOM, the clock or an event") and the rule that core logic never reaches for
+the DOM. The conversion is now `pointOf` in `main.js`, which the title and the board
+both use, and the run answers `onBoard(point)` instead.
+**Threaded:** `src/title.js`; `openOn` and `pointOf` in `src/main.js`; `onBoard` in
+`src/run.js`; `ring`, `inkStroke` and `roundRect` exported from `src/layers.js`;
+`tests/title.test.js`.

@@ -78,7 +78,7 @@ export const REFUSED = '#c9c9c9';
  * layer so that how a view lands on the board is stated once: a pulse that drew
  * itself by its own rule would drift off the board it is drawn over.
  */
-function ring(ctx, anchor, points, span, scale = 1, dx = 0, dy = 0) {
+export function ring(ctx, anchor, points, span, scale = 1, dx = 0, dy = 0) {
   ctx.beginPath();
   for (let k = 0; k < points.length; k++) {
     const x = anchor.cx + (points[k][0] - 0.5) * span * scale + dx;
@@ -153,7 +153,7 @@ const cellOf = (s, along) => Math.max(8, Math.round(gridCellAt(along, s) * 8)) /
 const face = (px, s) => `${Math.round(px * s.typeScale)}px VT323, monospace`;
 
 /** How a vehicle's linework is drawn, wherever it is drawn. */
-function inkStroke(ctx) {
+export function inkStroke(ctx) {
   ctx.lineWidth = STROKE;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -510,7 +510,7 @@ export function createRecessLayer(settings = () => TUNING) {
 /* ---- the panel ----------------------------------------------------------- */
 
 /** A rounded path, for a slab or a card. */
-function roundRect(ctx, x, y, w, h, r) {
+export function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);

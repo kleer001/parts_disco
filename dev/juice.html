@@ -252,8 +252,12 @@ const scaledNow = (now) => {
 };
 
 canvas.addEventListener('pointerdown', (event) => {
-  const point = run.pointIn(canvas, event);
-  if (!point) return;
+  const box = canvas.getBoundingClientRect();
+  const point = [
+    ((event.clientX - box.left) / box.width) * canvas.width,
+    ((event.clientY - box.top) / box.height) * canvas.height,
+  ];
+  if (!run.onBoard(point)) return;
   const at = clock.tick(scaled);
   const { outcome } = run.round.choose(point, run.span, at);
   if (outcome === 'wrong') meter.take(run.level.along, at);
