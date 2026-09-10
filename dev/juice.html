@@ -151,17 +151,14 @@ pre{background:var(--sunk);border:1px solid var(--rule);padding:10px;
 
 <script type="module">
 import { createCompositor } from '../src/compositor.js';
-import { loadViews, proxyOf } from '../src/views.js';
-import { deal, layout } from '../src/board.js';
-import { createRound } from '../src/game.js';
+import { loadViews } from '../src/views.js';
 import { stageAt, RANGE, PATH } from '../src/levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
-         createRefuseLayer, createRecessLayer, createPanelLayer, createWipeLayer,
-         stampRegions, INKS, rgbOf } from '../src/layers.js';
-import { planBoard } from '../src/paint.js';
+         createRefuseLayer, createRecessLayer, createPanelLayer,
+         createWipeLayer } from '../src/layers.js';
 import { TUNING, SEMANTIC, createClock, gridCellAt } from '../src/juice.js';
 import { layoutFor } from '../src/layout.js';
-import { createMeter } from '../src/meter.js';
+import { createRun } from '../src/run.js';
 
 // The bench holds one shape on purpose: a slider is judged against a fixed picture,
 // and a panel that reflowed with the window would move while it was being tuned.
@@ -205,67 +202,32 @@ const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 canvas.width = PLACE.width;
 canvas.height = PLACE.height;
-const field = PLACE.board;
 
 await document.fonts.load('16px VT323');
 const views = await loadViews('../assets/views');
 const viewOf = (slot) => views.view(slot.model, slot.angle);
 
-const proxies = new Map();
-const proxyFor = (slot) => {
-  const at = `${slot.model}/${slot.angle}`;
-  if (!proxies.has(at)) proxies.set(at, proxyOf(viewOf(slot)));
-  return proxies.get(at);
-};
+// The game's own run, not a copy of it. A bench that deals its own boards chooses
+// these numbers against a board that is not the one they ship to.
+const seed = 1983;
+const run = createRun(PLACE, views, seed);
 
-const scratch = document.createElement('canvas');
-scratch.width = field.width;
-scratch.height = field.height;
-const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
-const held = document.createElement('canvas');
-held.width = field.width;
-held.height = field.height;
-const shot = document.createElement('canvas');
-
-let seed = 1983;
-let depth = 0;
-let level, round, span, prompt, standing, plan, shades;
-
-// The bench never dies -- it is here so the meter's needle can be watched while the
+// The bench never dies -- the meter is here so its needle can be watched while the
 // kick is tuned, and a wrong click is the only thing that moves it.
-const meter = createMeter();
+const meter = run.meter;
 
-const replan = (cars) => {
-  standing = cars;
-  stampRegions(scratchCtx, standing, span, viewOf, field.width, field.height);
-  const px = scratchCtx.getImageData(0, 0, field.width, field.height).data;
-  plan = planBoard(px, field.width, field.height, standing.length, level.inks);
-};
-
-const nextLevel = () => {
-  level = stageAt(depth);
-  span = Math.min(field.width, field.height) * level.size;
-  const { placed, target, askedAt } = deal(seed + depth, level, views);
-  round = createRound(layout(placed, seed + depth, span, field, proxyFor),
-                      target, viewOf);
-  prompt = new Image();
-  prompt.src = views.promptFor(target, askedAt ?? views.anglesOf(target)[0]);
-  shades = INKS.slice(0, level.inks).map(rgbOf);
-  replan(round.anchors);
-};
-nextLevel();
 
 /* ---- layers --------------------------------------------------------------- */
 // Every layer is the game's own, handed a live settings function instead of the
 // tuning it would read on its own.
-const wipe = createWipeLayer(shot, settings);
+const wipe = createWipeLayer(document.createElement('canvas'), settings);
 const tuned = createPanelLayer(RANGE, settings);
 const asShipped = createPanelLayer(RANGE);
 let useShipped = false;
 
 const scene = createCompositor()
   .add(createPaperLayer())
-  .add(createBoardLayer(viewOf, held))
+  .add(createBoardLayer(viewOf, run.held))
   .add(createGridLayer(settings))
   .add(createRefuseLayer(viewOf, settings))
   .add(createFindLayer(viewOf, settings))
@@ -290,15 +252,11 @@ const scaledNow = (now) => {
 };
 
 canvas.addEventListener('pointerdown', (event) => {
-  const box = canvas.getBoundingClientRect();
-  const point = [
-    ((event.clientX - box.left) / box.width) * canvas.width,
-    ((event.clientY - box.top) / box.height) * canvas.height,
-  ];
-  if (point[0] > field.width || point[1] > field.height) return;
+  const point = run.pointIn(canvas, event);
+  if (!point) return;
   const at = clock.tick(scaled);
-  const { outcome } = round.choose(point, span, at);
-  if (outcome === 'wrong') meter.take(level.along, at);
+  const { outcome } = run.round.choose(point, run.span, at);
+  if (outcome === 'wrong') meter.take(run.level.along, at);
   if (outcome === 'found') clock.freeze(scaled, state.hitStopMs);
 });
 
@@ -307,20 +265,22 @@ let lastPaint = 0;
 
 const frame = (now) => {
   const at = clock.tick(scaledNow(now));
-  if (round.done(at)) { depth++; wipe.take(ctx, at, seed + depth, stageAt(depth).along); nextLevel(); }
-  if (round.wonAt !== null && standing.length === round.anchors.length) {
-    replan(round.anchors.filter((_, i) => round.found.has(i)));
+  if (run.round.done(at)) {
+    const arriving = run.depth + 1;
+    wipe.take(ctx, at, seed + arriving, stageAt(arriving).along);
+    run.next();
   }
+  run.settle();
   const t0 = performance.now();
-  scene.render(ctx, {
-    width: field.width, height: field.height, panel: PLACE.panel,
-    standing, plan, shades, span, round, level, prompt, meter, dead: false, at,
-  });
+  // The bench never dies, so the meter's needle can be watched without the frost
+  // arriving over the effect being tuned.
+  scene.render(ctx, run.frameOf(at, false));
   lastPaint = lastPaint * 0.9 + (performance.now() - t0) * 0.1;
   readout.textContent =
-    `stage ${level.level}:${level.stage} · ${level.cars} vehicles · ${level.inks} inks`
-    + ` · found ${round.found.size}/${round.total} · misses ${round.misses}`
-    + ` · cell ${gridCellAt(level.along, state).toFixed(1)}px`
+    `stage ${run.level.level}:${run.level.stage} · ${run.level.cars} vehicles`
+    + ` · ${run.level.inks} inks`
+    + ` · found ${run.round.found.size}/${run.round.total}`
+    + ` · cell ${gridCellAt(run.level.along, state).toFixed(1)}px`
     + ` · paint ${lastPaint.toFixed(2)}ms`;
   requestAnimationFrame(frame);
 };
@@ -382,6 +342,7 @@ document.getElementById('selectAll').addEventListener('click', () => {
 // from here: one more, all but one, or the whole thing.
 const find = (howMany) => {
   const at = clock.tick(scaled);
+  const { round } = run;
   const wanted = round.anchors
     .map((anchor, i) => i)
     .filter((i) => round.anchors[i].slot.model === round.target && !round.found.has(i));
@@ -391,14 +352,14 @@ const find = (howMany) => {
 };
 document.getElementById('findOne').addEventListener('click', () => find(1));
 document.getElementById('findAllBut')
-  .addEventListener('click', () => find(round.left() - 1));
-document.getElementById('winIt').addEventListener('click', () => find(round.left()));
-document.getElementById('redeal').addEventListener('click', () => { seed += 7; nextLevel(); });
+  .addEventListener('click', () => find(run.round.left() - 1));
+document.getElementById('winIt').addEventListener('click', () => find(run.round.left()));
+document.getElementById('redeal').addEventListener('click', () => run.retry());
 document.getElementById('prevStage').addEventListener('click', () => {
-  depth = Math.max(0, depth - 1); nextLevel();
+  run.goTo(Math.max(0, run.depth - 1));
 });
 document.getElementById('nextStage').addEventListener('click', () => {
-  depth = Math.min(PATH.length - 1, depth + 1); nextLevel();
+  run.goTo(Math.min(PATH.length - 1, run.depth + 1));
 });
 document.getElementById('slowmo').addEventListener('click', (e) => {
   rate = rate === 1 ? 0.25 : 1;

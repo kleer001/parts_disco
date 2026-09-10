@@ -811,3 +811,23 @@ needed help. At the trim all four need it. The number is still on the cards, rel
 as a property of the download; `shortlist.py` still computes the old one.
 **Threaded:** `buildLoop` and `LOOP_CROSSFADE_MS` in `src/audio.js`, used by `setMusic`
 there and by `research/disco-loops/shortlist.html`; `tests/audio.test.js`.
+
+### [2026-09-10] The run is a module, not a thing each page rebuilds
+**Decision:** `src/run.js` holds the run — depth, attempt, the meter, the dealt board,
+its colouring, and the object a compositor is handed. `src/main.js` and `dev/juice.html`
+both drive it and neither deals a board of its own. It exposes `goTo`, which the game
+only ever calls forwards, because the bench steps about the path.
+**Why:** the bench is the instrument every tuning number is chosen on. A bench with its
+own copy of the deal chooses them against a board the game never shows, and nothing
+catches it, because both halves go on working. It had already drifted twice: the bench's
+deal had no retry stride in it, so its stage 2 was not the game's stage 2 after a death,
+and its readout printed a `round.misses` that was removed when the meter arrived.
+**Rejected:** leaving the copy and keeping the two in step by hand — that is the
+arrangement that produced the drift. Rejected: having the bench rebuild a whole run to
+step backwards through the path — the board layer is handed the run's cache canvas when
+the scene is built, so a replaced run leaves the layer drawing into the old one.
+**Verified:** both trees instrumented at `deal` and `layout` and driven through the same
+click sequence — the same stage, the same seeds across a win and three deaths
+(1983, 1984, 1984+7919, +2×7919), the same span and field.
+**Threaded:** `src/run.js`; `src/main.js`; the module list in `dev/build_artifact.py`;
+the driver half of `dev/juice.html`.

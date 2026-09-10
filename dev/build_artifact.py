@@ -36,6 +36,7 @@ MODULES = [
     'src/meter.js',
     'src/juice.js',
     'src/layers.js',
+    'src/run.js',
 ]
 
 IMPORT = re.compile(r'^import\s+\{[^}]*\}\s+from\s+[\'"][^\'"]+[\'"];\s*$',

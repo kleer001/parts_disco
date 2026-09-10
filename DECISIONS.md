@@ -207,6 +207,11 @@ it went; it is never a reason to refuse a change he asks for.
   hole (Funky, -2.5dB across the wrap). REJECTED: shortening the loop by the fade and
   folding its own tail over its head — it drags the pulse forward by the fade on every
   repeat, which is the drift the bar-aligned trim exists to prevent.
+- **The run is a module the game and the juice bench both drive.** REJECTED: the bench
+  keeping its own copy of the deal — it is the instrument the tuning numbers are chosen
+  on, so a copy that drifts picks them against a board the game never shows, and both
+  halves keep working while it happens. It had already drifted: the bench dealt without
+  the retry stride and printed a `round.misses` that no longer exists.
 - **A hit stop belongs to the clock.** REJECTED: each effect holding its own timer —
   a hold has to stop the whole board, and effects that each freeze themselves drift
   apart the moment two overlap.

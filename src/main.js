@@ -2,31 +2,18 @@
 // Everything it calls is pure and takes what it needs as an argument.
 
 import { createCompositor } from './compositor.js';
-import { loadViews, proxyOf } from './views.js';
-import { deal, layout } from './board.js';
-import { createRound } from './game.js';
+import { loadViews } from './views.js';
 import { stageAt, RANGE } from './levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
          createRefuseLayer, createRecessLayer, createOverLayer, createPanelLayer,
-         createWipeLayer, stampRegions, INKS, rgbOf } from './layers.js';
-import { planBoard } from './paint.js';
+         createWipeLayer } from './layers.js';
 import { TUNING, createClock } from './juice.js';
 import { layoutFor } from './layout.js';
 import { createVoice } from './audio.js';
-import { createMeter } from './meter.js';
 import { createOptions } from './options.js';
+import { createRun } from './run.js';
 
 const SEED = 1983;
-
-/**
- * How far a retry's deal is moved from the one it replaces.
- *
- * A death hands back the same stage, not the same yard. Replaying the board you just
- * memorised is a recall exercise and not the search the stage is asking for, so the
- * attempt is part of what the deal is drawn from -- and the run still reproduces,
- * because the attempt is counted rather than rolled.
- */
-const RETRY_STRIDE = 7919;
 
 /**
  * Wire a canvas to a run and start the loop.
@@ -52,79 +39,21 @@ export async function start(canvas, seed = SEED) {
   const [views] = await Promise.all([
     loadViews(), document.fonts.load('16px VT323'), voice.load(),
   ]);
-  const viewOf = (slot) => views.view(slot.model, slot.angle);
 
   // The canvas is a shape, not a size: it takes the viewport's proportions and a
   // fixed pixel budget, and CSS scales it the rest of the way.
   const viewport = () =>
     layoutFor(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
   let place = viewport();
-  let field = place.board;
 
-  // A view's proxy never changes, and the layout asks for it once per car per deal.
-  const proxies = new Map();
-  const proxyFor = (slot) => {
-    const at = `${slot.model}/${slot.angle}`;
-    if (!proxies.has(at)) proxies.set(at, proxyOf(viewOf(slot)));
-    return proxies.get(at);
-  };
-
-  // The plan is read off a drawing nobody sees, so it is made on a canvas of its own
-  // rather than by scribbling on the board and painting over it.
-  const scratch = document.createElement('canvas');
-  const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
-  const held = document.createElement('canvas');
-  const shot = document.createElement('canvas');
+  const run = createRun(place, views, seed);
+  const viewOf = (slot) => views.view(slot.model, slot.angle);
 
   const resize = () => {
     canvas.width = place.width;
     canvas.height = place.height;
-    scratch.width = held.width = field.width;
-    scratch.height = held.height = field.height;
   };
   resize();
-
-  let depth = 0;
-  let attempt = 0;
-  let level;
-  let round;
-  let span;
-  let prompt;
-  let standing;
-  let plan;
-  let shades;
-
-  /**
-   * Work out how this board is coloured. A function of the placement alone, so it is
-   * asked when the placement changes and not once a frame: when a board is dealt, and
-   * again when the last car is found and the losers leave, which makes the remaining
-   * cars a different map.
-   */
-  const replan = (cars) => {
-    standing = cars;
-    stampRegions(scratchCtx, standing, span, viewOf, field.width, field.height);
-    const px = scratchCtx.getImageData(0, 0, field.width, field.height).data;
-    plan = planBoard(px, field.width, field.height, standing.length, level.inks);
-  };
-
-  const nextLevel = () => {
-    level = stageAt(depth);
-    // Off the short edge, so a vehicle is the same size in a tall field as a wide one.
-    span = Math.min(field.width, field.height) * level.size;
-    const draw = seed + depth + attempt * RETRY_STRIDE;
-    const { placed, target, askedAt } = deal(draw, level, views);
-    round = createRound(layout(placed, draw, span, field, proxyFor),
-                        target, viewOf);
-    prompt = new Image();
-    prompt.src = views.promptFor(target, askedAt ?? views.anglesOf(target)[0]);
-    shades = INKS.slice(0, level.inks).map(rgbOf);
-    replan(round.anchors);
-  };
-  nextLevel();
-
-  // The damage a life can take. It outlives a round on purpose -- it is the run that
-  // is being spent, not the board.
-  const meter = createMeter();
 
   // The one piece of HTML in the game, laid over the canvas. It is raised here rather
   // than in the markup because it has nothing to say until there is a desk to move.
@@ -132,7 +61,7 @@ export async function start(canvas, seed = SEED) {
 
   // The wipe is kept rather than added and forgotten, because the loop is what hands
   // it the screen it takes off.
-  const wipe = createWipeLayer(shot);
+  const wipe = createWipeLayer(document.createElement('canvas'));
 
   // Order is the picture: the ground goes over the board so the paper lies on top of
   // the ink, the find pulse goes over that, the recess frames the lot, and the wipe
@@ -140,7 +69,7 @@ export async function start(canvas, seed = SEED) {
 
   const scene = createCompositor()
     .add(createPaperLayer())
-    .add(createBoardLayer(viewOf, held))
+    .add(createBoardLayer(viewOf, run.held))
     .add(createGridLayer())
     .add(createRefuseLayer(viewOf))
     .add(createFindLayer(viewOf))
@@ -154,76 +83,51 @@ export async function start(canvas, seed = SEED) {
   const clock = createClock();
 
   canvas.addEventListener('pointerdown', (event) => {
-    const box = canvas.getBoundingClientRect();
-    const point = [
-      ((event.clientX - box.left) / box.width) * canvas.width,
-      ((event.clientY - box.top) / box.height) * canvas.height,
-    ];
-    if (point[0] > field.width || point[1] > field.height) return;
+    const point = run.pointIn(canvas, event);
+    if (!point) return;
     event.preventDefault();
     const now = performance.now();
     const at = clock.tick(now);
 
     // A dead run is owed a board, and the click that says so is not a guess about
-    // this one. The stage is dealt again from a fresh attempt, so the same numbers
-    // come back as a different yard.
-    if (meter.full()) {
-      attempt++;
-      meter.clear();
-      nextLevel();
+    // this one.
+    if (run.meter.full()) {
+      run.retry();
       return;
     }
 
-    const { outcome } = round.choose(point, span, at);
+    const { outcome } = run.round.choose(point, run.span, at);
     // Rank is the size of the found set, which this click just grew. The find knows
     // whether it won, because the win is a sound it queues behind itself.
     if (outcome === 'found') {
       clock.freeze(now, TUNING.hitStopMs);
-      voice.find(round.found.size, round.wonAt !== null);
+      voice.find(run.round.found.size, run.round.wonAt !== null);
     } else {
-      if (outcome === 'wrong') meter.take(level.along, at);
+      if (outcome === 'wrong') run.meter.take(run.level.along, at);
       voice.play(outcome);
     }
   });
 
   const frame = (now) => {
     const at = clock.tick(now);
-    const dead = meter.full();
+    const dead = run.meter.full();
     // The win plays itself out on the board, and when it has run its two seconds the
     // next level is dealt. Nothing is timed here beyond that. What is on the canvas at
     // that moment is the win's last frame, so the wipe takes the picture first: after
-    // this line the state behind it is the new level's.
-    if (!dead && round.done(at)) {
-      depth++;
-      attempt = 0;
-      // The wipe is told the level it is bringing in, not the one it is taking off:
-      // the grid it leaves on is the arriving level's, which is what makes the
-      // transition an announcement rather than a goodbye.
-      wipe.take(ctx, at, seed + depth, stageAt(depth).along);
-      nextLevel();
+    // `run.next()` the state behind it is the new level's.
+    //
+    // The wipe is told the level it is bringing in, not the one it is taking off: the
+    // grid it leaves on is the arriving level's, which is what makes the transition an
+    // announcement rather than a goodbye. That is the stage after this one, which is
+    // why it is asked for by depth rather than read off the run.
+    if (!dead && run.round.done(at)) {
+      const arriving = run.depth + 1;
+      wipe.take(ctx, at, seed + arriving, stageAt(arriving).along);
+      run.next();
     }
+    run.settle();
 
-    // The moment the last one is found the losers clear off, and what is left is a
-    // different map that has to be coloured again. Once, not every frame after.
-    if (round.wonAt !== null && standing.length === round.anchors.length) {
-      replan(round.anchors.filter((_, i) => round.found.has(i)));
-    }
-
-    scene.render(ctx, {
-      width: field.width,
-      height: field.height,
-      panel: place.panel,
-      standing,
-      plan,
-      shades,
-      span,
-      round,
-      level,
-      prompt,
-      meter,
-      dead,
-      at,
-    });
+    scene.render(ctx, run.frameOf(at, dead));
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
@@ -239,9 +143,8 @@ export async function start(canvas, seed = SEED) {
     clearTimeout(settling);
     settling = setTimeout(() => {
       place = next;
-      field = place.board;
       resize();
-      nextLevel();
+      run.reshape(place);
     }, 150);
   });
 }
