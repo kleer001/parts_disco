@@ -831,3 +831,24 @@ click sequence — the same stage, the same seeds across a win and three deaths
 (1983, 1984, 1984+7919, +2×7919), the same span and field.
 **Threaded:** `src/run.js`; `src/main.js`; the module list in `dev/build_artifact.py`;
 the driver half of `dev/juice.html`.
+
+### [2026-09-10] The options panel remembers, and that includes the music
+**Decision:** `src/options.js` keeps `{ master, sfx, music, muted, track }` under
+`parts-disco/options` in `localStorage`, written whenever a fader moves or a track is
+picked, and read once when the panel is built. The track is kept by name and looked up
+in `TRACKS`; a name no longer there restores as off. On load the panel calls the same
+`choose` a click calls, so a returning player's track is loaded and lit.
+**Why:** a player who turns the music on and pulls the board down has said how they
+want to play, and a reload that asks again is asking them to say it twice.
+**Rejected:** keeping the track's row rather than its name — a track that later leaves
+`TRACKS` would restore as a preference for a file that is gone.
+**The cost, which is a real one:** the panel's earlier ruling was that music never
+starts on load. It still does not start for anyone who has never chosen a track, but a
+returning player who did choose one now gets it back, and whether that is heard before
+their first click is the browser's autoplay policy rather than anything this game
+decides. Under an automation browser with autoplay allowed it plays immediately; under
+a normal policy the context stays suspended and the loop waits for the first click. The
+alternative is remembering every setting except the one a player is most likely to have
+an opinion about.
+**Threaded:** `SAVED`, `remember()` and the `choose(track)` at the end of
+`createOptions` in `src/options.js`.

@@ -113,12 +113,19 @@ it went; it is never a reason to refuse a change he asks for.
 
 ## The options panel
 
+- **The panel's settings are kept in `localStorage`, the chosen track by name.**
+  REJECTED: asking again every visit — a player who turned the music on and the board
+  down has said how they want to play, and a reload should not make them say it twice.
+  REJECTED: keeping the track's row rather than its name — a track that later leaves
+  `TRACKS` would come back as a preference for a file that is gone.
 - **The panel is HTML laid over the canvas, not drawn on it.** REJECTED: canvas
   sliders — a hundred lines of hit-testing and drag state to arrive at something the
   browser already does, with the keyboard and the screen reader included.
-- **Music is off until it is asked for.** REJECTED: starting a track on load — music
-  under a search is a preference, and a game that begins by playing something at you
-  has made the choice for you.
+- **Music is off until a player asks for it, and stays on once they have.** REJECTED:
+  starting a track for someone who has never chosen one — music under a search is a
+  preference, and a game that begins by playing something at you has made the choice
+  for you. A returning player has made it themselves, so their track is put back; when
+  it becomes audible is the browser's autoplay policy to decide, not this game's.
 - **A fader's travel is squared.** REJECTED: a straight gain scale — halfway up one is
   barely quieter than the top, so every useful position is crowded into the last third
   of the throw.

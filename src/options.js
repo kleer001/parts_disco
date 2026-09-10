@@ -12,6 +12,14 @@ import { MIX } from './audio.js';
 import { TRACKS, MUSIC_ROOT } from './music.js';
 
 /**
+ * Where the panel's settings are kept between visits.
+ *
+ * A player who turns the music on and the board down has said something about how they
+ * want to play, and asking again every reload is asking them to say it twice.
+ */
+const SAVED = 'parts-disco/options';
+
+/**
  * The loudest each fader can go, as a gain.
  *
  * The board can be pushed past unity because a player may want it over the music; the
@@ -46,8 +54,17 @@ const el = (tag, className, text) => {
  * @returns {{open: Function}} for anything that wants to raise it
  */
 export function createOptions(mount, voice) {
-  const state = { master: MIX.master, sfx: MIX.sfx, music: MIX.music, muted: false };
-  let track = null;
+  // Nothing stored is the first visit, which is the shipped mix and no music. A stored
+  // blob is this panel's own, so it is read straight back rather than picked over.
+  const kept = localStorage.getItem(SAVED);
+  const state = kept ? JSON.parse(kept)
+    : { master: MIX.master, sfx: MIX.sfx, music: MIX.music, muted: false, track: null };
+
+  // The name is what is kept, not the row: a track that has since left `TRACKS` is a
+  // preference for something that no longer exists.
+  let track = TRACKS.find((t) => t.name === state.track) ?? null;
+
+  const remember = () => localStorage.setItem(SAVED, JSON.stringify(state));
 
   const opener = el('button', 'opts-open');
   opener.type = 'button';
@@ -81,6 +98,7 @@ export function createOptions(mount, voice) {
         music: state.music,
       },
     });
+    remember();
   };
 
   const fader = (label, which) => {
@@ -113,6 +131,7 @@ export function createOptions(mount, voice) {
   const mute = el('input');
   mute.type = 'checkbox';
   mute.id = 'opt-mute';
+  mute.checked = state.muted;
   const muteLabel = el('label', null, 'mute everything');
   muteLabel.htmlFor = 'opt-mute';
   mute.addEventListener('change', () => {
@@ -129,6 +148,8 @@ export function createOptions(mount, voice) {
   const buttons = new Map();
   const choose = async (chosen) => {
     track = chosen;
+    state.track = chosen?.name ?? null;
+    remember();
     for (const [name, button] of buttons) {
       button.classList.toggle('on', (chosen?.name ?? 'off') === name);
     }
@@ -184,8 +205,13 @@ export function createOptions(mount, voice) {
     }
   });
 
-  buttons.get('off').classList.add('on');
   mount.append(opener, panel);
   apply();
+  // The chosen track is put back the same way a click puts it there. When it is heard
+  // is the browser's call, not this game's: a context opened without a gesture usually
+  // starts suspended and the loop waits for the first click, but where autoplay is
+  // allowed a returning player gets their music on load. That is the trade in
+  // remembering the choice at all -- the alternative is asking again every visit.
+  choose(track);
   return { open: () => setOpen(true), close: () => setOpen(false) };
 }
