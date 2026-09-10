@@ -190,6 +190,14 @@ it went; it is never a reason to refuse a change he asks for.
 
 ## Simulation
 
+- **A thrown board is checked for reachability rather than trusted.** Measured over
+  640 boards and 6,631 targets: none was ever fully covered, and the least any target
+  ever showed was 376 px² at stage 15. REJECTED: composing boards by hand, which is
+  what every seek-and-find this game descends from does — the throw is what makes a
+  seed worth having, and it turns out to be fair. REJECTED: taking that on trust —
+  `dev/reachability.html` re-runs the sweep, and it is the thing to re-run whenever
+  density moves.
+
 - **The board holds still.** REJECTED: a drifting board — the pile is already
   segmented by outline rather than by motion, and holding still is what lets the board
   layer cache a bitmap and blit it while every effect draws over the top. Drifting

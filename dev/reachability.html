@@ -1,0 +1,148 @@
+<meta charset="utf-8">
+<title>parts disco — can every target be clicked?</title>
+<style>
+:root{--paper:#E7E2D8;--panel:#F4F2ED;--sunk:#DCD7CB;--ink1:#1A1A1A;--ink2:#54514A;
+      --ink3:#8A857A;--rule:#C6C0B2}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink1);
+     font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px}
+.wrap{max-width:1000px;margin:0 auto;padding:26px 22px 70px}
+header{border-bottom:2px solid var(--ink1);padding-bottom:16px;margin-bottom:18px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.17em;text-transform:uppercase;
+         color:var(--ink3)}
+h1{font-size:30px;font-weight:600;margin:6px 0 0;line-height:1.1}
+.lede{margin:10px 0 0;max-width:76ch;color:var(--ink2);line-height:1.6}
+button{font:inherit;font-size:13px;padding:7px 14px;background:#fff;
+       border:1px solid var(--rule);border-radius:3px;cursor:pointer;margin-top:16px}
+button:hover{border-color:var(--ink1)}
+button[disabled]{opacity:.5;cursor:default}
+table{border-collapse:collapse;width:100%;margin-top:18px;font-size:13px}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--rule)}
+th{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+.verdict{margin-top:18px;padding:13px 15px;border:1px solid var(--rule);
+         background:var(--panel);line-height:1.6}
+.bad{background:#FFE6E3;border-color:#f0b8b3;color:#842521}
+.good{background:#D4F8DA;border-color:#8fd6a1;color:#005C27}
+#log{margin-top:14px;font-size:12px;color:var(--ink2)}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">parts disco · dev</p>
+  <h1>Can every target be clicked?</h1>
+  <p class="lede">The board is thrown, not composed. Every seek-and-find this game
+  descends from had a person placing each target and deciding how hard it would be; this
+  one deals them at random and nothing guarantees the vehicle you are asked for is not
+  buried under three others. If it ever is, the board is asking for something that
+  cannot be given, and no amount of looking fixes it.</p>
+  <p class="lede">This measures it exactly rather than by eye. <code>stampRegions</code>
+  paints each vehicle's silhouette in its own index colour, in draw order, so the
+  resulting bitmap <em>is</em> the map of what is on top of what — the same order
+  <code>pick</code> resolves a click in. A target with no pixels of its own in that map
+  cannot be clicked anywhere. Counting them is counting unclickable targets.</p>
+  <button id="go">Run the sweep</button>
+  <div id="log"></div>
+</header>
+<div id="out"></div>
+</div>
+
+<script type="module">
+import { deal, layout } from '../src/board.js';
+import { stageAt, PATH } from '../src/levels.js';
+import { stampRegions } from '../src/layers.js';
+import { loadViews, proxyOf } from '../src/views.js';
+
+// The portrait field the game lays out at 975x1439. Density is what this measures, so
+// the field has to be a real one rather than a convenient square.
+const FIELD = { x: 0, y: 0, width: 975, height: 1065 };
+const SEEDS = 40;
+const STRIDE = 7919;
+
+// Under this many pixels a target is clickable in principle and awkward in practice.
+// Not a threshold anything enforces -- it is here so the report can say how close the
+// worst board came, rather than only whether it crossed zero.
+const THIN = 400;
+
+const views = await loadViews('../assets/views');
+const viewOf = (slot) => views.view(slot.model, slot.angle);
+const proxies = new Map();
+const proxyFor = (slot) => {
+  const key = `${slot.model}/${slot.angle}`;
+  if (!proxies.has(key)) proxies.set(key, proxyOf(viewOf(slot)));
+  return proxies.get(key);
+};
+
+const canvas = document.createElement('canvas');
+canvas.width = FIELD.width;
+canvas.height = FIELD.height;
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+/** Visible pixels per anchor on one dealt board, read off the region stamp. */
+function visibleAreas(anchors, span) {
+  stampRegions(ctx, anchors, span, viewOf, FIELD.width, FIELD.height);
+  const px = ctx.getImageData(0, 0, FIELD.width, FIELD.height).data;
+  const seen = new Uint32Array(anchors.length);
+  for (let i = 0; i < px.length; i += 4) {
+    // The stamp writes rgb(i, 255 - i, ...), so red and green summing to 255 is a
+    // vehicle and the red channel is which one. Anything else is bare ground.
+    if (px[i] + px[i + 1] === 255 && px[i] < anchors.length) seen[px[i]]++;
+  }
+  return seen;
+}
+
+document.getElementById('go').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  const log = document.getElementById('log');
+  const rows = [];
+  let buried = 0, thin = 0, targets = 0, worst = { area: Infinity };
+
+  for (let d = 0; d < PATH.length; d++) {
+    const level = stageAt(d);
+    const span = Math.min(FIELD.width, FIELD.height) * level.size;
+    let stageTargets = 0, stageBuried = 0, stageWorst = Infinity;
+
+    for (let s = 0; s < SEEDS; s++) {
+      const draw = 100000 + s * STRIDE + d;
+      const { placed, target } = deal(draw, level, views);
+      const anchors = layout(placed, draw, span, FIELD, proxyFor);
+      const seen = visibleAreas(anchors, span);
+      anchors.forEach((anchor, i) => {
+        if (anchor.slot.model !== target) return;
+        stageTargets++;
+        const area = seen[i];
+        if (area === 0) stageBuried++;
+        else if (area < THIN) thin++;
+        if (area < stageWorst) stageWorst = area;
+        if (area < worst.area) worst = { area, stage: d + 1, seed: draw, model: target };
+      });
+    }
+    targets += stageTargets;
+    buried += stageBuried;
+    rows.push({ stage: d + 1, cars: level.cars, size: level.size,
+                targets: stageTargets, buried: stageBuried, worst: stageWorst });
+    log.textContent = `stage ${d + 1} of ${PATH.length}…`;
+    await new Promise((r) => setTimeout(r, 0));   // let the page paint between stages
+  }
+
+  log.textContent = `${SEEDS} seeds × ${PATH.length} stages = ${SEEDS * PATH.length} boards.`;
+  document.getElementById('out').innerHTML = `
+    <div class="verdict ${buried ? 'bad' : 'good'}">
+      <strong>${buried
+        ? `${buried} of ${targets} targets cannot be clicked.`
+        : `All ${targets} targets can be clicked.`}</strong><br>
+      The smallest any target ever showed was <strong>${worst.area} px²</strong> —
+      stage ${worst.stage}, a ${worst.model}, seed ${worst.seed}. ${thin} target${thin === 1 ? '' : 's'}
+      came in under ${THIN} px².
+    </div>
+    <table>
+      <tr><th>stage</th><th class="n">vehicles</th><th class="n">size</th>
+          <th class="n">targets</th><th class="n">unclickable</th><th class="n">smallest px²</th></tr>
+      ${rows.map((r) => `<tr>
+        <td>${r.stage}</td><td class="n">${r.cars}</td><td class="n">${Math.round(r.size * 100)}%</td>
+        <td class="n">${r.targets}</td>
+        <td class="n">${r.buried || '—'}</td><td class="n">${r.worst}</td></tr>`).join('')}
+    </table>`;
+  e.target.disabled = false;
+});
+</script>

@@ -934,3 +934,22 @@ be earned.
 flattening the curve. All three remain available if a real player disagrees; none is
 blocked by anything but this ruling.
 **Threaded:** `CAPACITY`, `COST_FIRST` and `COST_LAST` in `src/meter.js`.
+
+### [2026-09-10] The throw is fair, and there is now a bench that says so
+**Decision:** boards go on being thrown rather than composed, and
+`dev/reachability.html` measures whether any target is ever unclickable.
+**Why:** every ancestor named in `GAME-SHEET.md` — Where's Wally, I Spy, Hidden Folks —
+is hand-composed, with a person deciding how hard each target would be. This game is
+the first in that line without an author per board, and nothing in the throw guaranteed
+the vehicle being asked for was not buried under three others. A board that asks for
+something it has covered up is asking for something no amount of looking can give.
+**Measured:** `stampRegions` paints each silhouette in its index colour in draw order,
+which is the same order `pick` resolves a click in, so the stamp is exactly the map of
+what can be clicked. Over 40 seeds × 16 stages = 640 boards and 6,631 targets, nothing
+was ever fully covered. The worst case was 376 px² — about a 19-pixel square — at stage
+15, and only one target in 6,631 came in under 400 px².
+**Rejected:** hand-composing boards, which would answer the fairness question and cost
+the seed everything it is worth. Rejected: leaving it unmeasured, since the density is
+the one thing most likely to move.
+**Threaded:** `dev/reachability.html`; `stampRegions` in `src/layers.js`; `pick` in
+`src/game.js`.
