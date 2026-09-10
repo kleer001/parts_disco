@@ -154,6 +154,13 @@ it went; it is never a reason to refuse a change he asks for.
 
 ## Simulation
 
+- **The board holds still.** REJECTED: a drifting board — the pile is already
+  segmented by outline rather than by motion, and holding still is what lets the board
+  layer cache a bitmap and blit it while every effect draws over the top. Drifting
+  would have taken the cached board with it, and Canvas2D with it: measured, a moving
+  board at this density is 14fps, against 0.06ms a frame for a WebGL spike. The
+  measurements are kept in `research/WEBGL-RENDERER.md`; the spike is not.
+
 - **A part's position is solved from t, not stepped.** REJECTED: integrating velocity
   each frame — a closed form lets a whole bounce cycle be searched offline for whether
   every part is reachable, and never drifts between two runs of the same seed.

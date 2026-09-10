@@ -852,3 +852,25 @@ alternative is remembering every setting except the one a player is most likely 
 an opinion about.
 **Threaded:** `SAVED`, `remember()` and the `choose(track)` at the end of
 `createOptions` in `src/options.js`.
+
+### [2026-09-10] The board holds still
+**Decision:** vehicles are dealt onto the field and stay where they land. The board
+layer goes on caching its bitmap and blitting it, every effect goes on drawing over the
+top rather than into it, and the renderer stays Canvas2D.
+**Why:** every part of the game already assumes it, and the assumption is load-bearing
+rather than incidental — the cached board is the reason a still board costs 0.22ms a
+frame at any density. Nothing in the search needs motion: the pile is read by outline,
+and the twins tier is where the difficulty lives.
+**Rejected:** a drifting board, which was the open question this closes. It would have
+cost the cached bitmap outright (every frame a different picture, so the keeping is a
+copy paid for nothing), taken Canvas2D with it — measured at 14fps for a moving board
+at this density, against 0.06ms a frame for the WebGL spike — and reopened line
+shimmer, where a quarter-pixel move relocates 28% of the ink because a 1px
+unantialiased line cannot move a third of a pixel.
+**What is kept and what is not:** `research/WEBGL-RENDERER.md` stays, because the
+payload and speed numbers in it are worth having if the question ever reopens. The
+spike it reports on, `gl-spike.html`, is deleted along with the other unreferenced
+files at the repository root — `board-default.png`, `board.txt`, `view-preview.html`
+and `word-preview.html`. All of it is in the history at `d571920`.
+**Threaded:** the cache in `createBoardLayer` in `src/layers.js`; the `held` canvas
+owned by `src/run.js`.

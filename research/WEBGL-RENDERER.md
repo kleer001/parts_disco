@@ -1,8 +1,15 @@
 # Rendering the board in WebGL instead of baking views
 
-Notes toward a decision, not a decision. The board can be drawn two ways: bake a
-fixed set of camera angles to stroke data offline, or ship the meshes and draw them
-live. This is what was measured and read about the second option.
+The board can be drawn two ways: bake a fixed set of camera angles to stroke data
+offline, or ship the meshes and draw them live. This is what was measured and read
+about the second option, and it is kept because the measurements outlive the question
+that prompted them.
+
+**The question is settled and the answer was the first option.** The board does not
+drift, so nothing here is on the game's path: baked views hold still, the board layer
+keeps its cached bitmap, and Canvas2D is fast enough to draw a still board. The spike
+this document reports on, `gl-spike.html`, has been deleted; it is in the history at
+`d571920` if the question ever reopens.
 
 Measurements come from the twelve-vehicle Kenney Car Kit fleet this game was built
 against, on Chromium with ANGLE over desktop NVIDIA GL. Sources were retrieved and
@@ -201,9 +208,9 @@ reads as correct rather than as a fault.
 
 ## What the spike settled
 
-`gl-spike.html` draws the fleet from its meshes: a depth prepass, then edges depth
-tested against it, `antialias` off and lines one pixel wide, so the canvas is one bit
-per pixel with no threshold pass at all.
+The spike drew the fleet from its meshes: a depth prepass, then edges depth tested
+against it, `antialias` off and lines one pixel wide, so the canvas was one bit per
+pixel with no threshold pass at all.
 
 **Speed is a non-issue.** Measured with `gl.finish()` rather than the frame clock,
 which is throttled whenever the page is not really on screen: 70 cars draw in 0.09 ms
@@ -276,7 +283,7 @@ or to give up the hard threshold on the lines.
 ## What is still unmeasured
 
 - What polygon offset a low-poly vehicle wants before lines bleed or vanish. The
-  spike exposes it as a slider and it has not been swept.
+  spike exposed it as a slider and it was never swept.
 - Whether seam detection holds up on a model that is not painted from a palette
   atlas. A model with real materials or real textures splits its vertices along
   different lines, and may not split them at all.

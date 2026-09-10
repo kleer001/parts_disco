@@ -33,12 +33,11 @@ Live at **https://kleer001.github.io/parts_disco/**.
 - [ ] #18 Swap the three Freesound previews for their masters. `music.js` records which
   is which as `master: false` — `Techno-ish`, `Disco` and `Piano` play the site's `-lq`
   preview because the master needs an account. Fine to judge by, wrong to ship.
-- [ ] #15 Decide what happens to `assets/sfx/win-chime.mp3`. Its provenance is not
-  recoverable and the archaeology is written up in `assets/sfx/README.md`: one commit
-  in `treasure_trash` with no source, no credits anywhere, no other copy on disk, and
-  audio that reads as a library sample rather than anything synthesised here. So the
-  choice is to find the licence or to replace it with a CC0 sound put through the same
-  mill the music was. Replacing it moves `WIN_GAIN`, which is solved against `BALANCE`.
+- [ ] #15 Record the win chime's licence. `assets/sfx/win-chime.mp3` carries none, and
+  it is not recoverable from disk — the archaeology is in `assets/sfx/README.md`. The
+  owner knows the source; it needs writing down beside the file and in the same shape
+  `music.js` uses for the music: author, licence, URL. Then `assets/sfx/README.md`
+  becomes a credit rather than an open question.
 
 - [ ] #17 Playtest the meter and settle its two guesses: ten units of capacity, and a
   wrong vehicle falling from a whole unit to a quarter across the path. The asymmetry
@@ -65,23 +64,6 @@ Live at **https://kleer001.github.io/parts_disco/**.
 - [ ] #5 Play the sixteen stages start to finish and feel the ramp. Especially whether
   stage 9's jump (twins arrive) is too steep and whether stage 16 at one ink is
   playable.
-- [ ] #6 Decide what to do about `view-preview.html`, and the other root clutter a
-  visitor sees: `board-default.png` (847KB), `board.txt` (134KB), `gl-spike.html`,
-  `word-preview.html`.
-
-### Sequential
-
-- [ ] #7 Decide whether the board drifts. Everything built assumes a still board, and
-  that assumption is load-bearing: the board layer keeps a cached bitmap and blits it,
-  and every effect draws over the top rather than into it.
-- [ ] #8 (needs: #7) If it drifts, move to the WebGL renderer. Canvas2D is 14fps for a
-  moving board at this density; the spike is 0.06ms/frame. `gl-spike.html` is complete
-  and verified, `research/WEBGL-RENDERER.md` has every number.
-- [ ] #9 (needs: #7) If it drifts, decide about line shimmer. Measured: a quarter-pixel
-  move relocates 28% of the ink, because a 1px unantialiased line cannot move a third
-  of a pixel.
-- [ ] #11 (needs: #7) If it drifts, the held board is dead — every frame is a different
-  picture and the keeping is a copy paid for nothing.
 
 ## Context
 
@@ -93,6 +75,10 @@ path as data, `meter.js` is the run's damage, `juice.js` is the tuning and envel
 where things sit, `layers.js` draws, `options.js` is the panel, `main.js` wires it.
 Benches: `dev/juice.html` (effects), `dev/panel.html` (the panel's paper),
 `research/disco-loops/` (loops, ratings, the desk). `ARCHITECTURE.md` explains the lot.
+
+**The board holds still.** Settled, not assumed: the cached bitmap in
+`createBoardLayer` and the Canvas2D renderer both survive on it, and
+`research/WEBGL-RENDERER.md` keeps the numbers in case the question reopens.
 
 **Read `DECISIONS.md` before proposing anything structural**, and check
 `DECISIONS-JOURNAL.md` for why. Several rulings this session reverse an earlier one,
@@ -159,9 +145,11 @@ half of the README says *yard*; *board* is developer vocabulary.
 
 ## Next Step
 
-Everything left needs a decision rather than a keystroke. **#7 is the one that unblocks
-most** — whether the board drifts gates #8, #9 and #11 and settles whether the held
-board and the Canvas2D renderer survive at all. After that the cluster of playtest
-todos (#5, #17, #16, #12) all want the same thing: someone playing it.
+**#15 is waiting on you** — the win chime's source, so its licence and credit can be
+recorded the way `music.js` records the music's.
+
+Everything else left wants someone playing it: #5, #17, #16 and #12 are all judgements
+made by watching, not by reading. #13 (more vehicle models) is the one piece of open
+work that can be done at a keyboard.
 
 /home/menser/Dropbox/ai/code/parts_disco
