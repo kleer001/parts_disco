@@ -1005,3 +1005,22 @@ counted against a ten-unit meter — and was the test harness clicking through d
 restart three times, not the meter.
 **Threaded:** `src/belt.js`; `runEndless` in `src/main.js`; the two buttons and `hit`
 returning a mode in `src/title.js`.
+
+### [2026-09-10] The belt's ramp is a straight line from 40 to 150
+**Decision:** `speedAt` runs the belt from 40px/s to 150px/s across the first wave's
+two minutes, in a straight line, and keeps that rate afterwards rather than resetting.
+**Why straight rather than eased:** an ease spends its steepest stretch in the middle
+of a wave. The belt would visibly lurch at a moment when nothing else changed, and a
+player attributes an unexplained change to something they just did. A straight line is
+one creep at one rate. The wave boundary is where a step belongs, and the density
+already steps there — which keeps the two dials tellable apart, the reason they were
+put on different schedules in the first place.
+**What the rate means in play**, at a 947px board: 23.7s to cross at the start, 6.3s at
+the two-minute mark, 3.6s at four minutes, 1.6s at ten.
+**Rejected:** capping the speed at 150, and re-ramping each wave from 40. Both give a
+run a ceiling it can settle at, and this mode is supposed to end by beating the player
+rather than by being survived.
+**Verified** on the moving pixels rather than on the constant: one scanline
+cross-correlated against itself a second later put the belt at 41, 43 and 43px/s in a
+run's opening seconds, against 40 plus a few seconds of creep.
+**Threaded:** `WAVE.speed`, `WAVE.speedAtWaveEnd` and `speedAt` in `src/belt.js`.

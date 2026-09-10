@@ -148,6 +148,17 @@ it went; it is never a reason to refuse a change he asks for.
 - **Speed climbs with the clock and density steps with the wave.** REJECTED: moving
   both on one schedule — two dials on two schedules is what lets a player tell which
   one is beating them.
+- **The belt runs 40px/s to 150px/s across the first wave, in a straight line.**
+  REJECTED: an eased curve — it spends its steepest stretch in the middle of a wave,
+  so the belt lurches at a moment nothing else happened and the player reads the lurch
+  as something they did. A straight line is one creep at one rate, and the place for a
+  step is the wave boundary, where the density already steps. Measured on the moving
+  pixels rather than on the constant: 41-43px/s in a run's opening seconds.
+- **The climb does not stop at the end of a wave.** Later waves inherit the same rate
+  rather than starting over, so a run ends at 260px/s after four minutes and 590px/s
+  after ten — a vehicle crossing the screen in 1.6s. REJECTED: capping at 150, and
+  REJECTED: re-ramping each wave from 40 — both give a run a ceiling, and an endless
+  mode is supposed to end by beating the player.
 - **Every wrong vehicle costs the same on the belt.** REJECTED: the campaign's falling
   price — that curve exists because the path has an end, and a belt does not.
 

@@ -53,9 +53,18 @@ export const DIRECTIONS = [
 export const WAVE = {
   /** How long a wave lasts, in seconds. */
   seconds: 120,
-  /** Where the belt starts, in pixels a second, and what it gains a second. */
-  speed: 90,
-  accel: 0.55,
+  /**
+   * How fast the belt runs, in pixels a second: where it starts, and where it has
+   * reached when the first wave is up.
+   *
+   * Straight between the two rather than eased. A curve spends its steepest stretch in
+   * the middle of the wave, so the belt visibly lurches at a moment nothing else
+   * happened and the player reads the lurch as something they did. A straight line is
+   * one creep at one rate, and the place for a step is the wave boundary, where the
+   * density already steps.
+   */
+  speed: 40,
+  speedAtWaveEnd: 150,
   /** Vehicles in one screen-length of belt, and what a wave adds. */
   cars: 22,
   carsPerWave: 7,
@@ -86,8 +95,15 @@ export function waveOf(n) {
   };
 }
 
-/** How fast the belt runs after this many seconds, in pixels a second. */
-export const speedAt = (seconds) => WAVE.speed + WAVE.accel * seconds;
+/**
+ * How fast the belt runs after this many seconds, in pixels a second.
+ *
+ * The rate is set by the first wave -- 40 to 150 across two minutes -- and does not
+ * stop there. Later waves inherit the same climb rather than starting over, so the
+ * belt goes on getting faster for as long as a run lasts.
+ */
+export const speedAt = (seconds) =>
+  WAVE.speed + ((WAVE.speedAtWaveEnd - WAVE.speed) / WAVE.seconds) * seconds;
 
 /**
  * Start an endless run.
