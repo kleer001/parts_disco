@@ -1,17 +1,18 @@
 // Entry point. The only file that touches the DOM, the clock or an event.
 // Everything it calls is pure and takes what it needs as an argument.
 
+import { freshSeed } from './rng.js';
 import { createCompositor } from './compositor.js';
 import { loadViews } from './views.js';
 import { stageAt, RANGE } from './levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
          createRefuseLayer, createRecessLayer, createOverLayer, createPanelLayer,
-         createWipeLayer, PALETTE } from './layers.js';
+         createWipeLayer } from './layers.js';
 import { TUNING, createClock } from './juice.js';
 import { layoutFor } from './layout.js';
 import { createVoice } from './audio.js';
 import { createOptions } from './options.js';
-import { createRun, freshSeed } from './run.js';
+import { createRun } from './run.js';
 import { createTitle } from './title.js';
 import { createBelt } from './belt.js';
 
@@ -56,6 +57,11 @@ async function openOn(canvas, ctx, placeOf, seed) {
     loadViews(), document.fonts.load('16px VT323'), voice.load(),
   ]).then(([views]) => { fleet = views; });
 
+  // The title's own crowd, a fraction of the fleet's weight, so the yard on the screen
+  // fills while the board's vehicles are still in flight.
+  let yard = null;
+  fetch('assets/title/yard.json').then((res) => res.json()).then((baked) => { yard = baked; });
+
   let showing = true;
   const paint = () => {
     if (!showing) return;
@@ -64,7 +70,7 @@ async function openOn(canvas, ctx, placeOf, seed) {
       title = createTitle(placeOf(), seed);
       shape = now;
     }
-    title.draw(ctx, fleet);
+    title.draw(ctx, fleet, yard);
     requestAnimationFrame(paint);
   };
   requestAnimationFrame(paint);
@@ -122,8 +128,9 @@ function runEndless(canvas, ctx, place, views, seed) {
     belt.advance(Math.min(0.1, at - last));
     last = at;
 
-    ctx.fillStyle = PALETTE.paper;
-    ctx.fillRect(0, 0, place.width, place.height);
+    // No clear first. The belt's sections are opaque and tile the board, and the panel
+    // fills its own box, so the pair cover every pixel -- measured, 0 of 960,000
+    // differ without it. A clear here is a full-screen fill that nothing ever sees.
     belt.draw(ctx);
     belt.drawPanel(ctx);
     requestAnimationFrame(frame);

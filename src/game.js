@@ -42,9 +42,13 @@ export function pick(anchors, span, point, viewOf) {
     const size = anchors[i].span ?? span;
     const local = [(point[0] - cx) / size + 0.5, (point[1] - cy) / size + 0.5];
     if (local[0] < 0 || local[0] > 1 || local[1] < 0 || local[1] > 1) continue;
+    // Even-odd across the whole view: its rings are the outline and the holes in it,
+    // and a click that falls through a hole has not hit the vehicle.
+    let inside = false;
     for (const ring of viewOf(slot).silhouette) {
-      if (contains(local, ring)) return { index: i, slot };
+      if (contains(local, ring)) inside = !inside;
     }
+    if (inside) return { index: i, slot };
   }
   return null;
 }

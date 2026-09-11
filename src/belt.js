@@ -2,7 +2,7 @@
 //
 // The sixteen-stage game deals a board and holds it still. This deals a belt that
 // never stops arriving and asks the same question against a clock: tag every copy of
-// the vehicle on the card, and ten wrong ones end the run.
+// the vehicle on the card before too many wrong ones end the run.
 //
 // The belt is drawn the only way that is affordable. Redrawing every vehicle every
 // frame costs 78ms at a hundred and twenty of them; pre-rendering a section once and
@@ -19,14 +19,15 @@
 // section is a picture made before the click happened. So tags are drawn over the top,
 // and only the handful that have been tagged cost anything.
 
-import { mulberry32 } from './rng.js';
+import { mulberry32, STRIDE } from './rng.js';
 import { layout } from './board.js';
 import { pick } from './game.js';
-import { planBoard, labelRegions } from './paint.js';
-import { stampRegions, INKS, rgbOf, ring, inkStroke, PAPER_RGB,
-         SETTLED, REFUSED, PALETTE, roundRect, promptCanvas } from './layers.js';
+import { labelRegions, borders, assignInks } from './paint.js';
+import { stampRegions, INKS, rgbOf, inkStroke, PAPER_RGB,
+         SETTLED, REFUSED, PALETTE, promptCanvas,
+         shape, outline, face, tintedSlab, paintRegions } from './layers.js';
 import { SEMANTIC } from './juice.js';
-import { proxyOf } from './views.js';
+import { fleetLookups } from './views.js';
 import { stageAt, PATH } from './levels.js';
 
 /**
@@ -143,23 +144,34 @@ function shuffled(list, rand) {
  * @param {number} seed - the run's; the direction and every section come off it
  */
 export function createBelt(place, views, seed) {
-  const viewOf = (slot) => views.view(slot.model, slot.angle);
-  const proxies = new Map();
-  const proxyFor = (slot) => {
-    const key = `${slot.model}/${slot.angle}`;
-    if (!proxies.has(key)) proxies.set(key, proxyOf(viewOf(slot)));
-    return proxies.get(key);
-  };
+  const { viewOf, proxyFor } = fleetLookups(views);
 
   const field = place.board;
-  // The direction is drawn once per seed and holds for the run: a belt that changed
-  // its mind mid-run would be a different game every two minutes.
-  let dir = DIRECTIONS[Math.floor(mulberry32(seed)() * DIRECTIONS.length)];
-  let along = dir.axis === 'x';
-  // A section is one screen-length of belt, which is the length at which two cover the
-  // screen however far it has scrolled and a third is always waiting.
-  let runLen = Math.round(along ? field.width : field.height);
-  let crossLen = Math.round(along ? field.height : field.width);
+  let dir, along, runLen, crossLen;
+
+  // The region stamp is read back a pixel at a time, so it wants to stay in software
+  // -- and it is the same size for every section, so it is made once rather than per
+  // section. It is the only canvas here that is read rather than blitted.
+  const scratch = document.createElement('canvas');
+  const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
+
+  /**
+   * Point the belt, and size everything that follows from which way it runs.
+   *
+   * The direction is drawn once per seed and holds for the whole run: a belt that
+   * changed its mind would be a different game every two minutes.
+   */
+  const aim = () => {
+    dir = DIRECTIONS[Math.floor(mulberry32(seed)() * DIRECTIONS.length)];
+    along = dir.axis === 'x';
+    // A section is one screen-length of belt, which is the length at which two cover
+    // the screen however far it has scrolled and a third is always waiting.
+    runLen = Math.round(along ? field.width : field.height);
+    crossLen = Math.round(along ? field.height : field.width);
+    scratch.width = along ? runLen : crossLen;
+    scratch.height = along ? crossLen : runLen;
+  };
+  aim();
 
   let into = 0;            // seconds into this run; the belt's ramp rides on this
   let offset = 0;          // how far the belt has travelled, in pixels
@@ -173,15 +185,18 @@ export function createBelt(place, views, seed) {
   // so one standing on a join gets drawn into both pictures and lines up exactly.
   let cars = [];
   let dealt = new Set();   // which section indices have had their vehicles dealt
-  // The stretch of belt the game opens on, kept clear. Against the edge the belt
-  // leaves by, which is the low one when it runs right-to-left or bottom-to-top.
-  let empty = [0, 0];
-  const clearOpening = () => {
-    const run0 = runLen * WAVE.leadIn;
-    empty = dir.sign < 0 ? [0, run0] : [runLen - run0, runLen];
-  };
-  clearOpening();
   let sections = new Map();// section index -> its rendered picture
+
+  /**
+   * The stretch of belt the game opens on, kept clear.
+   *
+   * Against the edge the belt leaves by, which is the low one when it runs
+   * right-to-left or bottom-to-top.
+   */
+  const opening = () => {
+    const clear = runLen * WAVE.leadIn;
+    return dir.sign < 0 ? [0, clear] : [runLen - clear, runLen];
+  };
 
   // Three tallies, all carried from run to run. A match is a vehicle tagged rightly,
   // an error is one tagged wrongly, and an escape is one that went past untagged --
@@ -202,7 +217,7 @@ export function createBelt(place, views, seed) {
   const dealInto = (index) => {
     const at = runOf(run);
     const span = Math.min(field.width, field.height) * at.size;
-    const draw = seed + index * 7919 + run * 104729;
+    const draw = seed + index * STRIDE.near + run * STRIDE.far;
     const rand = mulberry32(draw);
 
     // The asked-for vehicle is guaranteed present. A stretch of belt holding none of
@@ -229,10 +244,11 @@ export function createBelt(place, views, seed) {
     // game starts on part of a field rather than in the middle of a full one.
     const box = along ? { x: 0, y: 0, width: runLen, height: crossLen }
                       : { x: 0, y: 0, width: crossLen, height: runLen };
+    const clear = opening();
     for (const a of layout(placed, draw, span, box, proxyFor)) {
       const u = index * runLen + (along ? a.cx : a.cy);
       // Any part of it reaching the clear stretch keeps it out, not just its centre.
-      if (u + span / 2 > empty[0] && u - span / 2 < empty[1]) continue;
+      if (u + span / 2 > clear[0] && u - span / 2 < clear[1]) continue;
       cars.push({
         slot: a.slot,
         u,
@@ -278,26 +294,29 @@ export function createBelt(place, views, seed) {
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
-    const g = canvas.getContext('2d', { willReadFrequently: true });
+    // Written to and then blitted, never read back, so it wants to stay on the GPU.
+    // The scratch canvas below is the one that is read, and it keeps the hint.
+    const g = canvas.getContext('2d');
 
-    const scratch = document.createElement('canvas');
-    scratch.width = w;
-    scratch.height = h;
-    const sg = scratch.getContext('2d', { willReadFrequently: true });
-    const span = mine.length ? mine[0].span
-                             : Math.min(field.width, field.height) * at.size;
-    stampRegions(sg, anchors, span, viewOf, w, h);
-    const stamp = sg.getImageData(0, 0, w, h).data;
+    // Every anchor carries its own size, so the span argument these take is never
+    // consulted. It is passed as zero rather than recomputed to say so.
+    stampRegions(scratchCtx, anchors, 0, viewOf, w, h);
+    const stamp = scratchCtx.getImageData(0, 0, w, h).data;
 
     // Nothing here is free to pick its own colours twice. The ground is always the
     // one ink, and a vehicle keeps whatever it was given the first time any section
     // drew it -- so a vehicle standing on a join is one colour, not two.
-    const { regions } = labelRegions(stamp, w, h, anchors.length);
+    //
+    // Labelled once and coloured from that labelling. `planBoard` would label again
+    // from the same pixels, and over a full-screen section that second pass is a
+    // measured 13ms of repeating work.
+    const { owner, regions } = labelRegions(stamp, w, h, anchors.length);
     const fixed = new Map();
     for (let r = anchors.length; r < regions; r++) fixed.set(r, GROUND_INK);
     mine.forEach((car, i) => { if (car.ink !== null) fixed.set(i, car.ink); });
 
-    const plan = planBoard(stamp, w, h, anchors.length, at.inks, fixed);
+    const neighbours = borders(owner, regions, w, h);
+    const plan = { owner, neighbours, ink: assignInks(neighbours, at.inks, fixed).ink };
     // Whatever the colouring settled on for a vehicle it had not met before is now
     // that vehicle's, for as long as it is on the belt -- but only if this section
     // actually drew any of it. A vehicle whose art falls outside this canvas is a
@@ -312,23 +331,16 @@ export function createBelt(place, views, seed) {
     const shades = INKS.slice(0, at.inks).map(rgbOf);
 
     const img = g.createImageData(w, h);
-    const out = img.data;
-    for (let p = 0; p < plan.owner.length; p++) {
-      const region = plan.owner[p];
-      const rgb = region < 0 ? PAPER_RGB : shades[plan.ink[region]];
-      const i = p * 4;
-      out[i] = rgb[0];
-      out[i + 1] = rgb[1];
-      out[i + 2] = rgb[2];
-      out[i + 3] = 255;
-    }
+    paintRegions(img.data, plan.owner,
+                 (region) => (region < 0 ? PAPER_RGB : shades[plan.ink[region]]));
     g.putImageData(img, 0, 0);
     inkStroke(g);
+    // One path per vehicle rather than one per ring. A section at full density holds
+    // 120 vehicles and some 23,000 rings, and asking the canvas to open and stroke a
+    // path for each of them is most of what building a section costs.
     for (const anchor of anchors) {
-      for (const points of viewOf(anchor.slot).strokes) {
-        ring(g, anchor, points, span);
-        g.stroke();
-      }
+      outline(g, anchor, viewOf(anchor.slot).strokes, 0);
+      g.stroke();
     }
 
     return { index, canvas };
@@ -415,7 +427,7 @@ export function createBelt(place, views, seed) {
    */
   const nextTarget = () => {
     const fleet = runOf(run).fleet;
-    const rand = mulberry32(seed + run * 7919 + 13);
+    const rand = mulberry32(seed + run * STRIDE.near + 13);
     if (!roster.length || roster.some((m) => !fleet.includes(m))) {
       roster = shuffled(fleet, rand);
       // Never the same model twice running, even across a reshuffle.
@@ -434,20 +446,27 @@ export function createBelt(place, views, seed) {
     // Shown from an angle the belt will not hand you, the same as the campaign: a
     // picture you can match against a picture is not identification.
     const angles = views.anglesOf(target);
-    const rand = mulberry32(seed + run * 104729 + 7);
+    const rand = mulberry32(seed + run * STRIDE.far + 7);
     printed = null;
-    card = new Image();
     // The render is one bit deep and cannot be resampled until its dither has been
     // averaged back into greys, which `promptCanvas` does. Done once, when the render
     // arrives, rather than per frame.
-    card.addEventListener('load', () => { printed = promptCanvas(card); }, { once: true });
-    card.src = views.promptFor(target, angles[Math.floor(rand() * angles.length)]);
+    //
+    // The handler holds the image it was attached to rather than reading whichever is
+    // current. Runs turn over on a two-minute clock and renders arrive in
+    // milliseconds, so the two never normally cross -- but they do under a slow
+    // network or a fast-forward, and then the wrong render is flattened, or one that
+    // has not decoded at all and has no width to read.
+    const arriving = new Image();
+    arriving.addEventListener('load', () => {
+      if (card === arriving) printed = promptCanvas(arriving);
+    }, { once: true });
+    arriving.src = views.promptFor(target, angles[Math.floor(rand() * angles.length)]);
+    card = arriving;
     into = 0;
     // A new run is a new arrangement, but only for belt that has not arrived yet:
     // what a player can already see stays as it is until it has scrolled off, so the
     // board never changes under a click.
-    // Only belt that has not arrived yet is re-dealt: what a player can already see
-    // stays as it is until it has scrolled off, so nothing changes under a click.
     const showing = wanted().slice(0, 2);
     for (const index of [...dealt]) {
       if (!showing.includes(index)) dealt.delete(index);
@@ -475,12 +494,6 @@ export function createBelt(place, views, seed) {
     get run() { return run; },
     get secondsLeft() { return Math.max(0, WAVE.seconds - into); },
     get speed() { return speedAt(into, run); },
-    /** How far the belt has travelled, in pixels. What a bench needs to find a join. */
-    get travelled() { return offset; },
-    /** How long one section of belt is, along the running axis. */
-    get sectionLength() { return runLen; },
-    /** The rendered sections, for a bench that needs to look at one. */
-    get pictures() { return sections; },
     get direction() { return dir; },
     get dead() { return over(); },
 
@@ -552,16 +565,14 @@ export function createBelt(place, views, seed) {
         if (!car.tagged) continue;
         const anchor = onScreen(car);
         const view = viewOf(anchor.slot);
+        // The whole silhouette as one path: a view's rings are its outline and the
+        // holes in it, and filled one at a time a hole fills in as another shape.
         ctx.fillStyle = car.tagged.right ? SETTLED : REFUSED;
-        for (const points of view.silhouette) {
-          ring(ctx, anchor, points, car.span);
-          ctx.fill();
-        }
+        shape(ctx, anchor, view.silhouette, 0);
+        ctx.fill('evenodd');
         inkStroke(ctx);
-        for (const points of view.strokes) {
-          ring(ctx, anchor, points, car.span);
-          ctx.stroke();
-        }
+        outline(ctx, anchor, view.strokes, 0);
+        ctx.stroke();
       }
       ctx.restore();
     },
@@ -577,7 +588,6 @@ export function createBelt(place, views, seed) {
       const box = place.panel;
       const pad = Math.round(Math.min(box.width, box.height) * 0.06);
       const line = Math.max(13, Math.round(Math.min(box.width, box.height) * 0.075));
-      const type = (px) => `${Math.round(px)}px VT323, monospace`;
 
       ctx.save();
       ctx.beginPath();
@@ -604,23 +614,16 @@ export function createBelt(place, views, seed) {
       const room = box.x + box.width - pad - left;
       let y = box.y + pad;
 
+      // Padding is this panel's to choose; what a slab is, is not.
       const slab = (text, role, size) => {
-        ctx.font = type(size);
-        const w = Math.min(room, ctx.measureText(text).width + size * 0.7);
-        const h = size * 0.86 + size * 0.4;
-        roundRect(ctx, left, y, w, h, size * 0.16);
-        ctx.fillStyle = role.tint;
-        ctx.fill();
-        ctx.fillStyle = role.ink;
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, left + size * 0.35, y + h / 2 + 1);
-        ctx.textBaseline = 'top';
-        y += h + pad * 0.45;
+        y += tintedSlab(ctx, left, y, text, role, {
+          font: face(size), size, pad: size * 0.3, radius: size * 0.16, maxWidth: room,
+        }) + pad * 0.45;
       };
 
       ctx.textAlign = 'left';
       ctx.fillStyle = SEMANTIC.quiet.ink;
-      ctx.font = type(line * 0.62);
+      ctx.font = face(line * 0.62);
       const at = runOf(run);
       ctx.fillText(`RUN ${run + 1} · ${at.level}:${at.stage} · ${dir.name.toUpperCase()}`,
                    left, y);
@@ -646,7 +649,7 @@ export function createBelt(place, views, seed) {
 
       if (over()) {
         ctx.fillStyle = SEMANTIC.miss.ink;
-        ctx.font = type(line * 0.95);
+        ctx.font = face(line * 0.95);
         ctx.textAlign = 'center';
         ctx.fillText(`${tally.matches} TAGGED — CLICK TO BEGIN AGAIN`,
                      box.x + box.width / 2, box.y + box.height - pad);
@@ -681,11 +684,7 @@ export function createBelt(place, views, seed) {
      */
     reseed(next) {
       seed = next;
-      dir = DIRECTIONS[Math.floor(mulberry32(seed)() * DIRECTIONS.length)];
-      along = dir.axis === 'x';
-      runLen = Math.round(along ? field.width : field.height);
-      crossLen = Math.round(along ? field.height : field.width);
-      clearOpening();
+      aim();
       this.restart();
     },
   };

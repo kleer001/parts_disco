@@ -127,6 +127,23 @@ it went; it is never a reason to refuse a change he asks for.
   equal-lightness ramp with hue carrying the meaning — measured, it puts green and red
   0.021 apart in OKLab under simulated deuteranopia, which is the same colour.
 
+## Drawing
+
+- **One helper per drawing idea, in `layers.js`, used by every screen.** `face` sets
+  the game's one typeface, `tintedSlab` is a number on a tint, `paintRegions` turns a
+  region map into pixels, `shape` fills a silhouette as one path and `outline` strokes
+  a view as one path. REJECTED: a copy per screen, which is what the campaign panel,
+  the belt panel and the title screen had grown — three faces, two of them ignoring
+  `typeScale`; three slabs with three sets of padding; two region painters. The cost
+  is not the duplicate lines, it is that a retune moves one screen and silently leaves
+  the others behind.
+- **`shape` closes each ring and `outline` does not**, because a silhouette's rings
+  are closed loops and a view's strokes are open polylines. Stroking through `shape`
+  draws a chord across every vehicle.
+- **The deriving of one seed into many lives in `rng.js`.** `STRIDE.near` and
+  `STRIDE.far` space the counters apart. REJECTED: a named constant in one module and
+  the same literal inlined in three others, which is what it had become.
+
 ## Endless
 
 - **A game opens on a clear field, one screen of it.** REJECTED: opening on a full
@@ -277,6 +294,19 @@ it went; it is never a reason to refuse a change he asks for.
 - **A group's presentation is data the dev server writes.** REJECTED: `localStorage`
   with an export button — a tuning page whose settings are retyped is a page whose
   settings are wrong.
+- **The groups are ordered by how alike their own members are, measured on what is in
+  play.** REJECTED: ordering by hand — the whole point of tracing every model was to
+  stop guessing which sets are hard. REJECTED: counting every model and bearing in the
+  pack — a member crossed out in the bench and a bearing switched off are not on the
+  board, so neither belongs in the number.
+- **The title litters the whole field and puts the wordmark on a card.** REJECTED: a
+  row of seven above the type — the game is a crowded yard and the opening shot was a
+  lineup. REJECTED: setting the wordmark straight on the clutter — with the field
+  littered there is no clear ground left to read type on.
+- **The title draws a baked yard of its own.** REJECTED: drawing the crowd from the
+  fleet — the fleet is six megabytes and the title is the thing that covers its wait, so
+  the screen would fill last instead of first. REJECTED: shipping the groups' full views
+  for it — the title needs an outline and a silhouette, not tone bands and a shaded card.
 - **A view's holes are traced as rings of their own and the fill is `evenodd`.**
   REJECTED: filling each ring on its own path — a hole ring then fills in as another
   shape. REJECTED: leaving holes untraced — a model with a gap is drawn solid and

@@ -8,35 +8,14 @@
 // Nothing here touches an event, the clock or the visible canvas. It is handed a
 // layout and a loaded fleet, and it hands back the object a compositor renders.
 
+import { STRIDE } from './rng.js';
 import { deal, layout } from './board.js';
 import { createRound } from './game.js';
 import { stageAt } from './levels.js';
 import { stampRegions, INKS, rgbOf } from './layers.js';
 import { planBoard } from './paint.js';
-import { proxyOf } from './views.js';
+import { fleetLookups } from './views.js';
 import { createMeter } from './meter.js';
-
-/**
- * How far a retry's deal is moved from the one it replaces.
- *
- * A death hands back the same stage, not the same yard. Replaying the board you just
- * memorised is a recall exercise and not the search the stage is asking for, so the
- * attempt is part of what the deal is drawn from -- and the run still reproduces,
- * because the attempt is counted rather than rolled.
- */
-export const RETRY_STRIDE = 7919;
-
-/**
- * A seed for one run, drawn fresh every launch.
- *
- * Six digits, so it is short enough to read off a screen, type back in and put in a
- * message. This is the one number in the game that does not come from `mulberry32`:
- * it is the entropy every other draw is derived from, and there is nothing to seed it
- * with. `crypto` rather than `Math.random` says that plainly.
- */
-export function freshSeed() {
-  return 100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000);
-}
 
 /**
  * Deal the first stage and hold everything that follows from it.
@@ -46,15 +25,8 @@ export function freshSeed() {
  * @param {number} seed - the run's seed; every deal is drawn from it
  */
 export function createRun(place, views, seed) {
-  const viewOf = (slot) => views.view(slot.model, slot.angle);
-
   // A view's proxy never changes, and the layout asks for it once per car per deal.
-  const proxies = new Map();
-  const proxyFor = (slot) => {
-    const at = `${slot.model}/${slot.angle}`;
-    if (!proxies.has(at)) proxies.set(at, proxyOf(viewOf(slot)));
-    return proxies.get(at);
-  };
+  const { viewOf, proxyFor } = fleetLookups(views);
 
   // The plan is read off a drawing nobody sees, so it is made on a canvas of its own
   // rather than by scribbling on the board and painting over it.
@@ -94,7 +66,10 @@ export function createRun(place, views, seed) {
     level = stageAt(depth);
     // Off the short edge, so a vehicle is the same size in a tall field as a wide one.
     span = Math.min(field.width, field.height) * level.size;
-    const draw = seed + depth + attempt * RETRY_STRIDE;
+    // A death hands back the same stage, not the same yard: replaying the board you
+    // just memorised is a recall exercise rather than the search the stage asks for.
+    // The attempt is counted rather than rolled, so the run still reproduces.
+    const draw = seed + depth + attempt * STRIDE.near;
     const { placed, target, askedAt } = deal(draw, level, views);
     round = createRound(layout(placed, draw, span, field, proxyFor), target, viewOf);
     prompt = new Image();

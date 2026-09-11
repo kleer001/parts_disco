@@ -79,10 +79,44 @@ export const REFUSED = '#c9c9c9';
  * itself by its own rule would drift off the board it is drawn over.
  */
 export function ring(ctx, anchor, points, span, scale = 1, dx = 0, dy = 0) {
+  ctx.beginPath();
+  lay(ctx, anchor, points, span, scale, dx, dy);
+}
+
+/**
+ * Every ring of a silhouette as one path, to be filled `evenodd`.
+ *
+ * A view's rings are its outline and the holes inside it -- a lens opening, a gap under
+ * an arch. Filled one at a time a hole fills in as another shape, so the fill has to see
+ * the whole set at once.
+ */
+export function shape(ctx, anchor, rings, span, scale = 1, dx = 0, dy = 0) {
+  ctx.beginPath();
+  for (const points of rings) {
+    lay(ctx, anchor, points, span, scale, dx, dy);
+    ctx.closePath();
+  }
+}
+
+/**
+ * Every stroke of a view as one path, to be stroked once.
+ *
+ * The same saving as `shape` and emphatically not the same call: a silhouette's rings
+ * are closed loops and want `closePath`, while a view's strokes are open polylines --
+ * a window frame, a panel line -- and closing one draws a chord straight across the
+ * vehicle. What is shared is opening the path once instead of once a ring, which is
+ * most of what stroking a crowded board costs.
+ */
+export function outline(ctx, anchor, rings, span, scale = 1, dx = 0, dy = 0) {
+  ctx.beginPath();
+  for (const points of rings) lay(ctx, anchor, points, span, scale, dx, dy);
+}
+
+/** Where a ring's points land, which is the one thing every caller shares. */
+function lay(ctx, anchor, points, span, scale, dx, dy) {
   // An anchor may carry its own size. A board has one span for everything on it, but a
   // belt can have two runs' vehicles on screen at once while one scrolls off.
   const size = anchor.span ?? span;
-  ctx.beginPath();
   for (let k = 0; k < points.length; k++) {
     const x = anchor.cx + (points[k][0] - 0.5) * size * scale + dx;
     const y = anchor.cy + (points[k][1] - 0.5) * size * scale + dy;
@@ -152,8 +186,73 @@ function ruledTile(cell, alpha, noise, noiseScale, ink) {
  */
 const cellOf = (s, along) => Math.max(8, Math.round(gridCellAt(along, s) * 8)) / 8;
 
-/** How type is set, wherever it is set. */
-const face = (px, s) => `${Math.round(px * s.typeScale)}px VT323, monospace`;
+/**
+ * How type is set, wherever it is set.
+ *
+ * Takes a scale rather than the whole tuning object, because the title screen and the
+ * belt's panel set type too and neither of them has one. The game has exactly one
+ * typeface and this is where that is said.
+ */
+export const face = (px, scale = 1) => `${Math.round(px * scale)}px VT323, monospace`;
+
+/**
+ * Write a region map into pixels.
+ *
+ * The board and a belt section both turn the same thing -- a per-pixel region index
+ * and an ink per region -- into RGBA, and the packing and the whitening are the same
+ * arithmetic in both. What differs is only which colour a region takes, which is why
+ * that arrives as a function and the rest does not.
+ *
+ * `fadeOf` lifts a pixel towards white, for the win burning a board out. A section of
+ * belt never fades, and passing nothing skips the blend rather than multiplying by
+ * zero a million times.
+ *
+ * @param {Uint8ClampedArray} out - an ImageData's data, written in place
+ * @param {Int32Array} owner - region index per pixel; negative is bare paper
+ */
+export function paintRegions(out, owner, colourOf, fadeOf = null) {
+  for (let p = 0; p < owner.length; p++) {
+    const base = colourOf(owner[p]);
+    const i = p * 4;
+    if (fadeOf) {
+      const fade = fadeOf(owner[p]);
+      out[i] = base[0] + (255 - base[0]) * fade;
+      out[i + 1] = base[1] + (255 - base[1]) * fade;
+      out[i + 2] = base[2] + (255 - base[2]) * fade;
+    } else {
+      out[i] = base[0];
+      out[i + 1] = base[1];
+      out[i + 2] = base[2];
+    }
+    out[i + 3] = 255;
+  }
+}
+
+/**
+ * A number on a tinted slab: the game's one way of showing something being spent.
+ *
+ * The campaign's panel, the belt's panel and the title screen all draw these, so the
+ * shape is stated once and the three hand in their own padding. Everything that makes
+ * it read as the same object -- the tint behind, the ink on it, the text sitting on
+ * the middle line -- belongs to the slab and not to whoever is drawing one.
+ *
+ * @returns {number} the height it filled, so a caller can stack the next one under it
+ */
+export function tintedSlab(ctx, x, y, text, role,
+                           { font, size, pad, radius, minWidth = 0, maxWidth = Infinity }) {
+  ctx.font = font;
+  const w = Math.min(maxWidth,
+                     Math.max(minWidth, ctx.measureText(text).width + pad * 2));
+  const h = size * 0.86 + pad * 2;
+  roundRect(ctx, x, y, w, h, radius);
+  ctx.fillStyle = role.tint;
+  ctx.fill();
+  ctx.fillStyle = role.ink;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + pad, y + h / 2 + 1);
+  ctx.textBaseline = 'top';
+  return h;
+}
 
 /** How a vehicle's linework is drawn, wherever it is drawn. */
 export function inkStroke(ctx) {
@@ -180,10 +279,8 @@ export function stampRegions(ctx, anchors, span, viewOf, width, height) {
   ctx.fillRect(0, 0, width, height);
   anchors.forEach((anchor, i) => {
     ctx.fillStyle = `rgb(${i}, ${255 - i}, ${(i * 37) % 256})`;
-    for (const points of viewOf(anchor.slot).silhouette) {
-      ring(ctx, anchor, points, span);
-      ctx.fill();
-    }
+    shape(ctx, anchor, viewOf(anchor.slot).silhouette, span);
+    ctx.fill('evenodd');
   });
 }
 
@@ -228,17 +325,7 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
 
       const repaint = (colourOf, fadeOf) => {
         if (!buffer) buffer = ctx.createImageData(width, height);
-        const out = buffer.data;
-        const owner = plan.owner;
-        for (let p = 0; p < owner.length; p++) {
-          const base = colourOf(owner[p]);
-          const fade = fadeOf(owner[p]);
-          const i = p * 4;
-          out[i] = base[0] + (255 - base[0]) * fade;
-          out[i + 1] = base[1] + (255 - base[1]) * fade;
-          out[i + 2] = base[2] + (255 - base[2]) * fade;
-          out[i + 3] = 255;
-        }
+        paintRegions(buffer.data, plan.owner, colourOf, fadeOf);
         ctx.putImageData(buffer, 0, 0);
       };
 
@@ -408,10 +495,8 @@ export function createFindLayer(viewOf, settings = () => TUNING) {
         // The off beat is the colour the vehicle is about to keep, so the pulse ends
         // on the board's own answer instead of changing colour once more after it.
         ctx.fillStyle = pulse.lit ? SEMANTIC.found.loud : SETTLED;
-        for (const points of view.silhouette) {
-          ring(ctx, anchor, points, span, pulse.scale, pulse.dx, pulse.dy);
-          ctx.fill();
-        }
+        shape(ctx, anchor, view.silhouette, span, pulse.scale, pulse.dx, pulse.dy);
+        ctx.fill('evenodd');
         inkStroke(ctx);
         for (const points of view.strokes) {
           ring(ctx, anchor, points, span, pulse.scale, pulse.dx, pulse.dy);
@@ -455,10 +540,8 @@ export function createRefuseLayer(viewOf, settings = () => TUNING) {
         ctx.save();
         ctx.globalAlpha = wash.alpha;
         ctx.fillStyle = REFUSED;
-        for (const points of view.silhouette) {
-          ring(ctx, anchor, points, span);
-          ctx.fill();
-        }
+        shape(ctx, anchor, view.silhouette, span);
+        ctx.fill('evenodd');
         inkStroke(ctx);
         for (const points of view.strokes) {
           ring(ctx, anchor, points, span);
@@ -735,31 +818,22 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
    */
   const fitted = (ctx, text, size, room, s) => {
     let px = size;
-    ctx.font = face(px, s);
+    ctx.font = face(px, s.typeScale);
     while (px > 9 && ctx.measureText(text).width > room) {
       px -= 1;
-      ctx.font = face(px, s);
+      ctx.font = face(px, s.typeScale);
     }
     return px;
   };
 
-  /** A number on a tinted slab. Returns the height it filled. */
+  /** A number on a tinted slab, sized and padded the way this panel wants them. */
   const slab = (ctx, x, y, text, role, size, s, minWidth = 0, maxWidth = Infinity) => {
     const px = maxWidth === Infinity
       ? size : fitted(ctx, text, size, maxWidth - s.slabPad * 2, s);
-    ctx.font = face(px, s);
-    size = px;
-    const w = Math.min(maxWidth,
-                       Math.max(minWidth, ctx.measureText(text).width + s.slabPad * 2));
-    const h = size * 0.86 + s.slabPad * 2;
-    roundRect(ctx, x, y, w, h, s.slabRadius);
-    ctx.fillStyle = role.tint;
-    ctx.fill();
-    ctx.fillStyle = role.ink;
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, x + s.slabPad, y + h / 2 + 1);
-    ctx.textBaseline = 'top';
-    return h;
+    return tintedSlab(ctx, x, y, text, role, {
+      font: face(px, s.typeScale), size: px, pad: s.slabPad,
+      radius: s.slabRadius, minWidth, maxWidth,
+    });
   };
 
   // A dial's bar, so a setting reads as a position on a path rather than as a number
@@ -769,7 +843,7 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
   const dial = (ctx, x, y, width, label, shown, value, [low, high], s) => {
     const along = high === low ? 1 : (value - low) / (high - low);
     // A label and its value share one line, so they are sized against the pair.
-    ctx.font = face(fitted(ctx, `${label}  ${shown}`, 17, width, s), s);
+    ctx.font = face(fitted(ctx, `${label}  ${shown}`, 17, width, s), s.typeScale);
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = SEMANTIC.quiet.ink;
     ctx.fillText(label, x, y);
@@ -931,11 +1005,11 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
                 colW + s.readPad * 2, readout + s.readPad * 2,
                 s.readRecess, palette.panel, s.blockTint);
 
-        ctx.font = face(19, s);
+        ctx.font = face(19, s.typeScale);
         ctx.fillStyle = SEMANTIC.quiet.ink;
         ctx.fillText(stage, colX, y);
         y += 24;
-        ctx.font = face(17, s);
+        ctx.font = face(17, s.typeScale);
         ctx.fillStyle = SEMANTIC.quiet.loud;
         ctx.fillText('FIND', colX, y);
         y += 20;
@@ -943,7 +1017,7 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
                   0, colW) + 10;
         y += slab(ctx, colX, y, countText(round), countRole(round),
                   countSize(round), s, colW, colW) + 8;
-        ctx.font = face(17, s);
+        ctx.font = face(17, s.typeScale);
         ctx.fillStyle = SEMANTIC.quiet.loud;
         ctx.fillText('MISSES', colX, y);
         meterBar(ctx, colX, y + 18, colW, meter, kick, s);
@@ -976,11 +1050,11 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
               span + s.readPad * 2, tallHeight + s.readPad * 2,
               s.readRecess, palette.panel, s.blockTint);
 
-      ctx.font = face(19, s);
+      ctx.font = face(19, s.typeScale);
       ctx.fillStyle = SEMANTIC.quiet.ink;
       ctx.fillText(stage, left, y);
       y += 26;
-      ctx.font = face(17, s);
+      ctx.font = face(17, s.typeScale);
       ctx.fillStyle = SEMANTIC.quiet.loud;
       ctx.fillText('FIND', left, y);
       y += 18;
@@ -991,7 +1065,7 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
 
       y += slab(ctx, left, y, countText(round), countRole(round),
                 countSize(round), s, span) + 10;
-      ctx.font = face(17, s);
+      ctx.font = face(17, s.typeScale);
       ctx.fillStyle = SEMANTIC.quiet.loud;
       ctx.fillText('MISSES', left, y);
       y += 18;
@@ -1030,10 +1104,10 @@ export function createOverLayer(settings = () => TUNING, palette = PALETTE) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const mid = Math.min(width, height);
-      ctx.font = face(Math.round(mid * 0.11), s);
+      ctx.font = face(Math.round(mid * 0.11), s.typeScale);
       ctx.fillStyle = SEMANTIC.miss.ink;
       ctx.fillText('GAME OVER', width / 2, height / 2 - mid * 0.05);
-      ctx.font = face(Math.round(mid * 0.038), s);
+      ctx.font = face(Math.round(mid * 0.038), s.typeScale);
       ctx.fillStyle = SEMANTIC.quiet.loud;
       ctx.fillText('CLICK TO TRY THIS YARD AGAIN', width / 2, height / 2 + mid * 0.06);
       ctx.textAlign = 'left';

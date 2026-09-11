@@ -88,3 +88,23 @@ export function proxyOf(view) {
     r: Math.min(maxX - minX, maxY - minY) / 2,
   };
 }
+
+/**
+ * A fleet's two lookups, memoised: a slot's view, and the circle that stands in for it.
+ *
+ * Every caller that lays a board out needs both, and both are pure functions of the
+ * model and the angle, so both are worth keeping. The cache key is the shape of a
+ * slot -- which is a fact one file should state, not four: anything that later gives a
+ * view another dimension has to be found everywhere the key is spelled out, and a
+ * board laid against a stale hull packs to a different density without saying so.
+ */
+export function fleetLookups(views) {
+  const proxies = new Map();
+  const viewOf = (slot) => views.view(slot.model, slot.angle);
+  const proxyFor = (slot) => {
+    const key = `${slot.model}/${slot.angle}`;
+    if (!proxies.has(key)) proxies.set(key, proxyOf(viewOf(slot)));
+    return proxies.get(key);
+  };
+  return { viewOf, proxyFor };
+}

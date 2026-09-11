@@ -162,7 +162,6 @@ export function assignInks(touching, palette, fixed = null) {
       choice = count.indexOf(Math.min(...count));
       clashes++;
     }
-    if (pick < 0) break;                       // everything already has an ink
     ink[pick] = choice;
     used[choice]++;
   }

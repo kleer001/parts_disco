@@ -5,43 +5,40 @@
 // asked for, and the loading happens behind it. There is no separate loading screen:
 // the title is the cover, which is what the games this one is measured against do.
 //
-// What says the wait is over is the game's own content rather than a bar. The yard
-// above the wordmark is empty while the fleet is in flight and fills when it arrives,
-// and the button turns from grey to the green a find already wears. A player learns
-// the colour here and meets it again the first time they are right.
+// What says the wait is over is the game's own content rather than a bar. The screen
+// litters itself with the game's own things the moment its own small yard file lands,
+// and the button turns from grey to the green a find already wears once the fleet is
+// in. A player learns the colour here and meets it again the first time they are right.
 //
 // Like `layers.js` this only ever draws. It is handed a context and told what it may
 // know; it reaches for nothing.
 
 import { mulberry32 } from './rng.js';
-import { PALETTE, INKS, ring, inkStroke, roundRect } from './layers.js';
+import { PALETTE, INKS, ring, shape, inkStroke, roundRect,
+         face } from './layers.js';
 import { SEMANTIC } from './juice.js';
 
 /** What the screen says. Here rather than inline, because it is copy, not logic. */
 export const WORDMARK = 'parts disco';
-export const TAGLINE = 'A yard full of vehicles.';
-export const TASK = 'Find every copy of the one you were shown.';
 export const WAITING = 'backing the yard out';
 export const READY = 'PLAY';
 export const ENDLESS = 'ENDLESS';
 
 /**
- * The yard behind the title: how many vehicles, and how hard they crowd.
+ * The yard behind the title: how thickly the screen is littered.
  *
- * Fewer and larger than a real board. This one is a portrait rather than a puzzle --
- * it has to read as a crowd at a glance and still leave the wordmark legible.
+ * A jittered grid rather than a row, filling the whole field, because the game is a
+ * crowded yard and the opening shot should be one. `wanted` is a target: the grid it
+ * picks is whatever squares up closest to the screen's own proportions.
  *
- * `span`, `spread` and `jitter` are all shares of the screen's short edge rather than
- * of its width, which is what keeps the crowding the same in both orientations. Set
- * against the width, a landscape screen pulls the row apart into a lineup, and a
- * lineup is the opposite of what the game is about.
+ * `span` and `jitter` are shares of the screen's short edge rather than of its width,
+ * which keeps the crowding the same in both orientations. Set against the width, a
+ * landscape screen pulls the crowd apart into a lineup.
  */
-const YARD = { cars: 7, span: 0.19, spread: 0.95, jitter: 0.16 };
+const YARD = { wanted: 176, span: 0.13, jitter: 0.72 };
 
 /** Type, as a share of the screen's short edge, so it holds at any size. */
-const TYPE = { wordmark: 0.115, tagline: 0.033, task: 0.027, button: 0.05 };
-
-const face = (px) => `${Math.round(px)}px VT323, monospace`;
+const TYPE = { wordmark: 0.115, button: 0.05 };
 
 /**
  * Build the opening screen for one layout.
@@ -57,19 +54,53 @@ export function createTitle(place, seed) {
   // Where the vehicles stand, worked out once. Drawn from the run's own seed, so the
   // yard on the title belongs to the game waiting behind it rather than to this file.
   const rand = mulberry32(seed);
+  const cols = Math.max(1, Math.round(Math.sqrt(YARD.wanted * width / height)));
+  const rows = Math.ceil(YARD.wanted / cols);
+  const cellW = width / cols;
+  const cellH = height / rows;
+
   const parked = [];
-  for (let i = 0; i < YARD.cars; i++) {
-    const along = YARD.cars === 1 ? 0.5 : i / (YARD.cars - 1);
+  for (let i = 0; i < cols * rows; i++) {
     parked.push({
-      cx: width / 2 + (along - 0.5) * short * YARD.spread,
-      cy: height * 0.30 + (rand() - 0.5) * short * YARD.jitter,
-      ink: INKS[i % INKS.length],
+      cx: (i % cols + 0.5) * cellW + (rand() - 0.5) * cellW * YARD.jitter,
+      cy: (Math.floor(i / cols) + 0.5) * cellH + (rand() - 0.5) * cellH * YARD.jitter,
+      ink: INKS[Math.floor(rand() * INKS.length)],
+      // Which drawing stands here. Drawn once from the run's seed so the crowd holds
+      // still while the screen redraws, and differs from one run to the next.
+      pick: Math.floor(rand() * 1e6),
     });
   }
+  // Down the screen, so an overlap reads as one thing standing in front of another.
+  parked.sort((a, b) => a.cy - b.cy);
 
   // Where the buttons land, so a click can be tested against them. Written by `draw`
   // because the type is measured rather than assumed, and read by `hit`.
   let buttons = null;
+
+  // The crowd, printed once. It never moves while the screen is up, and drawing it
+  // again every frame costs a stroke for every point of every drawing on it -- at this
+  // litter that is tens of thousands of paths a frame, and the title is what the player
+  // is looking at while the fleet lands. Printed to its own canvas it costs one blit.
+  let sheet = null;
+
+  const print = (yard) => {
+    sheet = document.createElement('canvas');
+    sheet.width = Math.round(width);
+    sheet.height = Math.round(height);
+    const sc = sheet.getContext('2d');
+    const span = short * YARD.span;
+    for (const spot of parked) {
+      const drawing = yard.drawings[spot.pick % yard.drawings.length];
+      sc.fillStyle = spot.ink;
+      shape(sc, spot, drawing.silhouette, span);
+      sc.fill('evenodd');
+      inkStroke(sc);
+      for (const points of drawing.strokes) {
+        ring(sc, spot, points, span);
+        sc.stroke();
+      }
+    }
+  };
 
   return {
     /**
@@ -77,44 +108,43 @@ export function createTitle(place, seed) {
      *
      * @param {CanvasRenderingContext2D} ctx
      * @param {object|null} views - the loaded fleet, or null while it is still coming
+     * @param {object|null} yard - the baked title drawings, or null while they are
      */
-    draw(ctx, views) {
+    draw(ctx, views, yard) {
       ctx.fillStyle = PALETTE.paper;
       ctx.fillRect(0, 0, width, height);
 
-      // The yard, once there is one. Each vehicle is a different ink so the row reads
-      // as the map the board is rather than as a fleet catalogue.
-      if (views) {
-        const span = short * YARD.span;
-        parked.forEach((spot, i) => {
-          const model = views.models[i % views.models.length];
-          const angles = views.anglesOf(model.name);
-          const view = views.view(model.name, angles[i % angles.length]);
-          ctx.fillStyle = spot.ink;
-          for (const points of view.silhouette) {
-            ring(ctx, spot, points, span);
-            ctx.fill();
-          }
-          inkStroke(ctx);
-          for (const points of view.strokes) {
-            ring(ctx, spot, points, span);
-            ctx.stroke();
-          }
-        });
+      // The yard, once there is one. It is drawn from the baked title set rather than
+      // from the fleet: the crowd is a portrait of everything the game can deal, not of
+      // the twelve it happens to open with, and it lands long before the fleet does.
+      // Each thing takes its own ink, so the field reads as the map the board is rather
+      // than as a catalogue.
+      if (yard) {
+        if (!sheet) print(yard);
+        ctx.drawImage(sheet, 0, 0, width, height);
       }
 
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
 
-      ctx.fillStyle = PALETTE.ink;
-      ctx.font = face(short * TYPE.wordmark);
-      ctx.fillText(WORDMARK, width / 2, height * 0.53);
+      // The wordmark sits on a card of its own. With the field littered there is no
+      // clear ground left to set type on, and the card is the same paper the yard is
+      // printed on, so it reads as a label pinned over the crowd rather than a hole.
+      const mark = short * TYPE.wordmark;
+      ctx.font = face(mark);
+      const markW = ctx.measureText(WORDMARK).width;
+      const cardW = markW + mark * 0.9;
+      const cardH = mark * 1.5;
+      const cardY = height * 0.53 - mark * 0.98;
+      roundRect(ctx, (width - cardW) / 2, cardY, cardW, cardH, mark * 0.18);
+      ctx.fillStyle = PALETTE.paper;
+      ctx.fill();
+      inkStroke(ctx);
+      ctx.lineWidth = Math.max(1, short * 0.004);
+      ctx.stroke();
 
-      ctx.fillStyle = SEMANTIC.quiet.ink;
-      ctx.font = face(short * TYPE.tagline);
-      ctx.fillText(TAGLINE, width / 2, height * 0.60);
-      ctx.font = face(short * TYPE.task);
-      ctx.fillText(TASK, width / 2, height * 0.645);
+      ctx.fillStyle = PALETTE.ink;
+      ctx.fillText(WORDMARK, width / 2, height * 0.53);
 
       // The buttons wear the find's green once the game can start, and the colour the
       // panel uses for anything not worth reading until it is. While the fleet is in
@@ -151,14 +181,6 @@ export function createTitle(place, seed) {
         ctx.fillStyle = role.ink;
         ctx.textBaseline = 'middle';
         ctx.fillText(b.label, b.x + b.w / 2, y + h / 2 + 1);
-      }
-
-      if (views) {
-        ctx.fillStyle = SEMANTIC.quiet.ink;
-        ctx.font = face(short * TYPE.task * 0.86);
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillText('sixteen yards, or a belt that never stops',
-                     width / 2, y + h + short * 0.045);
       }
 
       ctx.textAlign = 'left';

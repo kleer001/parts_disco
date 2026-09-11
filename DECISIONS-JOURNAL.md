@@ -1182,3 +1182,95 @@ frame, on a board that can hold a hundred and twenty vehicles.
 **Threaded:** `silhouette` and `holes` in `tools/model_views/render_views.py`; `shape`
 and the three fills in `src/layers.js`; `pick` in `src/game.js`; `drawMember` in
 `dev/presentation.html`.
+
+
+### [2026-09-11] Easy to hard, measured on what is in play
+**Decision:** `data/groups.json` is stored in difficulty order, easiest first, with the
+score that put it there. Hardness is the mean same-bearing IoU over every pair of a
+group's members, counting only the members still in play and only the bearings the group
+is allowed to draw at.
+**Why:** the order decides which group pads which stage, and guessing it wastes the
+tracing. Measured: food 0.214, boats 0.473, glasses 0.495, fish 0.521, pets 0.576, cars
+0.677, the shipping fleet 0.735. The fleet is the hardest set in the building, which is
+what it should be -- everything in it is a car.
+**Rejected:** scoring the whole pack rather than what is in play; a crossed-out member
+and a switched-off bearing are not on the board. Rejected: taking the closest pair rather
+than the mean -- one twin makes a group hard at one moment, but the mean is what a stage
+feels like.
+**Threaded:** `research/model-sets/rank_groups.py`; `rank` and `difficulty` in
+`data/groups.json`.
+
+### [2026-09-11] The title has a yard of its own
+**Decision:** `tools/model_views/bake_title.py` writes `assets/title/yard.json` -- 28
+drawings taken from every group, outline and silhouette only, strokes thinned to a third
+of a pixel at the size the title draws them. The title crowd comes from there, and the
+slogan and the task line are gone.
+**Why:** the title is what covers the fleet's wait, so its crowd cannot come from the
+fleet. Baked it is 404KB against the fleet's 6.9MB, so the yard fills early rather than
+last. Drawings narrower than 0.12 of the frame are skipped: a chopstick is a member of
+its group and a scratch on this screen.
+**Rejected:** keeping the tagline and the task line -- the owner cut them, the two
+buttons carry it. The line under the buttons stayed, because it says what the second
+button does.
+**Threaded:** `bake_title.py`; `WORDMARK` and `draw` in `src/title.js`; the yard fetch
+in `src/main.js`.
+
+
+### [2026-09-11] The opening shot is a crowd, not a lineup
+**Decision:** the title scatters about forty-four drawings over a jittered grid across
+the whole screen, sorted down the field so an overlap reads as one thing in front of
+another, and the wordmark sits on a paper card with an ink border. The line under the
+buttons is gone with the rest of the copy; PLAY and ENDLESS carry the screen.
+**Why:** seven in a row read as a catalogue of what the game holds. The game is a
+crowded yard, so the screen that opens it should be one. Nothing was added to the load
+to do it: the same 28 baked drawings repeat at different inks and bearings, and a canvas
+fill plus a stroke each is cheap enough that the screen still paints on the first frame.
+**Rejected:** more baked drawings for more variety -- the yard file is already 404KB
+against the fleet's 6.9MB, and repeats at different inks are free where new drawings are
+not.
+**Threaded:** `YARD`, `TYPE` and `draw` in `src/title.js`.
+
+
+### [2026-09-11] The crowd is printed once
+**Decision:** the title draws its crowd into a canvas of its own the first frame it has
+one, and blits that every frame after. The litter went to 176 drawings rather than four
+times the size of forty-four.
+**Why:** measured on the title, headless. Forty-four drawings redrawn every frame ran at
+21 fps; 176 ran at 6. The crowd never moves while the screen is up, so every one of those
+frames was re-stroking tens of thousands of paths to produce the same picture. Printed
+once and blitted: 60.5 fps at 176.
+**Rejected:** four times the size instead of four times the count -- both were rendered
+and the big one buries all but eight or ten of its objects, so the screen reads as a
+texture rather than as a yard. Rejected: fewer drawings to keep the frame cheap -- the
+cost was the redraw, not the count.
+**Threaded:** `print` and `sheet` in `src/title.js`.
+
+### [2026-09-11] The drawing helpers get one home each
+**Decision:** `layers.js` owns the shared drawing ideas and every screen calls them:
+`face` for the typeface, `tintedSlab` for a number on a tint, `paintRegions` for a
+region map becoming pixels, `shape` for a silhouette filled as one path, `outline` for
+a view stroked as one path. `views.js` owns `fleetLookups`, the memo of a slot's view
+and its proxy. `rng.js` owns `freshSeed` and `STRIDE`.
+**Why:** the endless mode arrived as a second of nearly everything. Three typefaces,
+two of which ignored `typeScale`, so the type knob moved the campaign panel and left
+the other two behind. Three slabs with three sets of padding. Two region painters
+asserting the same "below zero is bare paper" rule separately. Four copies of the
+proxy memo, each spelling out the cache key, so anything that later gives a view a
+dimension has to be found in all four or two modes pack their boards to different
+hulls. The seed strides were a named constant in one module and the same literal
+inlined in three others.
+**Rejected:** leaving them, on the grounds that duplication of a dozen lines is
+cheaper than the indirection. It is not the lines. It is that every one of these is a
+retune waiting to move one screen and not the rest.
+**The one real change, not a move:** the belt's slab padded differently on each axis.
+The shared slab uses one padding, so those slabs came out slightly taller and
+narrower. Checked on screen; the trade is one idiom against an exact reproduction of
+a shape nobody chose.
+**Caught while doing it:** lifting `STRIDE` out of `run.js` left that module using it
+with no import. All 41 tests passed and every module imported cleanly, because nothing
+in the suite deals a board -- the failure only appears when `redeal` runs. Found by
+opening both modes in a browser. The suite covers the pure logic and none of the
+wiring, which is worth knowing before trusting a green run on a refactor.
+**Threaded:** `face`, `tintedSlab`, `paintRegions`, `shape`, `outline` in
+`src/layers.js`; `fleetLookups` in `src/views.js`; `freshSeed` and `STRIDE` in
+`src/rng.js`.

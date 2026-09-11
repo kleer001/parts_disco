@@ -10,7 +10,7 @@
 
 import { MIX } from './audio.js';
 import { TRACKS, MUSIC_ROOT } from './music.js';
-import { freshSeed as newSeed } from './run.js';
+import { freshSeed as newSeed } from './rng.js';
 
 /**
  * Where the panel's settings are kept between visits.
