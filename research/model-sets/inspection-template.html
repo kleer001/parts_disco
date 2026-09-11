@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What is actually in the packs</title>
+<style>
+@font-face {
+  font-family: VT323;
+  src: url("../../assets/fonts/vt323-latin.woff2") format("woff2");
+  font-display: swap;
+}
+
+:root {
+  --wall: #e7e2d8;
+  --ink: #1a1a1a;
+  --rule: #c3bcae;
+  --card: #f1ede5;
+  --hot: #b4341f;
+  --cool: #2f5d50;
+  --dead: #a89f8e;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--wall);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+body { padding: 0 max(16px, 4vw) 96px; }
+
+.masthead {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 56px 0 28px;
+  border-bottom: 3px solid var(--ink);
+}
+
+h1 {
+  font-family: VT323, ui-monospace, monospace;
+  font-size: clamp(2.4rem, 6.5vw, 4.2rem);
+  line-height: 0.95;
+  margin: 0 0 12px;
+}
+
+main { max-width: 62rem; margin: 0 auto; }
+
+h2 {
+  font-family: VT323, ui-monospace, monospace;
+  font-size: clamp(1.8rem, 4.2vw, 2.5rem);
+  line-height: 1.05;
+  margin: 0;
+}
+
+h3 {
+  font-family: VT323, ui-monospace, monospace;
+  font-size: 1.45rem;
+  margin: 30px 0 4px;
+  letter-spacing: 0.02em;
+}
+
+p { max-width: 42rem; }
+.lede { font-size: 1.02rem; }
+.note { font-size: 0.9rem; color: #4a453c; margin: 6px 0 10px; }
+
+a { color: var(--hot); text-underline-offset: 2px; }
+
+article.pack {
+  padding: 44px 0 32px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.pack-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+}
+
+.by {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  color: #5c564b;
+}
+
+figure.preview { margin: 16px 0; }
+figure.preview img {
+  display: block;
+  width: 100%;
+  max-width: 46rem;
+  height: auto;
+  border: 1px solid var(--rule);
+  background: #d8d2c6;
+}
+figure.preview figcaption { font-size: 0.82rem; color: #5c564b; margin-top: 6px; }
+
+.tally {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 2px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 18px 0 8px;
+}
+.tally div { background: var(--card); padding: 8px 10px; }
+.tally dt {
+  font-size: 0.7rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #5c564b;
+}
+.tally dd { margin: 2px 0 0; font-size: 1.05rem; font-family: ui-monospace, monospace; }
+
+/* ---- tiles: the model as the board draws it ---------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+  gap: 6px;
+  margin: 10px 0 18px;
+}
+
+.cell { margin: 0; }
+
+svg.tile {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--card);
+  border: 1px solid var(--rule);
+}
+
+svg.tile .sil { fill: #d6cfc0; stroke: none; }
+svg.tile .ink { fill: none; stroke: var(--ink); stroke-width: 0.012; stroke-linecap: round; }
+svg.tile.toss .sil { fill: #e2ddd2; }
+svg.tile.toss .ink { stroke: var(--dead); }
+svg.tile.empty { background: repeating-linear-gradient(45deg, #e0dacd, #e0dacd 4px, #d5cec0 4px, #d5cec0 8px); }
+
+.cell figcaption {
+  font-size: 0.68rem;
+  text-align: center;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #4a453c;
+}
+
+.cell.toss figcaption { color: var(--dead); }
+
+.fleet {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 20px;
+  border-left: 4px solid var(--cool);
+  padding-left: 12px;
+}
+
+.fleet .tier { display: grid; grid-template-columns: 5rem 1fr; gap: 12px; align-items: center; }
+.fleet .tier b {
+  font-family: VT323, ui-monospace, monospace;
+  font-size: 1.2rem;
+  letter-spacing: 0.06em;
+}
+.fleet .grid { margin: 0; grid-template-columns: repeat(4, minmax(60px, 96px)); }
+
+.groups { display: grid; gap: 10px; margin: 12px 0 20px; }
+
+.group {
+  display: grid;
+  grid-template-columns: 1fr 8rem;
+  gap: 12px;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  padding: 8px;
+}
+
+.group-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+  gap: 6px;
+}
+
+.group-meta { font-size: 0.82rem; text-align: right; color: #4a453c; }
+.group-meta .n { font-family: ui-monospace, monospace; }
+
+/* ---- the accounting ---------------------------------------------------- */
+
+details { margin: 20px 0 0; }
+summary {
+  cursor: pointer;
+  font-family: VT323, ui-monospace, monospace;
+  font-size: 1.2rem;
+}
+
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.84rem; }
+th, td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--rule); }
+th {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5c564b;
+}
+td.n { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+tr.toss td { color: #6d665a; }
+
+.cost { border-left: 4px solid var(--hot); padding-left: 12px; margin: 20px 0 0; }
+.cost p { margin: 0; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+  background: var(--card);
+  padding: 1px 4px;
+}
+
+footer {
+  max-width: 62rem;
+  margin: 64px auto 0;
+  padding-top: 22px;
+  border-top: 3px solid var(--ink);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 620px) {
+  .group { grid-template-columns: 1fr; }
+  .group-meta { text-align: left; }
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <h1>What is actually in the packs</h1>
+  <!--INTRO-->
+</header>
+
+<main>
+<!--PACKS-->
+
+<footer>
+  <p><b>How this was made.</b> Every model in every pack was traced by the game's own
+  tool at four angles, and the silhouettes compared with each other:
+  <code>inspect_pack.py</code> beside this page does the sorting,
+  <code>build_inspection.py</code> draws it. The tiles are not artwork from the packs —
+  they are the silhouette the board would hit-test against with its line art over the top, seen from the side. The photographs at
+  the head of each pack are the publishers' own, served from their sites.</p>
+  <p>A model is thrown out for one of four reasons, in this order: it traced empty; it
+  is not a member of the set (a wheel in a car kit); it fills too little of its frame or
+  lies too long and thin to be worth clicking; or it is the same shape as something
+  already kept. Everything else is kept, and the survey of where these packs came from
+  is <a href="index.html">next door</a>.</p>
+</footer>
+</main>
+</body>
+</html>

@@ -27,8 +27,7 @@ import { stampRegions, INKS, rgbOf, ring, inkStroke, PAPER_RGB,
          SETTLED, REFUSED, PALETTE, roundRect } from './layers.js';
 import { SEMANTIC } from './juice.js';
 import { proxyOf } from './views.js';
-import { createMeter, CAPACITY } from './meter.js';
-import { TIERS } from './levels.js';
+import { stageAt, PATH } from './levels.js';
 
 /**
  * Which way the belt runs. One is drawn at the start of a run and holds for it.
@@ -44,66 +43,68 @@ export const DIRECTIONS = [
 ];
 
 /**
- * How the run tightens.
+ * How a run tightens.
  *
- * Speed climbs with the clock and never resets, so the pressure is continuous. Density
- * steps at a wave, so the board changing is an event a player can feel. Two dials on
- * two different schedules is what keeps them tellable apart.
+ * Two dials on two schedules, so a player can tell which one is beating them. The
+ * arrangement steps once a run and never inside one; the belt ramps inside a run and
+ * starts over at the next.
  */
 export const WAVE = {
-  /** How long a wave lasts, in seconds. */
+  /** How long one run lasts, in seconds. */
   seconds: 120,
   /**
-   * How fast the belt runs, in pixels a second: where it starts, and where it has
-   * reached when the first wave is up.
+   * How fast the belt runs, in pixels a second: where every run starts, where it has
+   * reached when that run is up, and what the ceiling gains once the path is spent.
+   *
+   * The ramp resets every run, so the belt is a sawtooth rather than one long climb.
+   * What escalates before the plateau is the arrangement; the belt does the same thing
+   * each time, which is what lets a player learn what it feels like. Past 4:4 there is
+   * no harder arrangement left, so the ceiling is what goes on rising.
    *
    * Straight between the two rather than eased. A curve spends its steepest stretch in
-   * the middle of the wave, so the belt visibly lurches at a moment nothing else
-   * happened and the player reads the lurch as something they did. A straight line is
-   * one creep at one rate, and the place for a step is the wave boundary, where the
-   * density already steps.
+   * the middle of a run, so the belt lurches at a moment nothing else happened and the
+   * player reads the lurch as something they did.
    */
   speed: 40,
-  speedAtWaveEnd: 150,
-  /** Vehicles in one screen-length of belt, and what a wave adds. */
-  cars: 22,
-  carsPerWave: 7,
-  /** How large a vehicle is against the short edge, and how that tightens. */
-  size: 0.30,
-  sizeFloor: 0.17,
-  sizePerWave: 0.018,
-  /** Inks on the ground, falling as the waves pass. */
-  inks: 6,
-  inksFloor: 2,
+  topSpeed: 150,
+  topSpeedPerRun: 20,
+  /** How many wrong vehicles end a game. */
+  errorsAllowed: 20,
   /** At least this many of the asked-for vehicle in every section. */
   leastTargets: 2,
 };
 
-/** Which vehicles a wave draws from. Later waves lose the easy ones. */
-const fleetFor = (wave) => (wave < 2 ? [...TIERS.loud, ...TIERS.plain]
-  : wave < 4 ? [...TIERS.plain, ...TIERS.twins]
-  : [...TIERS.twins]);
+/**
+ * What one run asks for: the campaign's arrangement, stage for stage.
+ *
+ * Run one is 1:1 and run sixteen is 4:4, after which `stageAt` holds at the last. The
+ * two modes then escalate off one table rather than two curves that drift apart, and a
+ * number tuned for one is tuned for both.
+ */
+export const runOf = (n) => stageAt(n);
 
-/** What a wave asks for. Pure, so a bench and the game agree on it. */
-export function waveOf(n) {
-  return {
-    wave: n,
-    cars: WAVE.cars + WAVE.carsPerWave * n,
-    size: Math.max(WAVE.sizeFloor, WAVE.size - WAVE.sizePerWave * n),
-    inks: Math.max(WAVE.inksFloor, WAVE.inks - n),
-    fleet: fleetFor(n),
-  };
-}
+/** Where the belt tops out on this run. It only climbs once the path is spent. */
+export const topSpeedOf = (n) =>
+  WAVE.topSpeed + Math.max(0, n - (PATH.length - 1)) * WAVE.topSpeedPerRun;
 
 /**
- * How fast the belt runs after this many seconds, in pixels a second.
+ * How fast the belt runs, this far into this run, in pixels a second.
  *
- * The rate is set by the first wave -- 40 to 150 across two minutes -- and does not
- * stop there. Later waves inherit the same climb rather than starting over, so the
- * belt goes on getting faster for as long as a run lasts.
+ * The clock is the run's, not the game's: every run starts slow again.
  */
-export const speedAt = (seconds) =>
-  WAVE.speed + ((WAVE.speedAtWaveEnd - WAVE.speed) / WAVE.seconds) * seconds;
+export const speedAt = (into, run) =>
+  WAVE.speed + ((topSpeedOf(run) - WAVE.speed) / WAVE.seconds)
+             * Math.min(into, WAVE.seconds);
+
+/** A seeded shuffle, so a run's order of targets reproduces from its seed. */
+function shuffled(list, rand) {
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
 
 /**
  * Start an endless run.
@@ -131,14 +132,17 @@ export function createBelt(place, views, seed) {
   let runLen = Math.round(along ? field.width : field.height);
   let crossLen = Math.round(along ? field.height : field.width);
 
-  const meter = createMeter();
-  let elapsed = 0;         // seconds of running; the speed rides on this
+  let into = 0;            // seconds into this run; the belt's ramp rides on this
   let offset = 0;          // how far the belt has travelled, in pixels
-  let wave = 0;
-  let waveLeft = WAVE.seconds;
+  let run = 0;             // which run, and so which stage of the path
   let target = null;
-  let score = 0;
+  let roster = [];         // the shuffled order the targets are handed out in
   let live = new Map();    // section index -> the built section
+
+  // Three tallies, all carried from run to run. A match is a vehicle tagged rightly,
+  // an error is one tagged wrongly, and an escape is one that went past untagged --
+  // which is a different failure from the other two and is counted as one.
+  const tally = { matches: 0, errors: 0, escapes: 0 };
 
   /**
    * Deal and render one section.
@@ -149,9 +153,9 @@ export function createBelt(place, views, seed) {
    * coverage.
    */
   const buildSection = (index) => {
-    const at = waveOf(wave);
+    const at = runOf(run);
     const span = Math.min(field.width, field.height) * at.size;
-    const draw = seed + index * 7919 + wave * 104729;
+    const draw = seed + index * 7919 + run * 104729;
     const rand = mulberry32(draw);
 
     // The asked-for vehicle is guaranteed present. A stretch of belt holding none of
@@ -217,7 +221,10 @@ export function createBelt(place, views, seed) {
       }
     }
 
-    return { index, canvas, anchors, span, tagged: new Map() };
+    // How many of the asked-for vehicle rode in on this section, so that what is left
+    // untagged when it leaves can be counted as having got away.
+    const carrying = anchors.filter((a) => a.slot.model === target).length;
+    return { index, canvas, anchors, span, carrying, tagged: new Map() };
   };
 
   /**
@@ -239,7 +246,13 @@ export function createBelt(place, views, seed) {
     const first = Math.floor(offset / runLen);
     const want = [first, first + 1, first + 2];
     for (const [index, section] of live) {
-      if (!want.includes(index)) live.delete(index);
+      if (want.includes(index)) continue;
+      // A section leaving is the moment its untagged targets have got away. It is the
+      // only moment they can be counted: before it there is still time to tag them.
+      let caught = 0;
+      for (const tag of section.tagged.values()) if (tag.right) caught++;
+      tally.escapes += Math.max(0, section.carrying - caught);
+      live.delete(index);
     }
     for (const index of want) {
       if (!live.has(index)) live.set(index, buildSection(index));
@@ -248,22 +261,44 @@ export function createBelt(place, views, seed) {
 
   let card = null;         // the picture of what is being asked for
 
-  const nextWave = () => {
-    const at = waveOf(wave);
-    const rand = mulberry32(seed + wave * 7919 + 13);
-    target = at.fleet[Math.floor(rand() * at.fleet.length)];
+  /**
+   * The next vehicle to ask for.
+   *
+   * Dealt from a shuffled roster rather than rolled, so every model in the fleet is
+   * asked for once before any is asked for twice. The roster is reshuffled when it
+   * runs out, and when the stage changes which vehicles are in play.
+   */
+  const nextTarget = () => {
+    const fleet = runOf(run).fleet;
+    const rand = mulberry32(seed + run * 7919 + 13);
+    if (!roster.length || roster.some((m) => !fleet.includes(m))) {
+      roster = shuffled(fleet, rand);
+      // Never the same model twice running, even across a reshuffle.
+      if (roster[0] === target && roster.length > 1) {
+        [roster[0], roster[1]] = [roster[1], roster[0]];
+      }
+    }
+    return roster.shift();
+  };
+
+  /** Whether the run is finished. */
+  const over = () => tally.errors >= WAVE.errorsAllowed;
+
+  const nextRun = () => {
+    target = nextTarget();
     // Shown from an angle the belt will not hand you, the same as the campaign: a
     // picture you can match against a picture is not identification.
     const angles = views.anglesOf(target);
+    const rand = mulberry32(seed + run * 104729 + 7);
     card = new Image();
     card.src = views.promptFor(target, angles[Math.floor(rand() * angles.length)]);
-    waveLeft = WAVE.seconds;
+    into = 0;
     // Only what arrives is new: what is already in front of the player stays as it is
     // until it has scrolled past, so the board never changes under a click.
     live = new Map();
     restock();
   };
-  nextWave();
+  nextRun();
 
   /** A section's anchor, moved to where it is on screen this frame. */
   const onScreen = (index, anchor) => {
@@ -274,24 +309,22 @@ export function createBelt(place, views, seed) {
   };
 
   return {
-    meter,
     get target() { return target; },
-    get score() { return score; },
-    get wave() { return wave; },
-    get secondsLeft() { return Math.max(0, waveLeft); },
-    get speed() { return speedAt(elapsed); },
+    get tally() { return { ...tally }; },
+    get run() { return run; },
+    get secondsLeft() { return Math.max(0, WAVE.seconds - into); },
+    get speed() { return speedAt(into, run); },
     get direction() { return dir; },
-    get dead() { return meter.full(); },
+    get dead() { return over(); },
 
-    /** Move the belt on, and turn the wave over when its two minutes are up. */
+    /** Move the belt on, and turn the run over when its two minutes are up. */
     advance(dt) {
-      if (meter.full()) return;
-      elapsed += dt;
-      offset += speedAt(elapsed) * dt;
-      waveLeft -= dt;
-      if (waveLeft <= 0) {
-        wave++;
-        nextWave();
+      if (over()) return;
+      into += dt;
+      offset += speedAt(into, run) * dt;
+      if (into >= WAVE.seconds) {
+        run++;
+        nextRun();
         return;
       }
       restock();
@@ -304,7 +337,7 @@ export function createBelt(place, views, seed) {
      * own it, and inside a section the ordinary board hit test applies.
      */
     choose(point, now) {
-      if (meter.full()) return { outcome: 'again', slot: null };
+      if (over()) return { outcome: 'again', slot: null };
       const a = (along ? point[0] : point[1]) - (along ? field.x : field.y);
       const cross = (along ? point[1] : point[0]) - (along ? field.y : field.x);
       if (cross < 0 || cross > crossLen) return { outcome: 'ground', slot: null };
@@ -322,10 +355,10 @@ export function createBelt(place, views, seed) {
         if (!right) {
           // Every wrong vehicle costs the same here. The campaign's price falls along
           // its path because the path has an end; a belt does not.
-          meter.take(0, now);
+          tally.errors++;
           return { outcome: 'wrong', slot: hit.slot };
         }
-        score++;
+        tally.matches++;
         return { outcome: 'found', slot: hit.slot };
       }
       return { outcome: 'ground', slot: null };
@@ -421,48 +454,50 @@ export function createBelt(place, views, seed) {
       ctx.textAlign = 'left';
       ctx.fillStyle = SEMANTIC.quiet.ink;
       ctx.font = type(line * 0.62);
-      ctx.fillText(`WAVE ${wave + 1} · ${dir.name.toUpperCase()}`, left, y);
+      const at = runOf(run);
+      ctx.fillText(`RUN ${run + 1} · ${at.level}:${at.stage} · ${dir.name.toUpperCase()}`,
+                   left, y);
       y += line * 0.72;
 
       slab(target ? target.toUpperCase() : '', SEMANTIC.target, line);
-      slab(`${score} TAGGED`, SEMANTIC.found, line);
+      slab(`${tally.matches} TAGGED`, SEMANTIC.found, line);
 
       // The clock, as a bar that empties rather than a number that counts down.
       const barH = Math.max(4, Math.round(line * 0.22));
       ctx.fillStyle = SEMANTIC.last.tint;
       ctx.fillRect(left, y, room, barH);
       ctx.fillStyle = SEMANTIC.last.loud;
-      ctx.fillRect(left, y, room * Math.max(0, waveLeft / WAVE.seconds), barH);
+      ctx.fillRect(left, y, room * Math.max(0, (WAVE.seconds - into) / WAVE.seconds),
+                   barH);
       y += barH + pad * 0.6;
 
-      // Damage, one box a unit, so what is left is countable at a glance.
-      const cell = Math.min((room - CAPACITY) / CAPACITY, line * 0.5);
-      const spent = meter.filled;
-      for (let i = 0; i < CAPACITY; i++) {
-        const on = i < Math.ceil(spent);
-        ctx.fillStyle = on ? SEMANTIC.miss.loud : SEMANTIC.quiet.tint;
-        ctx.fillRect(left + i * (cell + 1), y, cell, cell);
-      }
+      // The two ways of being wrong, kept apart. Tagging the wrong vehicle is a
+      // different mistake from letting the right one go past, and a player who cannot
+      // see which one is costing them cannot do anything about either.
+      slab(`${tally.errors} / ${WAVE.errorsAllowed} WRONG`, SEMANTIC.miss, line * 0.8);
+      slab(`${tally.escapes} GOT PAST`, SEMANTIC.quiet, line * 0.8);
 
-      if (meter.full()) {
+      if (over()) {
         ctx.fillStyle = SEMANTIC.miss.ink;
-        ctx.font = type(line * 1.1);
+        ctx.font = type(line * 0.95);
         ctx.textAlign = 'center';
-        ctx.fillText('OUT OF ROAD — CLICK TO BEGIN AGAIN',
+        ctx.fillText(`${tally.matches} TAGGED — CLICK TO BEGIN AGAIN`,
                      box.x + box.width / 2, box.y + box.height - pad);
       }
       ctx.textAlign = 'left';
       ctx.restore();
     },
 
-    /** Wipe the meter and the score and run it again, on the same belt. */
+    /** Wipe the tallies and start over from the first arrangement. */
     restart() {
-      meter.clear();
-      score = 0;
-      elapsed = 0;
+      tally.matches = 0;
+      tally.errors = 0;
+      tally.escapes = 0;
+      into = 0;
       offset = 0;
-      wave = 0;
-      nextWave();
+      run = 0;
+      roster = [];
+      nextRun();
     },
 
     /** What is dealing this run, so it can be shown and written down. */

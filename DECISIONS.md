@@ -145,20 +145,30 @@ it went; it is never a reason to refuse a change he asks for.
   centres thin out; art still reaches across from both sides, so the join stays
   covered. Drawing the ground and the vehicles as separate layers would remove the
   band and needs the hit test to follow the overhang.
-- **Speed climbs with the clock and density steps with the wave.** REJECTED: moving
-  both on one schedule — two dials on two schedules is what lets a player tell which
-  one is beating them.
-- **The belt runs 40px/s to 150px/s across the first wave, in a straight line.**
-  REJECTED: an eased curve — it spends its steepest stretch in the middle of a wave,
-  so the belt lurches at a moment nothing else happened and the player reads the lurch
-  as something they did. A straight line is one creep at one rate, and the place for a
-  step is the wave boundary, where the density already steps. Measured on the moving
-  pixels rather than on the constant: 41-43px/s in a run's opening seconds.
-- **The climb does not stop at the end of a wave.** Later waves inherit the same rate
-  rather than starting over, so a run ends at 260px/s after four minutes and 590px/s
-  after ten — a vehicle crossing the screen in 1.6s. REJECTED: capping at 150, and
-  REJECTED: re-ramping each wave from 40 — both give a run a ceiling, and an endless
-  mode is supposed to end by beating the player.
+- **A run is two minutes and takes the campaign's arrangement, stage for stage.** Run
+  one is 1:1 and run sixteen is 4:4, after which it holds. REJECTED: a difficulty curve
+  of endless's own, which is what was built first — two curves for one idea drift
+  apart, and a number tuned for one mode should be tuned for both.
+- **The belt ramps 40px/s to 150px/s inside a run and starts over at the next.**
+  REJECTED: one continuous climb across the whole game — the sawtooth is what lets a
+  player learn what the belt feels like, because it does the same thing every time and
+  only the arrangement changes under it. REJECTED: an eased ramp, which spends its
+  steepest stretch mid-run, so the belt lurches when nothing else happened and the
+  player reads the lurch as something they did. Measured on the moving pixels rather
+  than on the constant: 41-43px/s in a run's opening seconds.
+- **Past 4:4 the ceiling is what rises**, by 20px/s a run, so run twenty tops out at
+  230px/s. REJECTED: a true plateau — there is no harder arrangement left, so without
+  this the game stops pushing back and ends only when the player chooses to stop.
+- **Targets are dealt from a shuffled roster, not rolled.** Every model in the stage's
+  fleet is asked for once before any is asked for twice, and never the same twice
+  running. REJECTED: rolling each run — at the twins tier the fleet is four, so a roll
+  repeats often enough to feel broken.
+- **Wrong vehicles and escaped targets are counted apart, and only wrong vehicles end
+  a game.** Twenty of them does it. REJECTED: adding the two into one budget — tagging
+  the wrong vehicle and letting the right one go past are different mistakes, and a
+  player who cannot see which is costing them can do nothing about either. REJECTED: a
+  flat carried budget on escapes — measured, a passive player lets 33 past in the first
+  run and 409 past at 4:4, so any fixed number is spent before the path is.
 - **Every wrong vehicle costs the same on the belt.** REJECTED: the campaign's falling
   price — that curve exists because the path has an end, and a belt does not.
 

@@ -1024,3 +1024,25 @@ rather than by being survived.
 cross-correlated against itself a second later put the belt at 41, 43 and 43px/s in a
 run's opening seconds, against 40 plus a few seconds of creep.
 **Threaded:** `WAVE.speed`, `WAVE.speedAtWaveEnd` and `speedAt` in `src/belt.js`.
+
+### [2026-09-10] Endless runs the campaign's path, and counts two kinds of wrong
+**Decision:** a run is two minutes and uses `stageAt(n)` — run one is 1:1, run sixteen
+is 4:4, and it holds there. The belt ramps 40 to 150px/s inside each run and resets at
+the next; past 4:4 the ceiling rises 20px/s a run. Targets come from a shuffled roster
+so every model is asked for before any repeats. Matches, wrong vehicles and escaped
+targets are all carried between runs, and twenty wrong vehicles ends the game.
+**Why the path rather than a curve of its own:** endless was built first with its own
+density, size, ink and fleet schedule. That is two tables for one idea, and they drift:
+a number tuned on one mode silently stops being true of the other. Sharing `PATH` means
+the arrangement at 2:3 is the arrangement at 2:3 in both.
+**Why the ramp resets:** it is what lets the belt be learned. Doing the same thing every
+run makes the belt a constant the player comes to know, so the thing that changed
+between run four and run five is legibly the arrangement and not the speed.
+**Why escapes do not end a run.** Measured, for a player tagging nothing: 33 of the
+asked-for vehicle ride past in run one, 82 by 1:4, 128 by 3:4 and 409 at 4:4. Any fixed
+carried budget on escapes is spent long before the path is — 20 would end the game
+inside the first run. They are counted and shown because letting the right one go past
+is a real failure and the player should see it; what ends a run is the twenty wrong
+vehicles, which costs the same at every stage.
+**Threaded:** `WAVE`, `runOf`, `topSpeedOf`, `speedAt` and the `tally` in
+`src/belt.js`.
