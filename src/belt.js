@@ -72,6 +72,16 @@ export const WAVE = {
   errorsAllowed: 20,
   /** At least this many of the asked-for vehicle in every section. */
   leastTargets: 2,
+  /**
+   * How much of the field starts empty, in screens.
+   *
+   * A belt that is already full on the first frame asks the player to begin partway
+   * through something. The empty stretch sits against the edge the belt leaves by, so
+   * it clears out while the crowd rolls in, and the run builds to full rather than
+   * opening there. It is only ever the first stretch of a game: later runs arrive on a
+   * belt that is already moving, and a gap in the middle of one would read as a fault.
+   */
+  leadIn: 0.5,
 };
 
 /**
@@ -157,6 +167,14 @@ export function createBelt(place, views, seed) {
   // so one standing on a join gets drawn into both pictures and lines up exactly.
   let cars = [];
   let dealt = new Set();   // which section indices have had their vehicles dealt
+  // The stretch of belt the game opens on, kept clear. Against the edge the belt
+  // leaves by, which is the low one when it runs right-to-left or bottom-to-top.
+  let empty = [0, 0];
+  const clearOpening = () => {
+    const run0 = runLen * WAVE.leadIn;
+    empty = dir.sign < 0 ? [0, run0] : [runLen - run0, runLen];
+  };
+  clearOpening();
   let sections = new Map();// section index -> its rendered picture
 
   // Three tallies, all carried from run to run. A match is a vehicle tagged rightly,
@@ -200,17 +218,23 @@ export function createBelt(place, views, seed) {
     // Thrown across the whole section, with nothing held back from its edges. A
     // vehicle that lands on a join is drawn by both neighbours rather than clipped by
     // one, so there is no band at the join where the crowd thins out.
+    //
+    // The opening stretch is the exception: whatever falls in it is dropped, so the
+    // game starts on part of a field rather than in the middle of a full one.
     const box = along ? { x: 0, y: 0, width: runLen, height: crossLen }
                       : { x: 0, y: 0, width: crossLen, height: runLen };
     for (const a of layout(placed, draw, span, box, proxyFor)) {
+      const u = index * runLen + (along ? a.cx : a.cy);
+      if (u >= empty[0] && u <= empty[1]) continue;
       cars.push({
         slot: a.slot,
-        u: index * runLen + (along ? a.cx : a.cy),
+        u,
         cross: along ? a.cy : a.cx,
         span,
         wanted: a.slot.model === target,
         tagged: null,
         ink: null,
+        seen: false,
         counted: false,
       });
     }
@@ -346,9 +370,16 @@ export function createBelt(place, views, seed) {
 
     const kept = [];
     for (const car of cars) {
+      // A vehicle only gets away if it was there to be caught. The belt is dealt on
+      // both sides of the screen, so a freshly dealt one can already sit beyond the
+      // far edge -- it has not gone past the player, it has not arrived yet.
+      if (!car.seen && car.u + car.span / 2 > offset
+                    && car.u - car.span / 2 < offset + runLen) {
+        car.seen = true;
+      }
       // Gone past the screen is what counts as having got away, and it is counted the
       // once. Leaving the belt entirely happens later and is only housekeeping.
-      if (!car.counted && isPast(car)) {
+      if (car.seen && !car.counted && isPast(car)) {
         car.counted = true;
         if (car.wanted && !car.tagged) tally.escapes++;
       }
@@ -647,6 +678,7 @@ export function createBelt(place, views, seed) {
       along = dir.axis === 'x';
       runLen = Math.round(along ? field.width : field.height);
       crossLen = Math.round(along ? field.height : field.width);
+      clearOpening();
       this.restart();
     },
   };

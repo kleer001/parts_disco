@@ -1140,3 +1140,20 @@ makes the ground transparent, and a transparent pixel reads as black through
 pictures are now composited onto white before they are counted.
 **Threaded:** `promptCanvas`, `flatten` and `cutGround` at module scope in
 `src/layers.js`; `printed` in `drawPanel` in `src/belt.js`.
+
+### [2026-09-11] A run opens on half an empty field
+**Decision:** `WAVE.leadIn` keeps the first half-screen of belt clear of vehicles, on
+the side the belt leaves by. The run opens with half the field bare, that half clears
+as it travels, and the crowd arrives to fill it.
+**Why:** the belt was full on the first frame, which asks a player to begin partway
+through something. The empty stretch is put on the exit side rather than the entry
+side on purpose: on the entry side it would be a gap arriving later, and on the exit
+side it is simply where the yard has not started yet.
+**Caught while doing it:** the escape counter was charging for vehicles that had never
+been seen. The belt is dealt a section beyond the screen on both sides, and for the two
+directions whose offset runs backwards a freshly dealt section sits past the far edge
+from the first frame -- so it read as having gone by. Four vehicles were counted as
+having got away inside the first second. A vehicle now has to have been within the
+visible window once before it can be counted as escaped; measured after the change, all
+four directions start at zero and the count only moves once vehicles have crossed.
+**Threaded:** `WAVE.leadIn`, `clearOpening` and the `seen` flag in `src/belt.js`.

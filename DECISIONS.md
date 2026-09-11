@@ -129,6 +129,17 @@ it went; it is never a reason to refuse a change he asks for.
 
 ## Endless
 
+- **A run opens on half an empty field.** The empty stretch sits against the edge the
+  belt leaves by, so it clears while the crowd rolls in and the field builds to full
+  instead of starting there. REJECTED: opening on a full belt — it asks the player to
+  begin partway through something, with no moment to read the card first. It is only
+  the first stretch of a game: later runs arrive on a belt already moving, and a gap
+  in the middle of one would read as a fault.
+- **A vehicle only gets away if it was on screen to be caught.** The belt is dealt on
+  both sides of the screen, so a freshly dealt one can sit beyond the far edge without
+  having arrived. REJECTED: counting by position alone — it charged the player for
+  vehicles they had never been shown, four of them before the first second was out.
+
 - **Both panels print the prompt render through one function.** `promptCanvas` halves
   the one-bit render down until its dither has averaged into greys, then cuts its
   ground away. REJECTED: the belt scaling the render itself — a one-bit picture scaled
