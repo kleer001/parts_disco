@@ -129,12 +129,16 @@ it went; it is never a reason to refuse a change he asks for.
 
 ## Endless
 
-- **A run opens on half an empty field.** The empty stretch sits against the edge the
-  belt leaves by, so it clears while the crowd rolls in and the field builds to full
-  instead of starting there. REJECTED: opening on a full belt — it asks the player to
-  begin partway through something, with no moment to read the card first. It is only
-  the first stretch of a game: later runs arrive on a belt already moving, and a gap
-  in the middle of one would read as a fault.
+- **A game opens on a clear field, one screen of it.** REJECTED: opening on a full
+  belt — it asks the player to begin partway through something, with no moment to read
+  the card first. REJECTED: half a screen, which is empty but still leaves the crowd
+  standing in the far edge of it, so the first thing a player sees is two vehicles
+  leaving. REJECTED: keeping a vehicle out by its centre — art reaches half a span
+  from a centre, 230px at the opening stage, so testing centres leaves exactly the
+  tails the clear stretch exists to avoid. Measured: no vehicle ink on the board at
+  all in any of the four directions, and the first vehicle arrives 2 to 7 seconds in.
+  It is only the opening of a game: later runs arrive on a belt already moving, and a
+  gap in the middle of one would read as a fault.
 - **A vehicle only gets away if it was on screen to be caught.** The belt is dealt on
   both sides of the screen, so a freshly dealt one can sit beyond the far edge without
   having arrived. REJECTED: counting by position alone — it charged the player for
@@ -273,6 +277,10 @@ it went; it is never a reason to refuse a change he asks for.
 - **A group's presentation is data the dev server writes.** REJECTED: `localStorage`
   with an export button — a tuning page whose settings are retyped is a page whose
   settings are wrong.
+- **A view's holes are traced as rings of their own and the fill is `evenodd`.**
+  REJECTED: filling each ring on its own path — a hole ring then fills in as another
+  shape. REJECTED: leaving holes untraced — a model with a gap is drawn solid and
+  hit-tested solid, which is a lie the board tells about its own art.
 
 ## Simulation
 

@@ -1141,10 +1141,16 @@ pictures are now composited onto white before they are counted.
 **Threaded:** `promptCanvas`, `flatten` and `cutGround` at module scope in
 `src/layers.js`; `printed` in `drawPanel` in `src/belt.js`.
 
-### [2026-09-11] A run opens on half an empty field
-**Decision:** `WAVE.leadIn` keeps the first half-screen of belt clear of vehicles, on
-the side the belt leaves by. The run opens with half the field bare, that half clears
-as it travels, and the crowd arrives to fill it.
+### [2026-09-11] A game opens on a clear field
+**Decision:** `WAVE.leadIn` keeps the first screen of belt clear of vehicles, on the
+side the belt leaves by. The game opens on bare ground, and the crowd arrives into it.
+A vehicle is kept out if any part of its art reaches the clear stretch, not merely its
+centre: art reaches half a span from a centre, which is 230 pixels at the opening
+stage, so a centre test left two vehicles hanging into the field and sliding straight
+back out. Half a screen was tried first and was not a run up for the same reason --
+empty, with the crowd standing in the far edge of it.
+**Measured:** no vehicle ink anywhere on the board at the start, in all four
+directions, and the first vehicle arrives between 2 and 7 seconds in.
 **Why:** the belt was full on the first frame, which asks a player to begin partway
 through something. The empty stretch is put on the exit side rather than the entry
 side on purpose: on the entry side it would be a gap arriving later, and on the exit
@@ -1157,3 +1163,22 @@ having got away inside the first second. A vehicle now has to have been within t
 visible window once before it can be counted as escaped; measured after the change, all
 four directions start at zero and the count only moves once vehicles have crossed.
 **Threaded:** `WAVE.leadIn`, `clearOpening` and the `seen` flag in `src/belt.js`.
+
+
+### [2026-09-11] A hole is part of the shape
+**Decision:** `silhouette()` traces the background a model encloses as rings of its own,
+the board fills a view's rings as one `evenodd` path, and `pick()` counts rings even-odd
+so a click through a hole misses the vehicle.
+**Why:** the ski goggles came back solid. Measured on their matte: 2,364 to 4,457
+background pixels are enclosed by the model, up to a quarter of its own area, and the
+tracer emitted one ring. It walked the outside of each solid region and never looked
+inside one. Fifteen models across the seven groups have holes; one of them,
+`race`, is in the fleet the game deals today.
+**Rejected:** reversing the winding of hole rings and keeping the default nonzero fill —
+it works, but it makes the ring order load-bearing, and every future caller has to know
+that. Even-odd needs nothing but the rings. Rejected: punching holes at draw time by
+testing which rings sit inside which — that is the tracer's job done late, once per
+frame, on a board that can hold a hundred and twenty vehicles.
+**Threaded:** `silhouette` and `holes` in `tools/model_views/render_views.py`; `shape`
+and the three fills in `src/layers.js`; `pick` in `src/game.js`; `drawMember` in
+`dev/presentation.html`.

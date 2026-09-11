@@ -73,15 +73,21 @@ export const WAVE = {
   /** At least this many of the asked-for vehicle in every section. */
   leastTargets: 2,
   /**
-   * How much of the field starts empty, in screens.
+   * How much belt starts clear, in screens.
    *
    * A belt that is already full on the first frame asks the player to begin partway
-   * through something. The empty stretch sits against the edge the belt leaves by, so
-   * it clears out while the crowd rolls in, and the run builds to full rather than
-   * opening there. It is only ever the first stretch of a game: later runs arrive on a
-   * belt that is already moving, and a gap in the middle of one would read as a fault.
+   * through something. One screen is the least that reads as a clear run up: at half a
+   * screen the field is empty but the crowd is still standing in the far edge of it,
+   * and the first thing a player sees is two vehicles leaving.
+   *
+   * A vehicle is kept out if any part of its art reaches the stretch, not merely its
+   * centre. Art reaches half a span from a centre, which is 230 pixels at the opening
+   * stage -- so testing centres leaves exactly the tails this is meant to avoid.
+   *
+   * It is only ever the opening of a game. Later runs arrive on a belt that is already
+   * moving, and a gap in the middle of one would read as a fault.
    */
-  leadIn: 0.5,
+  leadIn: 1,
 };
 
 /**
@@ -225,7 +231,8 @@ export function createBelt(place, views, seed) {
                       : { x: 0, y: 0, width: crossLen, height: runLen };
     for (const a of layout(placed, draw, span, box, proxyFor)) {
       const u = index * runLen + (along ? a.cx : a.cy);
-      if (u >= empty[0] && u <= empty[1]) continue;
+      // Any part of it reaching the clear stretch keeps it out, not just its centre.
+      if (u + span / 2 > empty[0] && u - span / 2 < empty[1]) continue;
       cars.push({
         slot: a.slot,
         u,
