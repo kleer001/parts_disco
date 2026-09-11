@@ -79,10 +79,13 @@ export const REFUSED = '#c9c9c9';
  * itself by its own rule would drift off the board it is drawn over.
  */
 export function ring(ctx, anchor, points, span, scale = 1, dx = 0, dy = 0) {
+  // An anchor may carry its own size. A board has one span for everything on it, but a
+  // belt can have two runs' vehicles on screen at once while one scrolls off.
+  const size = anchor.span ?? span;
   ctx.beginPath();
   for (let k = 0; k < points.length; k++) {
-    const x = anchor.cx + (points[k][0] - 0.5) * span * scale + dx;
-    const y = anchor.cy + (points[k][1] - 0.5) * span * scale + dy;
+    const x = anchor.cx + (points[k][0] - 0.5) * size * scale + dx;
+    const y = anchor.cy + (points[k][1] - 0.5) * size * scale + dy;
     if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
 }

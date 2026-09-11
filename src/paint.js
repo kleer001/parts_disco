@@ -110,12 +110,27 @@ export function borders(owner, regions, width, height) {
  * clash is counted rather than hidden -- at the bottom of the difficulty path the
  * board is meant to run out.
  */
-export function assignInks(touching, palette) {
+export function assignInks(touching, palette, fixed = null) {
   const ink = new Int32Array(touching.length).fill(-1);
   const used = new Array(palette).fill(0);
   let clashes = 0;
+  let settled = 0;
 
-  for (let done = 0; done < touching.length; done++) {
+  // Some regions may already have an ink they are obliged to keep -- a region that
+  // runs off the edge of this board and onto another one, which has to be the same
+  // colour on both sides or the join becomes a line the player can see. They are laid
+  // down first and the rest is coloured around them.
+  if (fixed) {
+    for (const [region, colour] of fixed) {
+      if (region < 0 || region >= ink.length) continue;
+      if (colour < 0 || colour >= palette || ink[region] >= 0) continue;
+      ink[region] = colour;
+      used[colour]++;
+      settled++;
+    }
+  }
+
+  for (let done = settled; done < touching.length; done++) {
     let pick = -1;
     let bestSat = -1;
     let bestDeg = -1;
@@ -147,6 +162,7 @@ export function assignInks(touching, palette) {
       choice = count.indexOf(Math.min(...count));
       clashes++;
     }
+    if (pick < 0) break;                       // everything already has an ink
     ink[pick] = choice;
     used[choice]++;
   }
@@ -163,9 +179,9 @@ export function assignInks(touching, palette) {
  * @param {Uint8ClampedArray} px - RGBA of a pass that drew each car in its own flat colour
  * @returns {{owner: Int32Array, neighbours: Array<Set>, ink: Int32Array}}
  */
-export function planBoard(px, width, height, cars, palette) {
+export function planBoard(px, width, height, cars, palette, fixed = null) {
   const { owner, regions } = labelRegions(px, width, height, cars);
   const neighbours = borders(owner, regions, width, height);
-  const { ink } = assignInks(neighbours, palette);
-  return { owner, neighbours, ink };
+  const { ink } = assignInks(neighbours, palette, fixed);
+  return { owner, neighbours, ink, regions };
 }

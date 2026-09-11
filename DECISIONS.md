@@ -136,15 +136,28 @@ it went; it is never a reason to refuse a change he asks for.
   REJECTED: redrawing the vehicles each frame, at 78ms for 120 of them. A section is a
   picture taken before the click landed, so what a player has answered cannot be baked
   into it — the overlay costs what they have earned rather than what is on screen.
-- **Each section is coloured on its own.** REJECTED: constraining a new section
-  against the ink already on screen at the join — two grounds meeting at a seam can
-  share an ink, and inside a section, where the player is actually working, the map
-  rule holds exactly.
-- **Vehicle centres are inset by half a span from a section's edges**, so nothing is
-  cut in half by the edge of its own canvas. The cost is a band at each seam where
-  centres thin out; art still reaches across from both sides, so the join stays
-  covered. Drawing the ground and the vehicles as separate layers would remove the
-  band and needs the hit test to follow the overhang.
+- **A vehicle belongs to the belt, not to a section.** Positions are belt coordinates
+  and every section draws whatever reaches into it, including its neighbours'. So a
+  vehicle standing on a join is drawn whole into both pictures and lines up exactly.
+  REJECTED: insetting centres so nothing straddles — it left a band at every join
+  where the crowd thinned out.
+- **The belt is dealt a section wider than it is drawn, on both sides.** A section
+  rendered before its neighbour had been dealt has a vehicle-shaped hole where the
+  neighbour will later draw one, and that hole is what a join looks like.
+- **The bare ground is one ink on a belt, and a vehicle keeps the ink it was first
+  given.** REJECTED: colouring each section's map independently — a section sees only
+  its own window, so the ground breaks into different regions in each, one region on
+  one side of a join standing against three on the other. A region can only be one
+  colour, so most of that join has to disagree. REJECTED: carrying the neighbour's
+  edge inks as a constraint, which is the same problem wearing a hat: it can satisfy
+  one position along the join and must break the rest. Pinning removes the
+  disagreement instead of negotiating it, at the cost of the ground's patchwork. The
+  vehicles keep theirs, which is where the rule was doing its work — colour still
+  never says what a thing is.
+- **A vehicle only takes an ink from a section that actually drew it.** One filtered
+  in but falling outside the canvas is a region with no pixels and no neighbours, and
+  the colouring hands such a region the ink it has used least, which is the ground's.
+  Letting that stick painted vehicles the colour of the yard.
 - **A run is two minutes and takes the campaign's arrangement, stage for stage.** Run
   one is 1:1 and run sixteen is 4:4, after which it holds. REJECTED: a difficulty curve
   of endless's own, which is what was built first — two curves for one idea drift

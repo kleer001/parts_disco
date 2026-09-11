@@ -38,7 +38,9 @@ export function flashesBy(progress) {
 export function pick(anchors, span, point, viewOf) {
   for (let i = anchors.length - 1; i >= 0; i--) {
     const { slot, cx, cy } = anchors[i];
-    const local = [(point[0] - cx) / span + 0.5, (point[1] - cy) / span + 0.5];
+    // An anchor may carry its own size, for the same reason `ring` honours one.
+    const size = anchors[i].span ?? span;
+    const local = [(point[0] - cx) / size + 0.5, (point[1] - cy) / size + 0.5];
     if (local[0] < 0 || local[0] > 1 || local[1] < 0 || local[1] > 1) continue;
     for (const ring of viewOf(slot).silhouette) {
       if (contains(local, ring)) return { index: i, slot };

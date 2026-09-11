@@ -1046,3 +1046,44 @@ is a real failure and the player should see it; what ends a run is the twenty wr
 vehicles, which costs the same at every stage.
 **Threaded:** `WAVE`, `runOf`, `topSpeedOf`, `speedAt` and the `tally` in
 `src/belt.js`.
+
+### [2026-09-11] The belt has no seam
+**Decision:** the belt is one continuous yard that happens to be rendered in pieces.
+Vehicles carry belt coordinates and every section draws whatever reaches into it; the
+belt is dealt a section wider than it is drawn; the bare ground is always one ink; and
+a vehicle keeps the ink the first section to actually draw it gave it.
+**Why each of those:** the first version had a visible stripe at every join, and it was
+four faults compounding.
+
+1. *Vehicles were dealt per section and inset so none straddled a join*, which left a
+   band at every join where the crowd thinned.
+2. *Two of the four directions were drawn with their belt coordinates running the wrong
+   way.* Sections sitting next to each other on screen were two section-lengths apart
+   on the belt. Fixed by using one mapping for all four — screen position is always
+   belt coordinate minus offset — and letting the direction be only which way the
+   offset moves.
+3. *Vehicles were pruned on a one-screen window while three sections were live*, so
+   sections were rendered from incomplete lists, and vehicles still on screen were
+   being counted as having got away.
+4. *Each section coloured its own map.* A section sees only its own window, so the
+   ground breaks into different regions in each — one region on one side of a join
+   against three on the other. A region can only be one colour, so most of the join has
+   to disagree. Carrying the neighbour's edge inks as a constraint is the same problem
+   wearing a hat. Pinning the ground removes it.
+
+**Measured**, comparing the two canvases that meet at a join, pixel for pixel along the
+shared edge. Flat ink disagreements, before and after: left-to-right 103 to 4,
+right-to-left 194 to 2, top-to-bottom 94 to 0, bottom-to-top 200 to 0. What is left is
+antialiasing on strokes at a canvas edge, one pixel wide.
+**Caught while doing it:** pinning the ground exposed a second fault. A vehicle filtered
+into a section but falling outside its canvas is a region with no pixels and no
+neighbours, and `assignInks` gives such a region the ink it has used least — the
+ground's. That ink then stuck, painting the vehicle the colour of the yard in every
+section after. A vehicle now only takes an ink from a section that drew some of it.
+**Also caught:** a probe that located joins by absolute section index while the belt had
+travelled past section ten, so three rounds of "worst join" figures were measuring
+ordinary columns. An ordinary vehicle edge scores about 0.4 on that metric, which is
+why the numbers looked plausible.
+**Threaded:** `renderSection`, `restock`, `screenOf` and `GROUND_INK` in `src/belt.js`;
+the `fixed` argument to `assignInks` and `planBoard` in `src/paint.js`; `anchor.span` in
+`ring` (`src/layers.js`) and `pick` (`src/game.js`).

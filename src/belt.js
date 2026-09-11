@@ -22,7 +22,7 @@
 import { mulberry32 } from './rng.js';
 import { layout } from './board.js';
 import { pick } from './game.js';
-import { planBoard } from './paint.js';
+import { planBoard, labelRegions } from './paint.js';
 import { stampRegions, INKS, rgbOf, ring, inkStroke, PAPER_RGB,
          SETTLED, REFUSED, PALETTE, roundRect } from './layers.js';
 import { SEMANTIC } from './juice.js';
@@ -96,6 +96,19 @@ export const speedAt = (into, run) =>
   WAVE.speed + ((topSpeedOf(run) - WAVE.speed) / WAVE.seconds)
              * Math.min(into, WAVE.seconds);
 
+/**
+ * The ink the bare ground always takes on a belt.
+ *
+ * A board can colour its ground as a map because it is one picture. A belt is made of
+ * pictures that meet, and each one sees a different window of the same yard, so the
+ * ground breaks into different regions in each -- one region on one side of a join
+ * standing against three on the other. A region can only be one colour, so most of
+ * that join has to disagree. Pinning the ground removes the disagreement rather than
+ * negotiating it, at the cost of the ground's patchwork. The vehicles keep theirs,
+ * which is where the rule was doing its work: colour still never says what a thing is.
+ */
+const GROUND_INK = 0;
+
 /** A seeded shuffle, so a run's order of targets reproduces from its seed. */
 function shuffled(list, rand) {
   const out = [...list];
@@ -137,7 +150,14 @@ export function createBelt(place, views, seed) {
   let run = 0;             // which run, and so which stage of the path
   let target = null;
   let roster = [];         // the shuffled order the targets are handed out in
-  let live = new Map();    // section index -> the built section
+
+  // The vehicles on the belt, in the order they were dealt, each at a belt coordinate
+  // rather than inside any one section. This is what makes the belt continuous: a
+  // vehicle belongs to the belt, and a section is only a picture of a stretch of it,
+  // so one standing on a join gets drawn into both pictures and lines up exactly.
+  let cars = [];
+  let dealt = new Set();   // which section indices have had their vehicles dealt
+  let sections = new Map();// section index -> its rendered picture
 
   // Three tallies, all carried from run to run. A match is a vehicle tagged rightly,
   // an error is one tagged wrongly, and an escape is one that went past untagged --
@@ -145,14 +165,17 @@ export function createBelt(place, views, seed) {
   const tally = { matches: 0, errors: 0, escapes: 0 };
 
   /**
-   * Deal and render one section.
+   * Where a belt coordinate sits on screen, along the running axis.
    *
-   * Vehicle centres are inset by half a span along the running axis so that nothing is
-   * cut in half by the edge of its own canvas. Art still reaches the seam from both
-   * sides, so the join stays covered; what thins is the density of centres, not the
-   * coverage.
+   * One mapping for all four directions: a larger belt coordinate is always further
+   * along the screen. Which way the belt runs is only which way the offset moves --
+   * and it has to be only that, because a section's own pixels run in belt order and
+   * nothing can reverse them without mirroring the vehicles printed on it.
    */
-  const buildSection = (index) => {
+  const screenOf = (u) => u - offset;
+
+  /** Deal one section-length of belt, appending to the vehicles already on it. */
+  const dealInto = (index) => {
     const at = runOf(run);
     const span = Math.min(field.width, field.height) * at.size;
     const draw = seed + index * 7919 + run * 104729;
@@ -174,14 +197,50 @@ export function createBelt(place, views, seed) {
         { model: target, angle: angles[Math.floor(rand() * angles.length)] };
     }
 
-    const inset = along
-      ? { x: 0, y: 0, width: Math.max(1, runLen - span), height: crossLen }
-      : { x: 0, y: 0, width: crossLen, height: Math.max(1, runLen - span) };
-    const anchors = layout(placed, draw, span, inset, proxyFor).map((a) => ({
-      slot: a.slot,
-      cx: a.cx + (along ? span / 2 : 0),
-      cy: a.cy + (along ? 0 : span / 2),
-    }));
+    // Thrown across the whole section, with nothing held back from its edges. A
+    // vehicle that lands on a join is drawn by both neighbours rather than clipped by
+    // one, so there is no band at the join where the crowd thins out.
+    const box = along ? { x: 0, y: 0, width: runLen, height: crossLen }
+                      : { x: 0, y: 0, width: crossLen, height: runLen };
+    for (const a of layout(placed, draw, span, box, proxyFor)) {
+      cars.push({
+        slot: a.slot,
+        u: index * runLen + (along ? a.cx : a.cy),
+        cross: along ? a.cy : a.cx,
+        span,
+        wanted: a.slot.model === target,
+        tagged: null,
+        ink: null,
+        counted: false,
+      });
+    }
+    dealt.add(index);
+  };
+
+  /** A vehicle placed inside one section's canvas. */
+  const inSection = (car, index) => (along
+    ? { slot: car.slot, span: car.span, cx: car.u - index * runLen, cy: car.cross }
+    : { slot: car.slot, span: car.span, cx: car.cross, cy: car.u - index * runLen });
+
+  /**
+   * Render one stretch of belt.
+   *
+   * Everything whose art reaches into this stretch is drawn, including vehicles that
+   * belong further along, so a vehicle on a join appears whole in both pictures.
+   *
+   * The colouring is handed the inks its neighbour already used along their shared
+   * edge, and made to keep them. A region running off one picture and onto the next is
+   * one region of one yard, and painting it two colours is what turns an arbitrary
+   * rendering boundary into a stripe the player can see.
+   */
+  const renderSection = (index) => {
+    const at = runOf(run);
+    const lo = index * runLen;
+    const hi = lo + runLen;
+    // Half a span is how far a vehicle's art actually reaches from its centre, so
+    // this is everything that puts ink on this stretch and nothing that does not.
+    const mine = cars.filter((c) => c.u + c.span / 2 > lo && c.u - c.span / 2 < hi);
+    const anchors = mine.map((c) => inSection(c, index));
 
     const w = along ? runLen : crossLen;
     const h = along ? crossLen : runLen;
@@ -190,15 +249,35 @@ export function createBelt(place, views, seed) {
     canvas.height = h;
     const g = canvas.getContext('2d', { willReadFrequently: true });
 
-    // The ground is a map rather than a palette: the plan says which region takes
-    // which ink, and owns a pixel-for-pixel record of which region is where.
     const scratch = document.createElement('canvas');
     scratch.width = w;
     scratch.height = h;
     const sg = scratch.getContext('2d', { willReadFrequently: true });
+    const span = mine.length ? mine[0].span
+                             : Math.min(field.width, field.height) * at.size;
     stampRegions(sg, anchors, span, viewOf, w, h);
-    const plan = planBoard(sg.getImageData(0, 0, w, h).data, w, h, anchors.length,
-                           at.inks);
+    const stamp = sg.getImageData(0, 0, w, h).data;
+
+    // Nothing here is free to pick its own colours twice. The ground is always the
+    // one ink, and a vehicle keeps whatever it was given the first time any section
+    // drew it -- so a vehicle standing on a join is one colour, not two.
+    const { regions } = labelRegions(stamp, w, h, anchors.length);
+    const fixed = new Map();
+    for (let r = anchors.length; r < regions; r++) fixed.set(r, GROUND_INK);
+    mine.forEach((car, i) => { if (car.ink !== null) fixed.set(i, car.ink); });
+
+    const plan = planBoard(stamp, w, h, anchors.length, at.inks, fixed);
+    // Whatever the colouring settled on for a vehicle it had not met before is now
+    // that vehicle's, for as long as it is on the belt -- but only if this section
+    // actually drew any of it. A vehicle whose art falls outside this canvas is a
+    // region with no pixels and no neighbours, and the colouring hands it the ink it
+    // has used least, which is the ground's. Letting that stick paints a vehicle the
+    // colour of the yard in every section that follows.
+    mine.forEach((car, i) => {
+      if (car.ink === null && plan.neighbours[i] && plan.neighbours[i].size > 0) {
+        car.ink = plan.ink[i];
+      }
+    });
     const shades = INKS.slice(0, at.inks).map(rgbOf);
 
     const img = g.createImageData(w, h);
@@ -221,20 +300,8 @@ export function createBelt(place, views, seed) {
       }
     }
 
-    // How many of the asked-for vehicle rode in on this section, so that what is left
-    // untagged when it leaves can be counted as having got away.
-    const carrying = anchors.filter((a) => a.slot.model === target).length;
-    return { index, canvas, anchors, span, carrying, tagged: new Map() };
+    return { index, canvas };
   };
-
-  /**
-   * Where a section's near edge sits on screen, along the running axis.
-   *
-   * Both directions run the same counter forwards; which edge new belt arrives at is
-   * the only difference, and it is the sign that says so.
-   */
-  const screenOf = (index) =>
-    dir.sign < 0 ? index * runLen - offset : offset - index * runLen;
 
   /**
    * Hold exactly the sections the screen can see, plus the one behind them.
@@ -242,20 +309,59 @@ export function createBelt(place, views, seed) {
    * The window is worked out from the offset rather than tracked, so it cannot drift
    * out of step with where the belt actually is.
    */
-  const restock = () => {
+  /** The largest vehicle currently on the belt, for deciding what reaches where. */
+  const maxSpan = () => cars.reduce((m, c) => Math.max(m, c.span), 0);
+
+  /** Which sections are alive: two cover the screen, and one is being arrived at. */
+  const wanted = () => {
     const first = Math.floor(offset / runLen);
-    const want = [first, first + 1, first + 2];
-    for (const [index, section] of live) {
-      if (want.includes(index)) continue;
-      // A section leaving is the moment its untagged targets have got away. It is the
-      // only moment they can be counted: before it there is still time to tag them.
-      let caught = 0;
-      for (const tag of section.tagged.values()) if (tag.right) caught++;
-      tally.escapes += Math.max(0, section.carrying - caught);
-      live.delete(index);
+    return dir.sign < 0 ? [first, first + 1, first + 2]
+                        : [first - 1, first, first + 1];
+  };
+
+  /** Whether a vehicle has gone past the screen on the side the belt leaves by. */
+  const isPast = (car) => (dir.sign < 0 ? car.u + car.span < offset
+                                        : car.u - car.span > offset + runLen);
+
+  const restock = () => {
+    const want = wanted();
+    // Dealt a section wider than it is drawn, on both sides. A vehicle near a join
+    // reaches back into its neighbour, and a section rendered before that neighbour
+    // had been dealt has a vehicle-shaped hole where the neighbour will draw one --
+    // which is the join showing itself.
+    const first = Math.min(...want) - 1;
+    const last = Math.max(...want) + 1;
+    for (let index = first; index <= last; index++) {
+      if (!dealt.has(index)) dealInto(index);
     }
-    for (const index of want) {
-      if (!live.has(index)) live.set(index, buildSection(index));
+
+    // Everything the live sections might have to draw has to stay on the belt. The
+    // window is worked out from the sections rather than from the screen: a section
+    // reaches a whole section-length beyond what anyone can see, and a vehicle dropped
+    // before the section holding it was drawn is a hole in that section -- which is
+    // what a join built from an incomplete list looks like.
+    const reach = maxSpan();
+    const lo = first * runLen - reach;
+    const hi = (last + 1) * runLen + reach;
+
+    const kept = [];
+    for (const car of cars) {
+      // Gone past the screen is what counts as having got away, and it is counted the
+      // once. Leaving the belt entirely happens later and is only housekeeping.
+      if (!car.counted && isPast(car)) {
+        car.counted = true;
+        if (car.wanted && !car.tagged) tally.escapes++;
+      }
+      if (car.u >= lo && car.u <= hi) kept.push(car);
+    }
+    cars = kept;
+
+    for (const index of [...sections.keys()]) {
+      if (!want.includes(index)) sections.delete(index);
+    }
+    // Built towards the edge the belt is arriving at, so each has a drawn neighbour.
+    for (const index of (dir.sign < 0 ? want : [...want].reverse())) {
+      if (!sections.has(index)) sections.set(index, renderSection(index));
     }
   };
 
@@ -293,19 +399,30 @@ export function createBelt(place, views, seed) {
     card = new Image();
     card.src = views.promptFor(target, angles[Math.floor(rand() * angles.length)]);
     into = 0;
-    // Only what arrives is new: what is already in front of the player stays as it is
-    // until it has scrolled past, so the board never changes under a click.
-    live = new Map();
+    // A new run is a new arrangement, but only for belt that has not arrived yet:
+    // what a player can already see stays as it is until it has scrolled off, so the
+    // board never changes under a click.
+    // Only belt that has not arrived yet is re-dealt: what a player can already see
+    // stays as it is until it has scrolled off, so nothing changes under a click.
+    const showing = wanted().slice(0, 2);
+    for (const index of [...dealt]) {
+      if (!showing.includes(index)) dealt.delete(index);
+    }
+    const keep = new Set(showing);
+    cars = cars.filter((c) => keep.has(Math.floor(c.u / runLen)));
+    for (const index of [...sections.keys()]) {
+      if (!showing.includes(index)) sections.delete(index);
+    }
     restock();
   };
   nextRun();
 
-  /** A section's anchor, moved to where it is on screen this frame. */
-  const onScreen = (index, anchor) => {
-    const at = Math.round(screenOf(index));
+  /** Where a vehicle sits on screen this frame. */
+  const onScreen = (car) => {
+    const at = Math.round(screenOf(car.u));
     return along
-      ? { slot: anchor.slot, cx: field.x + anchor.cx + at, cy: field.y + anchor.cy }
-      : { slot: anchor.slot, cx: field.x + anchor.cx, cy: field.y + anchor.cy + at };
+      ? { slot: car.slot, span: car.span, cx: field.x + at, cy: field.y + car.cross }
+      : { slot: car.slot, span: car.span, cx: field.x + car.cross, cy: field.y + at };
   };
 
   return {
@@ -314,6 +431,12 @@ export function createBelt(place, views, seed) {
     get run() { return run; },
     get secondsLeft() { return Math.max(0, WAVE.seconds - into); },
     get speed() { return speedAt(into, run); },
+    /** How far the belt has travelled, in pixels. What a bench needs to find a join. */
+    get travelled() { return offset; },
+    /** How long one section of belt is, along the running axis. */
+    get sectionLength() { return runLen; },
+    /** The rendered sections, for a bench that needs to look at one. */
+    get pictures() { return sections; },
     get direction() { return dir; },
     get dead() { return over(); },
 
@@ -321,7 +444,9 @@ export function createBelt(place, views, seed) {
     advance(dt) {
       if (over()) return;
       into += dt;
-      offset += speedAt(into, run) * dt;
+      // Away from the edge the belt leaves by. A belt running right-to-left leaves by
+      // the low edge, so its offset climbs and the picture slides down towards it.
+      offset -= dir.sign * speedAt(into, run) * dt;
       if (into >= WAVE.seconds) {
         run++;
         nextRun();
@@ -338,30 +463,25 @@ export function createBelt(place, views, seed) {
      */
     choose(point, now) {
       if (over()) return { outcome: 'again', slot: null };
-      const a = (along ? point[0] : point[1]) - (along ? field.x : field.y);
-      const cross = (along ? point[1] : point[0]) - (along ? field.y : field.x);
-      if (cross < 0 || cross > crossLen) return { outcome: 'ground', slot: null };
 
-      for (const [index, section] of live) {
-        const near = screenOf(index);
-        if (a < near || a > near + runLen) continue;
-        const local = along ? [a - near, cross] : [cross, a - near];
-        const hit = pick(section.anchors, section.span, local, viewOf);
-        if (!hit) return { outcome: 'ground', slot: null };
-        if (section.tagged.has(hit.index)) return { outcome: 'again', slot: hit.slot };
+      // Tested against the vehicles rather than against the pictures of them, so a
+      // vehicle standing on a join is one thing to click and not two halves. The list
+      // is in draw order, so walking it backwards asks the topmost one first.
+      const placed = cars.map(onScreen);
+      const hit = pick(placed, cars.length ? cars[0].span : 1, point, viewOf);
+      if (!hit) return { outcome: 'ground', slot: null };
 
-        const right = hit.slot.model === target;
-        section.tagged.set(hit.index, { when: now, right });
-        if (!right) {
-          // Every wrong vehicle costs the same here. The campaign's price falls along
-          // its path because the path has an end; a belt does not.
-          tally.errors++;
-          return { outcome: 'wrong', slot: hit.slot };
-        }
-        tally.matches++;
-        return { outcome: 'found', slot: hit.slot };
+      const car = cars[hit.index];
+      if (car.tagged) return { outcome: 'again', slot: car.slot };
+      car.tagged = { when: now, right: car.wanted };
+      if (!car.wanted) {
+        // Every wrong vehicle costs the same here. The campaign's price falls along
+        // its path because the path has an end; a belt does not.
+        tally.errors++;
+        return { outcome: 'wrong', slot: car.slot };
       }
-      return { outcome: 'ground', slot: null };
+      tally.matches++;
+      return { outcome: 'found', slot: car.slot };
     },
 
     /**
@@ -378,27 +498,25 @@ export function createBelt(place, views, seed) {
       ctx.rect(field.x, field.y, field.width, field.height);
       ctx.clip();
 
-      for (const [index] of live) {
-        const section = live.get(index);
-        const at = Math.round(screenOf(index));
+      for (const [index, section] of sections) {
+        const at = Math.round(screenOf(index * runLen));
         if (along) ctx.drawImage(section.canvas, field.x + at, field.y);
         else ctx.drawImage(section.canvas, field.x, field.y + at);
       }
 
-      for (const [index, section] of live) {
-        for (const [which, tag] of section.tagged) {
-          const anchor = onScreen(index, section.anchors[which]);
-          const view = viewOf(anchor.slot);
-          ctx.fillStyle = tag.right ? SETTLED : REFUSED;
-          for (const points of view.silhouette) {
-            ring(ctx, anchor, points, section.span);
-            ctx.fill();
-          }
-          inkStroke(ctx);
-          for (const points of view.strokes) {
-            ring(ctx, anchor, points, section.span);
-            ctx.stroke();
-          }
+      for (const car of cars) {
+        if (!car.tagged) continue;
+        const anchor = onScreen(car);
+        const view = viewOf(anchor.slot);
+        ctx.fillStyle = car.tagged.right ? SETTLED : REFUSED;
+        for (const points of view.silhouette) {
+          ring(ctx, anchor, points, car.span);
+          ctx.fill();
+        }
+        inkStroke(ctx);
+        for (const points of view.strokes) {
+          ring(ctx, anchor, points, car.span);
+          ctx.stroke();
         }
       }
       ctx.restore();
@@ -497,6 +615,9 @@ export function createBelt(place, views, seed) {
       offset = 0;
       run = 0;
       roster = [];
+      cars = [];
+      dealt = new Set();
+      sections = new Map();
       nextRun();
     },
 
