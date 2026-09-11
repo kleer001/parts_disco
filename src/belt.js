@@ -24,7 +24,7 @@ import { layout } from './board.js';
 import { pick } from './game.js';
 import { planBoard, labelRegions } from './paint.js';
 import { stampRegions, INKS, rgbOf, ring, inkStroke, PAPER_RGB,
-         SETTLED, REFUSED, PALETTE, roundRect } from './layers.js';
+         SETTLED, REFUSED, PALETTE, roundRect, promptCanvas } from './layers.js';
 import { SEMANTIC } from './juice.js';
 import { proxyOf } from './views.js';
 import { stageAt, PATH } from './levels.js';
@@ -365,7 +365,8 @@ export function createBelt(place, views, seed) {
     }
   };
 
-  let card = null;         // the picture of what is being asked for
+  let card = null;         // the render of what is being asked for
+  let printed = null;      // that render made ready to print, once it has loaded
 
   /**
    * The next vehicle to ask for.
@@ -396,7 +397,12 @@ export function createBelt(place, views, seed) {
     // picture you can match against a picture is not identification.
     const angles = views.anglesOf(target);
     const rand = mulberry32(seed + run * 104729 + 7);
+    printed = null;
     card = new Image();
+    // The render is one bit deep and cannot be resampled until its dither has been
+    // averaged back into greys, which `promptCanvas` does. Done once, when the render
+    // arrives, rather than per frame.
+    card.addEventListener('load', () => { printed = promptCanvas(card); }, { once: true });
     card.src = views.promptFor(target, angles[Math.floor(rand() * angles.length)]);
     into = 0;
     // A new run is a new arrangement, but only for belt that has not arrived yet:
@@ -542,10 +548,15 @@ export function createBelt(place, views, seed) {
       ctx.fillStyle = PALETTE.panel;
       ctx.fillRect(box.x, box.y, box.width, box.height);
 
-      // The card, as large as the panel's short edge allows.
+      // The card, as large as the panel's short edge allows. Drawn from the flattened
+      // render: scaling the one-bit original by anything but a whole number beats its
+      // dot grid against the pixel grid, which prints bright cross hatches over the
+      // vehicle.
       const cardSize = Math.min(box.height - pad * 2, box.width * 0.33);
-      if (card && card.complete && card.naturalWidth) {
-        ctx.drawImage(card, box.x + pad, box.y + pad, cardSize, cardSize);
+      if (printed) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(printed, box.x + pad, box.y + pad, cardSize, cardSize);
       }
       ctx.strokeStyle = PALETTE.rule;
       ctx.lineWidth = 1;

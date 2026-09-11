@@ -1087,3 +1087,56 @@ why the numbers looked plausible.
 **Threaded:** `renderSection`, `restock`, `screenOf` and `GROUND_INK` in `src/belt.js`;
 the `fixed` argument to `assignInks` and `planBoard` in `src/paint.js`; `anchor.span` in
 `ring` (`src/layers.js`) and `pick` (`src/game.js`).
+
+
+### [2026-09-11] Shading a body that has no folds
+**Decision:** the tracer writes two more things for every view — the terminator strokes
+from a key light, and tone bands traced out of the shaded render as closed rings. A
+group picks one of five treatments: flat, line art, terminator, two tone, three tone.
+**Why:** line art describes a car and fails on a fish. Measured: with `use_crease` off
+entirely, a puffer's line art is unchanged at 328 strokes and 1393 points — the model has
+no fold for a crease line to land on, so every interior line it carries is a material
+seam. Six fish were rendered every way before the call; two tone with the contour kept
+and the interior line art dropped was the treatment that described the body at every
+size.
+**Rejected:** lowering the crease threshold, and `use_crease_on_smooth` — measured at
+75°, 20° and 5°, all three return the same strokes. Rejected: the one-bit ordered screen
+the prompt card uses — it reads as a screenprint, but it is pixels, and it cannot scale
+with the stage or take a board ink.
+**Cost:** a view grows. A fish view was about 20KB and is about 90KB, carrying strokes,
+terminator strokes, a silhouette and three band sets. The 96 views the game ships were
+not re-traced, so they have no bands yet.
+**Threaded:** `tone_bands`, `setup_key_light`, `TONE_CUTS` and `write_view` in
+`tools/model_views/render_views.py`; `BANDS` and `drawMember` in `dev/presentation.html`.
+
+### [2026-09-11] The dev server takes one POST
+**Decision:** `run.sh` accepts a POST to `/data/presentation.json` and to nothing else.
+The presentation bench saves itself there.
+**Why:** the bench is where a group's treatment, bearings and preview colour are chosen,
+and there are six groups to work through. A page that cannot write its own settings
+makes the owner retype them into a file, which is how a bench and a data file drift.
+**Rejected:** `localStorage` with an export button — the settings then live in one
+browser profile, and the export is a step that gets skipped. Rejected: a second server
+for writes — one command starts the dev environment, and that is worth keeping.
+**Threaded:** `WRITABLE` and `do_POST` in `run.sh`; `save()` in `dev/presentation.html`.
+
+### [2026-09-11] One card treatment, shared by both panels
+**Decision:** `promptCanvas` in `src/layers.js` takes a one-bit render and gives back a
+canvas that is ready to scale: the dither averaged into greys, and the white ground cut
+away. The campaign panel and the belt panel both use it. The belt does it once, when
+the render loads, not once a frame.
+**Why:** the belt drew the render straight from the `Image` at whatever size the panel
+had room for. The renders are 512 pixels and one bit deep, so every grey in them is a
+halftone. A canvas asked to scale that by a non-integer factor beats the dot grid
+against the pixel grid, and the vehicle comes out under bright cross hatches. The
+campaign already solved this and kept the solution private to its own layer, so the
+second panel repeated the fault the first one had been built to avoid.
+**Measured**, hatch dots per thousand body pixels, before and after: tractor 15.7 to 0,
+firetruck 12.1 to 0, police 15.6 to 0, sedan 22.3 to 0. The live endless panel reads 0
+across 8,314 body pixels.
+**Caught while doing it:** the first measurement compared unlike things. `cutGround`
+makes the ground transparent, and a transparent pixel reads as black through
+`getImageData`, so it counted as part of the vehicle and tripled the denominator. Both
+pictures are now composited onto white before they are counted.
+**Threaded:** `promptCanvas`, `flatten` and `cutGround` at module scope in
+`src/layers.js`; `printed` in `drawPanel` in `src/belt.js`.

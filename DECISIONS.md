@@ -129,6 +129,13 @@ it went; it is never a reason to refuse a change he asks for.
 
 ## Endless
 
+- **Both panels print the prompt render through one function.** `promptCanvas` halves
+  the one-bit render down until its dither has averaged into greys, then cuts its
+  ground away. REJECTED: the belt scaling the render itself — a one-bit picture scaled
+  by anything but a whole number beats its dot grid against the pixel grid, which
+  prints bright cross hatches over the vehicle. Measured on four models: 12 to 22 hatch
+  dots per thousand body pixels before, none after.
+
 - **Endless is its own loop, not a flag through the campaign's.** REJECTED: one loop
   serving both — they share a fleet, a voice and a hit test and agree on nothing else,
   and a loop that served both would carry a mode flag down every line of it.
@@ -245,6 +252,16 @@ it went; it is never a reason to refuse a change he asks for.
 - **Finding patent numbers stays manual.** REJECTED: automating the search — the
   PatentsView API has moved to USPTO's Open Data Portal with no search endpoint yet, so
   there is nothing to automate against.
+- **A curved body is shaded by tone bands traced as closed rings.** REJECTED: tuning the
+  line art — turning creases off entirely leaves a fish's strokes unchanged, so there is
+  nothing to tune. REJECTED: the one-bit halftone screen — it is pixels, and the board
+  scales a view with the stage.
+- **The tracer emits terminator strokes and tone bands for every view.** REJECTED: a
+  flag per treatment — the treatment is chosen per group at game time, so a view that
+  lacks a band is a view the board cannot draw.
+- **A group's presentation is data the dev server writes.** REJECTED: `localStorage`
+  with an export button — a tuning page whose settings are retyped is a page whose
+  settings are wrong.
 
 ## Simulation
 

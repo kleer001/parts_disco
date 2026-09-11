@@ -628,6 +628,103 @@ function meterBar(ctx, x, y, w, meter, kick, s) {
   return h;
 }
 
+/**
+ * The asked-for vehicle, with its dither averaged back into greys.
+ *
+ * The renders are one bit deep: every grey in them is a halftone, not a value. Ask
+ * a canvas to scale that by anything other than a whole number and the dot grid
+ * beats against the pixel grid, which is what puts white diamonds across the
+ * render. Halving is the exception -- it averages an exact two-by-two block -- so
+ * the picture is halved down until the dots have become greys, and only then
+ * scaled to the size the card wants.
+ */
+const GREY_AT = 128;
+function flatten(prompt) {
+  let from = prompt;
+  let size = prompt.naturalWidth;
+  while (size > GREY_AT) {
+    size = Math.max(GREY_AT, Math.round(size / 2));
+    const half = document.createElement('canvas');
+    half.width = size;
+    half.height = size;
+    const c = half.getContext('2d');
+    c.imageSmoothingEnabled = true;
+    c.imageSmoothingQuality = 'high';
+    c.drawImage(from, 0, 0, size, size);
+    from = half;
+  }
+  return from;
+}
+
+/**
+ * The render with its ground cut away, so the paper behind it is behind it.
+ *
+ * A render arrives on an opaque white ground. Drawn as it is, that ground covers the
+ * card's paper everywhere but the margin; multiplied, the rules print straight
+ * through the vehicle. Neither is the vehicle standing on paper.
+ *
+ * So the ground is flooded away from the border inward and only what it reaches goes
+ * transparent. Connectivity is what makes this safe: a white window inside the
+ * vehicle is not reachable from outside it and stays opaque, and the dark outline
+ * every render carries is what the flood stops at.
+ *
+ * The view's silhouette would be the obvious mask and is the wrong one -- it is a
+ * simplified hull for hit-testing, and masking a render with it clips whatever
+ * detail stands outside the hull.
+ */
+const GROUND_AT = 246;
+function cutGround(flat) {
+  const out = document.createElement('canvas');
+  out.width = flat.naturalWidth ?? flat.width;
+  out.height = flat.naturalHeight ?? flat.height;
+  const c = out.getContext('2d', { willReadFrequently: true });
+  c.drawImage(flat, 0, 0);
+
+  const { width: w, height: h } = out;
+  const img = c.getImageData(0, 0, w, h);
+  const px = img.data;
+  const done = new Uint8Array(w * h);
+  const stack = new Int32Array(w * h);
+  let top = 0;
+
+  const push = (i) => {
+    if (done[i]) return;
+    const p = i * 4;
+    if (px[p] < GROUND_AT || px[p + 1] < GROUND_AT || px[p + 2] < GROUND_AT) return;
+    done[i] = 1;
+    stack[top++] = i;
+  };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+
+  while (top > 0) {
+    const i = stack[--top];
+    px[i * 4 + 3] = 0;
+    const x = i % w;
+    if (x > 0) push(i - 1);
+    if (x < w - 1) push(i + 1);
+    if (i >= w) push(i - w);
+    if (i < (h - 1) * w) push(i + w);
+  }
+  c.putImageData(img, 0, 0);
+  return out;
+}
+
+
+/**
+ * A one-bit render made ready to print on a card.
+ *
+ * Both panels ask for this and neither may do it differently: the campaign's card and
+ * the belt's card are the same object seen in two modes, and a render treated one way
+ * in one of them and another way in the other is two games.
+ *
+ * @param {HTMLImageElement} prompt - a loaded 512px one-bit render
+ * @returns {HTMLCanvasElement} greys instead of dots, and no ground
+ */
+export function promptCanvas(prompt) {
+  return cutGround(flatten(prompt));
+}
+
 export function createPanelLayer(range, settings = () => TUNING, palette = PALETTE) {
 
   /**
@@ -697,88 +794,6 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
      [range.inks[1], range.inks[0]]],
   ];
 
-  /**
-   * The asked-for vehicle, with its dither averaged back into greys.
-   *
-   * The renders are one bit deep: every grey in them is a halftone, not a value. Ask
-   * a canvas to scale that by anything other than a whole number and the dot grid
-   * beats against the pixel grid, which is what puts white diamonds across the
-   * render. Halving is the exception -- it averages an exact two-by-two block -- so
-   * the picture is halved down until the dots have become greys, and only then
-   * scaled to the size the card wants.
-   */
-  const GREY_AT = 128;
-  const flatten = (prompt) => {
-    let from = prompt;
-    let size = prompt.naturalWidth;
-    while (size > GREY_AT) {
-      size = Math.max(GREY_AT, Math.round(size / 2));
-      const half = document.createElement('canvas');
-      half.width = size;
-      half.height = size;
-      const c = half.getContext('2d');
-      c.imageSmoothingEnabled = true;
-      c.imageSmoothingQuality = 'high';
-      c.drawImage(from, 0, 0, size, size);
-      from = half;
-    }
-    return from;
-  };
-
-  /**
-   * The render with its ground cut away, so the paper behind it is behind it.
-   *
-   * A render arrives on an opaque white ground. Drawn as it is, that ground covers the
-   * card's paper everywhere but the margin; multiplied, the rules print straight
-   * through the vehicle. Neither is the vehicle standing on paper.
-   *
-   * So the ground is flooded away from the border inward and only what it reaches goes
-   * transparent. Connectivity is what makes this safe: a white window inside the
-   * vehicle is not reachable from outside it and stays opaque, and the dark outline
-   * every render carries is what the flood stops at.
-   *
-   * The view's silhouette would be the obvious mask and is the wrong one -- it is a
-   * simplified hull for hit-testing, and masking a render with it clips whatever
-   * detail stands outside the hull.
-   */
-  const GROUND_AT = 246;
-  const cutGround = (flat) => {
-    const out = document.createElement('canvas');
-    out.width = flat.naturalWidth ?? flat.width;
-    out.height = flat.naturalHeight ?? flat.height;
-    const c = out.getContext('2d', { willReadFrequently: true });
-    c.drawImage(flat, 0, 0);
-
-    const { width: w, height: h } = out;
-    const img = c.getImageData(0, 0, w, h);
-    const px = img.data;
-    const done = new Uint8Array(w * h);
-    const stack = new Int32Array(w * h);
-    let top = 0;
-
-    const push = (i) => {
-      if (done[i]) return;
-      const p = i * 4;
-      if (px[p] < GROUND_AT || px[p + 1] < GROUND_AT || px[p + 2] < GROUND_AT) return;
-      done[i] = 1;
-      stack[top++] = i;
-    };
-    for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
-    for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
-
-    while (top > 0) {
-      const i = stack[--top];
-      px[i * 4 + 3] = 0;
-      const x = i % w;
-      if (x > 0) push(i - 1);
-      if (x < w - 1) push(i + 1);
-      if (i >= w) push(i - w);
-      if (i < (h - 1) * w) push(i + w);
-    }
-    c.putImageData(img, 0, 0);
-    return out;
-  };
-
   // The card is the same picture every frame: a shadow, a rounded white ground and a
   // resampled render. Only where it sits changes. Baked once a level, because
   // shadowBlur is among the slowest things a canvas does and this one was paying it
@@ -812,7 +827,7 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
     c.stroke();
     c.imageSmoothingEnabled = true;
     c.imageSmoothingQuality = 'high';
-    c.drawImage(cutGround(flatten(prompt)), 6, 6, span - 12, span - 12);
+    c.drawImage(promptCanvas(prompt), 6, 6, span - 12, span - 12);
   };
 
   /** The card, drawn centred on a point and flinching. */
