@@ -2,10 +2,10 @@
 
     python3 loopscope.py <loop.ogg|wav> [--bpm B] [--bars N] [--out DIR]
 
---bpm and --bars are OPTIONAL: with only the sound file, loopscope estimates the tempo (onset-
-envelope autocorrelation) and, assuming the loop is trimmed to whole bars, the bar count — then
-refines an exact BPM from them. Pass --bpm/--bars to override when you know them. Everything is
-deterministic. Needs numpy, scipy, matplotlib and ffmpeg on PATH.
+--bpm and --bars are OPTIONAL: with only the sound file, loopscope estimates the tempo and bar
+count by fitting a whole-bar grid to the onsets (see estimate_grid), then refines an exact BPM.
+Pass --bpm/--bars to override when you know them. Everything is deterministic. Needs numpy,
+scipy, matplotlib and ffmpeg on PATH.
 
 What it reports
   - Estimated (or given) grid: exact bpm, bars, barlen/beat/16th.
@@ -35,6 +35,10 @@ from scipy.ndimage import uniform_filter1d
 
 SR = 48000
 NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+NFFT = 16384                                     # zero-pad every hit FFT to this
+FR16 = np.fft.rfftfreq(NFFT, 1 / SR)             # its bin frequencies -- constant, hoisted
+BANDS = {'sub': (30, 110), 'low': (110, 300), 'mid': (300, 1000),
+         'clap': (1000, 5000), 'hi': (6000, 16000)}   # drum-kit classification bands
 
 
 def decode(path):
@@ -53,12 +57,6 @@ def stft(x, n=2048, hop=256):
     idx = np.arange(0, max(1, len(x) - n), hop)
     S = np.abs(np.array([np.fft.rfft(x[i:i + n] * win) for i in idx]))
     return S, np.fft.rfftfreq(n, 1 / SR), (idx + n / 2) / SR, hop
-
-
-def onset_env(x, hop=256):
-    S, _, _, hop = stft(x, hop=hop)
-    env = np.diff(S, axis=0).clip(0).sum(1)
-    return env, SR / hop
 
 
 def estimate_grid(x, ev=None):
@@ -124,36 +122,31 @@ def reverb_tail(x, ev):
     return med(t20), med(t40)
 
 
-def bandE(seg, lo, hi):
-    sp = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), 16384)) ** 2
-    fr = np.fft.rfftfreq(16384, 1 / SR)
-    return sp[(fr >= lo) & (fr < hi)].sum()
-
-
 def features(x, t, dur):
     i = int(t * SR)
     seg = x[i:i + max(256, int(dur * SR))]
     if len(seg) < 256:
         return None
+    # centroid, flatness and low-note from the hit's 60 ms onset window
     w = min(len(seg), int(0.06 * SR))
-    sp = np.abs(np.fft.rfft(seg[:w] * np.hanning(w), 16384))
-    fr = np.fft.rfftfreq(16384, 1 / SR)
-    cen = (fr * sp).sum() / (sp.sum() + 1e-12)
-    b = {'sub': bandE(seg, 30, 110), 'low': bandE(seg, 110, 300), 'mid': bandE(seg, 300, 1000),
-         'clap': bandE(seg, 1000, 5000), 'hi': bandE(seg, 6000, 16000)}
+    sp = np.abs(np.fft.rfft(seg[:w] * np.hanning(w), NFFT))
+    cen = (FR16 * sp).sum() / (sp.sum() + 1e-12)
+    lo, hi = np.searchsorted(FR16, 30), np.searchsorted(FR16, 180)
+    low = sp[lo:hi] + 1e-9
+    flat = np.exp(np.mean(np.log(low))) / np.mean(low)
+    note = NAMES[int(round(69 + 12 * np.log2(FR16[lo + int(np.argmax(low))] / 440.0))) % 12]
+    # the five band energies from ONE power spectrum of the whole hit
+    pw = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), NFFT)) ** 2
+    b = {name: pw[(FR16 >= a) & (FR16 < z)].sum() for name, (a, z) in BANDS.items()}
     tot = sum(b.values()) + 1e-12
     b = {k: v / tot for k, v in b.items()}
-    lo, hi = np.searchsorted(fr, 30), np.searchsorted(fr, 180)
-    band = sp[lo:hi] + 1e-9
-    flat = np.exp(np.mean(np.log(band))) / np.mean(band)
-    note = NAMES[int(round(69 + 12 * np.log2(fr[lo + int(np.argmax(band))] / 440.0))) % 12]
     cls = 'KICK' if b['sub'] + b['low'] > 0.4 else ('CLAP' if b['clap'] > 0.3 and b['sub'] < 0.3 else 'HAT')
     return dict(cen=cen, flat=flat, note=note, cls=cls, **b)
 
 
 def spectrograms(x, barlen, bars, out, name):
     S, freqs, times, hop = stft(x)
-    db = np.clip(20 * np.log10(S.T + 1e-6), None, None)
+    db = 20 * np.log10(S.T + 1e-6)
     db = np.clip(db, db.max() - 72, db.max())
     for tag, lo, hi, notes in [("full", 20, 16000, True), ("low", 20, 300, False),
                                ("annotated", 50, 3000, True), ("clapband", 400, 5000, False)]:

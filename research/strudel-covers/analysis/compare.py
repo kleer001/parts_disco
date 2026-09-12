@@ -22,12 +22,6 @@ def decode(p):
         dtype=np.float32).astype(float)
 
 
-def bandE(seg, lo, hi):
-    sp = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), 16384)) ** 2
-    fr = np.fft.rfftfreq(16384, 1 / SR)
-    return sp[(fr >= lo) & (fr < hi)].sum()
-
-
 def profile(x, bpm, bars):
     barlen = 4 * 60.0 / bpm
     s16 = barlen / 16
@@ -39,13 +33,16 @@ def profile(x, bpm, bars):
     odf = np.diff(mag, axis=0).clip(0).sum(1)
     odf /= odf.max() + 1e-12
     pk, _ = find_peaks(odf, height=np.maximum(0.06, uniform_filter1d(odf, size=30) * 1.4), distance=5)
+    fr = np.fft.rfftfreq(16384, 1 / SR)
+    m_sub = (fr >= 30) & (fr < 110); m_clap = (fr >= 1000) & (fr < 5000); m_hi = (fr >= 6000) & (fr < 16000)
     sub = np.zeros(16); clap = np.zeros(16); hi = np.zeros(16)
     for q in range(16):
         for b in range(bars):
             seg = x[int((b * barlen + q * s16) * SR):int((b * barlen + q * s16 + s16) * SR)]
             if len(seg) < 256:
                 continue
-            sub[q] += bandE(seg, 30, 110); clap[q] += bandE(seg, 1000, 5000); hi[q] += bandE(seg, 6000, 16000)
+            pw = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), 16384)) ** 2   # one FFT, three bands
+            sub[q] += pw[m_sub].sum(); clap[q] += pw[m_clap].sum(); hi[q] += pw[m_hi].sum()
     norm = lambda a: a / (a.max() + 1e-12)
     return len(pk) / bars, norm(sub), norm(clap), norm(hi)
 
