@@ -26,7 +26,10 @@ export const STAGES = 4;
  * This is the ordering the whole path hangs off. LOUD carries its own silhouette --
  * nothing else on the board has wheels that size or a ladder on the roof. TWINS is
  * four bodies that are the same shell with different trim, and from the front they
- * differ by a roof sign and nothing else.
+ * differ by a roof sign and nothing else. Every group the game deals is built to this
+ * same shape -- four loud, four plain, four twins -- so the path reads in tiers and the
+ * board's group supplies the names. These are the fleet's, and the default when a stage
+ * is read without a group (the endless belt, the panel's range).
  */
 export const TIERS = {
   loud: ['tractor', 'firetruck', 'race', 'delivery'],
@@ -34,45 +37,49 @@ export const TIERS = {
   twins: ['sedan', 'sedan-sports', 'taxi', 'police'],
 };
 
-const tiers = (...names) => names.flatMap((name) => TIERS[name]);
-
 /**
  * The path, in order. Sixteen stages: four levels of four.
  *
- * Level 1 -- four vehicles that look nothing like each other, and room to breathe.
+ * A stage names the tiers it draws from, not the models: which tiers is the difficulty,
+ * and the board's group fills them in with its own loud / plain / twins.
+ *
+ * Level 1 -- four kinds that look nothing like each other, and room to breathe.
  * Level 2 -- eight kinds and a filling board; the work becomes searching.
  * Level 3 -- the near-twins arrive, and the colours begin to run out.
  * Level 4 -- twins only, small, and finally a board painted in one ink.
  */
 export const PATH = [
-  { cars: 10, size: 0.44, inks: 6, fleet: tiers('loud') },
-  { cars: 14, size: 0.42, inks: 6, fleet: tiers('loud') },
-  { cars: 18, size: 0.40, inks: 6, fleet: tiers('loud') },
-  { cars: 24, size: 0.38, inks: 6, fleet: tiers('loud') },
+  { cars: 10, size: 0.44, inks: 6, tiers: ['loud'] },
+  { cars: 14, size: 0.42, inks: 6, tiers: ['loud'] },
+  { cars: 18, size: 0.40, inks: 6, tiers: ['loud'] },
+  { cars: 24, size: 0.38, inks: 6, tiers: ['loud'] },
 
-  { cars: 28, size: 0.36, inks: 6, fleet: tiers('loud', 'plain') },
-  { cars: 34, size: 0.34, inks: 6, fleet: tiers('loud', 'plain') },
-  { cars: 40, size: 0.32, inks: 5, fleet: tiers('loud', 'plain') },
-  { cars: 46, size: 0.31, inks: 5, fleet: tiers('loud', 'plain') },
+  { cars: 28, size: 0.36, inks: 6, tiers: ['loud', 'plain'] },
+  { cars: 34, size: 0.34, inks: 6, tiers: ['loud', 'plain'] },
+  { cars: 40, size: 0.32, inks: 5, tiers: ['loud', 'plain'] },
+  { cars: 46, size: 0.31, inks: 5, tiers: ['loud', 'plain'] },
 
-  { cars: 52, size: 0.30, inks: 5, fleet: tiers('loud', 'plain', 'twins') },
-  { cars: 60, size: 0.29, inks: 4, fleet: tiers('loud', 'plain', 'twins') },
-  { cars: 68, size: 0.28, inks: 4, fleet: tiers('plain', 'twins') },
-  { cars: 76, size: 0.26, inks: 4, fleet: tiers('plain', 'twins') },
+  { cars: 52, size: 0.30, inks: 5, tiers: ['loud', 'plain', 'twins'] },
+  { cars: 60, size: 0.29, inks: 4, tiers: ['loud', 'plain', 'twins'] },
+  { cars: 68, size: 0.28, inks: 4, tiers: ['plain', 'twins'] },
+  { cars: 76, size: 0.26, inks: 4, tiers: ['plain', 'twins'] },
 
-  { cars: 84, size: 0.24, inks: 3, fleet: tiers('plain', 'twins') },
-  { cars: 96, size: 0.22, inks: 3, fleet: tiers('twins') },
-  { cars: 108, size: 0.20, inks: 2, fleet: tiers('twins') },
-  { cars: 120, size: 0.19, inks: 1, fleet: tiers('twins') },
+  { cars: 84, size: 0.24, inks: 3, tiers: ['plain', 'twins'] },
+  { cars: 96, size: 0.22, inks: 3, tiers: ['twins'] },
+  { cars: 108, size: 0.20, inks: 2, tiers: ['twins'] },
+  { cars: 120, size: 0.19, inks: 1, tiers: ['twins'] },
 ];
+
+/** The models a tier selection names, in the fleet -- the default when no group is given. */
+export const fleetOf = (names) => names.flatMap((t) => TIERS[t]);
 
 /** The span each dial covers over the whole path, for the panel to show against. */
 export const RANGE = {
   cars: [Math.min(...PATH.map((s) => s.cars)), Math.max(...PATH.map((s) => s.cars))],
   size: [Math.min(...PATH.map((s) => s.size)), Math.max(...PATH.map((s) => s.size))],
   inks: [Math.min(...PATH.map((s) => s.inks)), Math.max(...PATH.map((s) => s.inks))],
-  kinds: [Math.min(...PATH.map((s) => s.fleet.length)),
-          Math.max(...PATH.map((s) => s.fleet.length))],
+  kinds: [Math.min(...PATH.map((s) => fleetOf(s.tiers).length)),
+          Math.max(...PATH.map((s) => fleetOf(s.tiers).length))],
 };
 
 /**
@@ -85,6 +92,10 @@ export function stageAt(depth) {
   const index = Math.min(depth, PATH.length - 1);
   return {
     ...PATH[index],
+    // The fleet's members for this stage's tiers, so a stage read without a group still
+    // names models. The campaign overrides this with the board's own group; the endless
+    // belt takes it as is.
+    fleet: fleetOf(PATH[index].tiers),
     index,
     // Where this stage sits on the whole path, 0..1. Anything that ramps with
     // difficulty reads this rather than working it out from the index and a length.

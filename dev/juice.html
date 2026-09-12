@@ -151,7 +151,7 @@ pre{background:var(--sunk);border:1px solid var(--rule);padding:10px;
 
 <script type="module">
 import { createCompositor } from '../src/compositor.js';
-import { loadViews } from '../src/views.js';
+import { loadAtlas } from '../src/views.js';
 import { stageAt, RANGE, PATH } from '../src/levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
          createRefuseLayer, createRecessLayer, createPanelLayer,
@@ -204,13 +204,13 @@ canvas.width = PLACE.width;
 canvas.height = PLACE.height;
 
 await document.fonts.load('16px VT323');
-const views = await loadViews('../assets/views');
-const viewOf = (slot) => views.view(slot.model, slot.angle);
+const atlas = await loadAtlas('assets/views/groups.json', '../');
+const viewOf = atlas.view;
 
 // The game's own run, not a copy of it. A bench that deals its own boards chooses
 // these numbers against a board that is not the one they ship to.
 const seed = 1983;
-const run = createRun(PLACE, views, seed);
+const run = createRun(PLACE, atlas, seed);
 
 // The bench never dies -- the meter is here so its needle can be watched while the
 // kick is tuned, and a wrong click is the only thing that moves it.
@@ -281,7 +281,7 @@ const frame = (now) => {
   scene.render(ctx, run.frameOf(at, false));
   lastPaint = lastPaint * 0.9 + (performance.now() - t0) * 0.1;
   readout.textContent =
-    `stage ${run.level.level}:${run.level.stage} · ${run.level.cars} vehicles`
+    `stage ${run.level.level}:${run.level.stage} · ${run.level.cars} items`
     + ` · ${run.level.inks} inks`
     + ` · found ${run.round.found.size}/${run.round.total}`
     + ` · cell ${gridCellAt(run.level.along, state).toFixed(1)}px`

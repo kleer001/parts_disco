@@ -883,7 +883,7 @@ export function createPanelLayer(range, settings = () => TUNING, palette = PALET
   };
 
   const dialsOf = (level) => [
-    ['vehicles', `${level.cars}/${range.cars[1]}`, level.cars, range.cars],
+    ['items', `${level.cars}/${range.cars[1]}`, level.cars, range.cars],
     ['size', `${Math.round(level.size * 100)}%`, level.size,
      [range.size[1], range.size[0]]],
     ['kinds', `${level.fleet.length}/${range.kinds[1]}`, level.fleet.length,

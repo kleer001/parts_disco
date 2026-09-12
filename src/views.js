@@ -58,6 +58,47 @@ export async function loadViews(root = ROOT) {
 }
 
 /**
+ * Load every group's fleet, and the index that says which tiers each one holds.
+ *
+ * Each group is its own root under `assets/views`, loaded the same way the fleet is. A
+ * board deals from one group, but the compositor draws every board through one `view`:
+ * a slot carries its group, so the lookup reaches into the right fleet. The tiers come
+ * off the index so the difficulty path -- which names tiers, not models -- can be filled
+ * in by whichever group a board is dealing.
+ *
+ * `base` prefixes the index and every group root, for a page served from a subdirectory
+ * (the dev benches). The game is at the site root and leaves it empty.
+ *
+ * @returns {{groups, ids, tiers, fleet, view, promptFor, anglesOf}}
+ */
+export async function loadAtlas(indexPath = 'assets/views/groups.json', base = '') {
+  const index = await (await fetch(base + indexPath)).json();
+  const fleets = {};
+  await Promise.all(index.groups.map(async (g) => {
+    fleets[g.id] = await loadViews(base + g.root);
+  }));
+  const fleetOf = (id) => {
+    const found = fleets[id];
+    if (!found) throw new Error(`no group ${id}`); // boundary
+    return found;
+  };
+  const groupOf = (id) => {
+    const found = index.groups.find((g) => g.id === id);
+    if (!found) throw new Error(`no group ${id}`); // boundary
+    return found;
+  };
+  return {
+    groups: index.groups,
+    ids: index.groups.map((g) => g.id),
+    tiers: (id) => groupOf(id).tiers,
+    fleet: fleetOf,
+    view: (slot) => fleetOf(slot.group).view(slot.model, slot.angle),
+    promptFor: (id, model, angle) => fleetOf(id).promptFor(model, angle),
+    anglesOf: (id, model) => fleetOf(id).anglesOf(model),
+  };
+}
+
+/**
  * The circle that stands in for a view while a board is being laid out, and the box
  * its ink fills. Both in the view's own 0..1 frame.
  *
@@ -90,19 +131,18 @@ export function proxyOf(view) {
 }
 
 /**
- * A fleet's two lookups, memoised: a slot's view, and the circle that stands in for it.
+ * A board's two lookups, memoised: a slot's view, and the circle that stands in for it.
  *
- * Every caller that lays a board out needs both, and both are pure functions of the
- * model and the angle, so both are worth keeping. The cache key is the shape of a
- * slot -- which is a fact one file should state, not four: anything that later gives a
- * view another dimension has to be found everywhere the key is spelled out, and a
- * board laid against a stale hull packs to a different density without saying so.
+ * Handed the `view(slot)` that reaches into the right group, since a board may draw from
+ * any of them. Every caller that lays a board out needs both, and both are pure functions
+ * of the slot's group, model and angle, so both are worth keeping. The cache key is the
+ * whole shape of a slot -- which is a fact one file should state, not four: a board laid
+ * against a stale hull packs to a different density without saying so.
  */
-export function fleetLookups(views) {
+export function fleetLookups(viewOf) {
   const proxies = new Map();
-  const viewOf = (slot) => views.view(slot.model, slot.angle);
   const proxyFor = (slot) => {
-    const key = `${slot.model}/${slot.angle}`;
+    const key = `${slot.group}/${slot.model}/${slot.angle}`;
     if (!proxies.has(key)) proxies.set(key, proxyOf(viewOf(slot)));
     return proxies.get(key);
   };

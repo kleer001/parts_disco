@@ -1,0 +1,154 @@
+{
+ "groups": [
+  {
+   "id": "food-kit",
+   "title": "Food",
+   "root": "assets/views/food-kit",
+   "tiers": {
+    "loud": [
+     "chopstic-decorative",
+     "cooking-fork",
+     "utensil-fork",
+     "utensil-knife"
+    ],
+    "plain": [
+     "bread",
+     "meat-cooked",
+     "plate-dinner",
+     "shaker-pepper"
+    ],
+    "twins": [
+     "apple",
+     "burger",
+     "soda-can-crushed",
+     "maki-roe"
+    ]
+   }
+  },
+  {
+   "id": "glasses-pack",
+   "title": "Glasses",
+   "root": "assets/views/glasses-pack",
+   "tiers": {
+    "loud": [
+     "glasses-23",
+     "glasses-5",
+     "ski-goggles",
+     "glasses-15"
+    ],
+    "plain": [
+     "glasses-17",
+     "glasses-22",
+     "glasses-8",
+     "glasses-9"
+    ],
+    "twins": [
+     "glasses-19",
+     "glasses-16",
+     "glasses-18",
+     "glasses-2"
+    ]
+   }
+  },
+  {
+   "id": "watercraft-kit",
+   "title": "Boats",
+   "root": "assets/views/watercraft-kit",
+   "tiers": {
+    "loud": [
+     "boat-fan",
+     "boat-sail-b",
+     "ship-small",
+     "ship-ocean-liner"
+    ],
+    "plain": [
+     "boat-fishing-small",
+     "boat-row-large",
+     "boat-speed-f",
+     "boat-speed-j"
+    ],
+    "twins": [
+     "boat-speed-c",
+     "boat-speed-a",
+     "boat-speed-b",
+     "boat-speed-i"
+    ]
+   }
+  },
+  {
+   "id": "cute-fish",
+   "title": "Fish",
+   "root": "assets/views/cute-fish",
+   "tiers": {
+    "loud": [
+     "black-lion-fish",
+     "swordfish",
+     "tetra",
+     "sunfish"
+    ],
+    "plain": [
+     "betta",
+     "tang",
+     "flatfish",
+     "moorish-idol"
+    ],
+    "twins": [
+     "coral-grouper",
+     "humphead",
+     "mandarin-fish",
+     "red-snapper"
+    ]
+   }
+  },
+  {
+   "id": "cube-pets",
+   "title": "Pets",
+   "root": "assets/views/cube-pets",
+   "tiers": {
+    "loud": [
+     "animal-chick",
+     "animal-crab",
+     "animal-deer",
+     "animal-monkey"
+    ],
+    "plain": [
+     "animal-bunny",
+     "animal-caterpillar",
+     "animal-cow",
+     "animal-parrot"
+    ],
+    "twins": [
+     "animal-dog",
+     "animal-giraffe",
+     "animal-hog",
+     "animal-panda"
+    ]
+   }
+  },
+  {
+   "id": "fleet",
+   "title": "Fleet",
+   "root": "assets/views",
+   "tiers": {
+    "loud": [
+     "tractor",
+     "firetruck",
+     "race",
+     "delivery"
+    ],
+    "plain": [
+     "van",
+     "truck",
+     "suv",
+     "hatchback-sports"
+    ],
+    "twins": [
+     "sedan",
+     "sedan-sports",
+     "taxi",
+     "police"
+    ]
+   }
+  }
+ ]
+}

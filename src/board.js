@@ -77,7 +77,7 @@ export function deal(seed, level, views) {
   const placed = [];
   for (let i = 0; i < level.cars; i++) {
     const model = pick(level.fleet);
-    placed.push({ model, angle: pick(views.anglesOf(model)) });
+    placed.push({ model, angle: pick(views.anglesOf(model)), group: level.group });
   }
 
   const target = pick(placed).model;

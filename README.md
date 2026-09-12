@@ -43,7 +43,8 @@ to the sixteenth yard, or quit before it,
 
 ---
 
-Vehicles by [Kenney](https://kenney.nl/assets/car-kit), public domain. Set in
+Models by [Kenney](https://kenney.nl) (Car, Food, Watercraft and Cube Pets kits),
+iPoly3D (Glasses Pack) and Quaternius (Cute Fish), all public domain (CC0). Set in
 [VT323](https://fonts.google.com/specimen/VT323). MIT licensed.
 
 Vanilla JavaScript, no build step. [How it works](ARCHITECTURE.md), and

@@ -15,18 +15,24 @@ import { stageAt } from './levels.js';
 import { stampRegions, INKS, rgbOf } from './layers.js';
 import { planBoard } from './paint.js';
 import { fleetLookups } from './views.js';
+import { createGroupOrder } from './groups.js';
 import { createMeter } from './meter.js';
 
 /**
  * Deal the first stage and hold everything that follows from it.
  *
  * @param {object} place - a `layoutFor` result: the board's field and the panel's
- * @param {object} views - a loaded fleet, from `loadViews`
+ * @param {object} atlas - every group's fleet and tiers, from `loadAtlas`
  * @param {number} seed - the run's seed; every deal is drawn from it
  */
-export function createRun(place, views, seed) {
-  // A view's proxy never changes, and the layout asks for it once per car per deal.
-  const { viewOf, proxyFor } = fleetLookups(views);
+export function createRun(place, atlas, seed) {
+  // A board may deal from any group, so the view reaches into the right one off the
+  // slot, and the proxy it caches is keyed by the slot's group as well as its shape.
+  const { viewOf, proxyFor } = fleetLookups(atlas.view);
+
+  // Which group each stage deals from -- shuffled level by level, bookends never
+  // touching. It hangs off the seed, so a reseed rebuilds it.
+  let order = createGroupOrder(seed, atlas.ids);
 
   // The plan is read off a drawing nobody sees, so it is made on a canvas of its own
   // rather than by scribbling on the board and painting over it.
@@ -63,17 +69,22 @@ export function createRun(place, views, seed) {
   };
 
   const redeal = () => {
-    level = stageAt(depth);
-    // Off the short edge, so a vehicle is the same size in a tall field as a wide one.
+    // The stage sets how hard the board is; the group sets what it is made of. The stage
+    // names its tiers and the group fills them with its own loud / plain / twins.
+    const gid = order(depth);
+    const base = stageAt(depth);
+    const tiers = atlas.tiers(gid);
+    level = { ...base, group: gid, fleet: base.tiers.flatMap((t) => tiers[t]) };
+    // Off the short edge, so a body is the same size in a tall field as a wide one.
     span = Math.min(field.width, field.height) * level.size;
     // A death hands back the same stage, not the same yard: replaying the board you
     // just memorised is a recall exercise rather than the search the stage asks for.
     // The attempt is counted rather than rolled, so the run still reproduces.
     const draw = seed + depth + attempt * STRIDE.near;
-    const { placed, target, askedAt } = deal(draw, level, views);
+    const { placed, target, askedAt } = deal(draw, level, atlas.fleet(gid));
     round = createRound(layout(placed, draw, span, field, proxyFor), target, viewOf);
     prompt = new Image();
-    prompt.src = views.promptFor(target, askedAt ?? views.anglesOf(target)[0]);
+    prompt.src = atlas.promptFor(gid, target, askedAt ?? atlas.anglesOf(gid, target)[0]);
     shades = INKS.slice(0, level.inks).map(rgbOf);
     replan(round.anchors);
   };
@@ -106,6 +117,7 @@ export function createRun(place, views, seed) {
      */
     reseed(next) {
       seed = next;
+      order = createGroupOrder(next, atlas.ids);
       depth = 0;
       attempt = 0;
       meter.clear();

@@ -3,7 +3,7 @@
 
 import { freshSeed } from './rng.js';
 import { createCompositor } from './compositor.js';
-import { loadViews } from './views.js';
+import { loadAtlas } from './views.js';
 import { stageAt, RANGE } from './levels.js';
 import { createPaperLayer, createBoardLayer, createGridLayer, createFindLayer,
          createRefuseLayer, createRecessLayer, createOverLayer, createPanelLayer,
@@ -54,8 +54,8 @@ async function openOn(canvas, ctx, placeOf, seed) {
   // a gesture, and the press that leaves this screen is the gesture that resumes it.
   const voice = createVoice();
   const loading = Promise.all([
-    loadViews(), document.fonts.load('16px VT323'), voice.load(),
-  ]).then(([views]) => { fleet = views; });
+    loadAtlas(), document.fonts.load('16px VT323'), voice.load(),
+  ]).then(([atlas]) => { fleet = atlas; });
 
   // The title's own crowd, a fraction of the fleet's weight, so the yard on the screen
   // fills while the board's vehicles are still in flight.
@@ -102,7 +102,9 @@ async function openOn(canvas, ctx, placeOf, seed) {
  * loop with a mode flag threaded through every line of it.
  */
 function runEndless(canvas, ctx, place, views, seed) {
-  const belt = createBelt(place, views.fleet, seed);
+  // Endless runs the vehicle fleet: it has no levels to shuffle groups between, it is one
+  // belt that never stops. The campaign is where the groups turn over.
+  const belt = createBelt(place, views.fleet.fleet('fleet'), seed);
   createOptions(document.body, views.voice, belt);
 
   let rank = 0;
@@ -173,7 +175,9 @@ export async function start(canvas, seed = freshSeed()) {
   }
 
   const run = createRun(place, views.fleet, seed);
-  const viewOf = (slot) => views.fleet.view(slot.model, slot.angle);
+  // The atlas's view reaches into the slot's own group, so one lookup draws every board
+  // whatever group it deals from.
+  const viewOf = views.fleet.view;
 
   // The one piece of HTML in the game, laid over the canvas. It is raised here rather
   // than in the markup because it has nothing to say until there is a desk to move.
