@@ -26,9 +26,12 @@ def view_svg(view_path, klass):
     if not rings and not strokes:
         return '<svg viewBox="0 0 1 1" class="tile empty"></svg>'
     parts = []
-    for ring in rings:
-        d = "M" + " L".join(f"{x:.2f},{y:.2f}" for x, y in ring) + " Z"
-        parts.append(f'<path class="sil" d="{d}"/>')
+    if rings:
+        # Every ring in one path, filled even-odd. A view's rings are its outline and
+        # the holes in it, and separate paths cannot punch each other out.
+        d = " ".join("M" + " L".join(f"{x:.2f},{y:.2f}" for x, y in ring) + " Z"
+                     for ring in rings)
+        parts.append(f'<path class="sil" fill-rule="evenodd" d="{d}"/>')
     for stroke in strokes:
         d = "M" + " L".join(f"{x:.2f},{y:.2f}" for x, y in stroke)
         parts.append(f'<path class="ink" d="{d}"/>')

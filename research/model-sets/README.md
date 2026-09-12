@@ -33,8 +33,8 @@ python3 research/model-sets/inspect_pack.py traced/ --props "wheel,debris" > pac
 python3 research/model-sets/build_inspection.py packs.json inspection-template.html > inspection.html
 ```
 
-`--props` names the prefixes that are not members of the set — the wheels in a car kit,
-the fishing rods in a fish pack. Everything else is decided by measurement.
+`--props` names the prefixes that are not members of the set — the wheels and karts in a
+car kit, the fishing rods in a fish pack. Everything else is decided by measurement.
 
 A rigged model goes through `derig.py` first, or every view comes back empty:
 

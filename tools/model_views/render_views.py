@@ -18,6 +18,10 @@ import sys
 import zlib
 from pathlib import Path
 
+# Blender runs this file by path, so its own directory is not on the import path.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from geom import simplify
+
 import bpy
 import numpy as np
 from mathutils import Vector
@@ -53,6 +57,11 @@ MATTE_SIZE = 256
 # Specks this small are the odd stray polygon a wing mirror throws, not a part of
 # the vehicle worth filling.
 MIN_REGION = 40
+
+# Where the tone bands are cut, as percentiles of the tone inside the matte. A two-tone
+# drawing fills the middle cut alone; a three-tone one fills the lightest as its mid and
+# the darkest as its core. Reordering these changes what every tone render draws.
+TONE_CUTS = (22, 38, 55)
 
 # How far a traced outline may stray from the pixels it came from, as a fraction of
 # the frame. A silhouette is a fill, so a point that moves half a pixel changes
@@ -159,6 +168,18 @@ def place_camera(camera, azimuth_deg, elevation_deg, distance=10.0):
     )
 
 
+def setup_key_light():
+    """A sun the line art can find a terminator against.
+
+    Workbench lights the view from its own studio, so this lamp changes no pixel of
+    the render: it exists only to give the light contour something to break over. It
+    is placed against the camera rather than the world, so the shading line and the
+    tone bands agree at every bearing.
+    """
+    bpy.ops.object.light_add(type="SUN")
+    return bpy.context.view_layer.objects.active
+
+
 def setup_lineart():
     """A Grease Pencil object whose strokes are the scene's line art."""
     bpy.ops.object.gpencil_add(type="LINEART_SCENE")
@@ -220,12 +241,14 @@ def trace_view(gp, camera, scene):
     return strokes
 
 
-def write_view(path, model, azimuth, strokes, rings):
+def write_view(path, model, azimuth, strokes, rings, light, bands):
     path.write_text(json.dumps({
         "model": model,
         "azimuth": azimuth,
         "strokes": [[[round(x, 5), round(y, 5)] for x, y in s] for s in strokes],
         "silhouette": rings,
+        "light": [[[round(x, 5), round(y, 5)] for x, y in s] for s in light],
+        "bands": bands,
     }))
 
 
@@ -282,30 +305,6 @@ def walk_edge(mask, start):
     return ring
 
 
-def simplify(points, tolerance):
-    """Ramer-Douglas-Peucker. Drops points that lie on the line their neighbours make."""
-    if len(points) < 3:
-        return points
-    first, last = points[0], points[-1]
-    dx, dy = last[0] - first[0], last[1] - first[1]
-    span = math.hypot(dx, dy)
-
-    worst, index = 0.0, 0
-    for i in range(1, len(points) - 1):
-        px, py = points[i]
-        if span == 0:
-            gap = math.hypot(px - first[0], py - first[1])
-        else:
-            gap = abs(dy * (px - first[0]) - dx * (py - first[1])) / span
-        if gap > worst:
-            worst, index = gap, i
-
-    if worst <= tolerance:
-        return [first, last]
-    return (simplify(points[:index + 1], tolerance)[:-1]
-            + simplify(points[index:], tolerance))
-
-
 def silhouette(rgba):
     """The view's outline, as closed rings in the same 0..1 coordinates as the strokes.
 
@@ -315,22 +314,86 @@ def silhouette(rgba):
     to do without this -- guesses at the body from the faces that happen to be
     outlined, and a car with a gap in its creases leaks.
     """
-    height, width = rgba.shape[0], rgba.shape[1]
-    step = max(1, height // MATTE_SIZE)
-    mask = rgba[::step, ::step, 3] > 0.5
+    return rings_of(matte(rgba)[0])
+
+
+def rings_of(mask):
+    """Every closed ring a mask is worth: its regions, then the holes inside them.
+
+    One list, to be filled `evenodd`. Holes belong to tracing rather than to the
+    silhouette alone -- a tone band with a gap in it is as solid as a pair of goggles
+    was, and the only thing that stopped it was which function remembered to look.
+    """
     rows, cols = mask.shape
 
-    rings = []
-    for start in regions(mask):
-        ring = walk_edge(mask, start)
-        if len(ring) < 3:
-            continue
-        # Pixel centres, in the same 0..1 frame the strokes are written in.
-        points = [((x + 0.5) / cols, (y + 0.5) / rows) for y, x in ring]
-        points.append(points[0])
-        rings.append([[round(x, 5), round(y, 5)]
-                      for x, y in simplify(points, SIMPLIFY)])
-    return rings
+    def walk(where):
+        out = []
+        for start in regions(where):
+            edge = walk_edge(where, start)
+            if len(edge) < 3:
+                continue
+            # Pixel centres, in the same 0..1 frame the strokes are written in.
+            points = [((x + 0.5) / cols, (y + 0.5) / rows) for y, x in edge]
+            points.append(points[0])
+            out.append([[round(x, 5), round(y, 5)]
+                        for x, y in simplify(points, SIMPLIFY)])
+        return out
+
+    return walk(mask) + walk(holes(mask))
+
+
+def matte(rgba):
+    """The view decimated to tracing size: where the model is, and how dark it is there.
+
+    Both the silhouette and the tone bands are cut from this, so it is taken once.
+    """
+    step = max(1, rgba.shape[0] // MATTE_SIZE)
+    small = rgba[::step, ::step]
+    lit = small[..., :3] * small[..., 3:4] + (1.0 - small[..., 3:4])
+    return small[..., 3] > 0.5, lit @ LUMA
+
+
+def holes(mask):
+    """The background a model encloses -- a lens opening, a handle, a gap under an arch.
+
+    Traced as rings of its own so the fill can punch them out. Without this a model
+    with a hole comes back solid, which is the shape the board then draws and hit-tests.
+    Found by flooding the background in from the border: what the flood cannot reach is
+    inside something.
+    """
+    height, width = mask.shape
+    outside = np.zeros_like(mask)
+    stack = [(y, x) for y in range(height) for x in (0, width - 1) if not mask[y, x]]
+    stack += [(y, x) for x in range(width) for y in (0, height - 1) if not mask[y, x]]
+    for point in stack:
+        outside[point] = True
+    while stack:
+        cy, cx = stack.pop()
+        for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
+            if 0 <= ny < height and 0 <= nx < width and not mask[ny, nx] and not outside[ny, nx]:
+                outside[ny, nx] = True
+                stack.append((ny, nx))
+    return ~mask & ~outside
+
+
+def tone_bands(rgba, cuts):
+    """The darkest parts of the shaded view, as closed rings in the strokes' frame.
+
+    A curved body gets no crease lines -- turning creases off entirely leaves a fish's
+    line art unchanged -- so shading is the only thing that can describe its form. Traced
+    rather than screened, because the board scales a view with the stage and a ring
+    scales where a dot pattern does not.
+
+    Cuts are percentiles of the tone actually inside the matte, so a pale model and a
+    dark one band in the same places instead of one coming back empty.
+    """
+    alpha, luma = matte(rgba)
+    inside = luma[alpha]
+    if inside.size == 0:
+        return []
+    # One pass for every cut: they are percentiles of the same tone.
+    return [rings_of(alpha & (luma <= level))
+            for level in np.percentile(inside, list(cuts))]
 
 
 def screen(rgba):
@@ -387,7 +450,9 @@ def main(argv):
     span = normalize(model)
     setup_render(args.resolution)
     camera = setup_camera(span)
+    sun = setup_key_light()
     gp = setup_lineart()
+    lineart = gp.grease_pencil_modifiers[0]
 
     out = args.out / args.model.stem
     out.mkdir(parents=True, exist_ok=True)
@@ -397,7 +462,15 @@ def main(argv):
         place_camera(camera, azimuth, args.elevation)
         bpy.context.view_layer.update()
         stem = f"{int(round(azimuth)):03d}"
+        sun.rotation_euler = (math.radians(55), 0.0, math.radians(azimuth + 130))
         strokes = trace_view(gp, camera, bpy.context.scene)
+
+        # The same bake again with the terminator turned on. Its strokes are a superset
+        # of the first, so the board draws one or the other, never both.
+        lineart.use_light_contour = True
+        lineart.light_contour_object = sun
+        light = trace_view(gp, camera, bpy.context.scene)
+        lineart.use_light_contour = False
         # Hide the line art for the shaded pass: the prompt is the solid car, and
         # the whole point of the asymmetry is that it carries no outline. Hiding it
         # is also what leaves the render's alpha as a clean matte of the vehicle.
@@ -405,7 +478,7 @@ def main(argv):
         rgba = render_png(out / f"{stem}.png")
         gp.hide_render = False
         write_view(out / f"{stem}.json", args.model.stem, int(round(azimuth)),
-                   strokes, silhouette(rgba))
+                   strokes, silhouette(rgba), light, tone_bands(rgba, TONE_CUTS))
 
     print(f"RENDERED {args.model.stem} {args.angles} views -> {out}")
 
