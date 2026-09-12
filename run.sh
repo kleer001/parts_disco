@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 exec python3 -c '
-import http.server, socketserver, socket, sys, threading, webbrowser
+import http.server, json, pathlib, socketserver, socket, sys, threading, webbrowser
 
 # Bind adaptively: a server left running on the default port would otherwise
 # crash the launch with "Address already in use". Take the first free port and
@@ -19,6 +19,11 @@ port = next(
 if port != requested:
     print(f"port {requested} is busy -> using {port}")
 
+# The one path a bench may write back to. A tuning page that cannot save its own
+# settings is a page whose settings get retyped, so the dev server takes a POST -- and
+# takes it only here.
+WRITABLE = "/data/presentation.json"
+
 # python http.server sends no Cache-Control, so a browser will serve stale JS on
 # reload and you debug code that is not running.
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -26,6 +31,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
         self.send_header("Pragma", "no-cache")
         super().end_headers()
+
+    def do_POST(self):
+        if self.path != WRITABLE:
+            self.send_error(404, "nothing else here is writable")
+            return
+        body = self.rfile.read(int(self.headers["Content-Length"]))
+        json.loads(body)  # a malformed save is a bug in the page, and fails loudly
+        # No mkdir: data/ is checked in, and a POST that lands in the wrong working
+        # directory should fail rather than quietly start a second tree.
+        pathlib.Path("." + WRITABLE).write_bytes(body)
+        self.send_response(204)
+        self.end_headers()
 
 socketserver.TCPServer.allow_reuse_address = True
 with socketserver.TCPServer(("", port), Handler) as httpd:

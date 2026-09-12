@@ -16,6 +16,7 @@ from `../src/` as ES modules:
 |---|---|
 | `juice.html` | The effects that answer a click, on a real board, driven from sliders. Carries the semantic swatch strip and a settings block to copy out. |
 | `panel.html` | The panel's two papers, drawn at both shapes the panel takes. No board, no clock. |
+| `presentation.html` | How a group of models is drawn: the treatment, the bearings it may take, and a preview colour. Writes `data/presentation.json`. |
 | `build_artifact.py` | Bakes `juice.html` into one self-contained file — the modules, all 96 views, the renders and the font inlined. Run it after any change; never edit the baked file. |
 
 A bench carries sliders for what is still being chosen. A knob that has been settled
@@ -112,3 +113,50 @@ driven: **find one** adds a single find, **leave one** finds everything but the 
 so the big flinch can be watched, and **win it** runs the round out. **panel at
 shipped values** draws the panel from `TUNING` instead of the sliders, which is the A
 against the B.
+
+
+## What the presentation bench holds
+
+A **group** is a set of models the board can deal together. `data/groups.json` names
+them and lists their members; the bench walks through them one at a time and draws the
+whole group at once, evenly spaced, so a treatment is judged on how the members look
+beside each other rather than one at a time.
+
+**Seven treatments.** `flat` is the silhouette alone. `lines` is the contour and the
+material seams — what the board draws today. `terminator` swaps those for the strokes
+taken against a key light, which is the one line a curved body does give up. `tone2` and
+`tone3` fill bands traced out of the shaded render and keep only the contour, because
+tone and line art describe the same form twice. `tone2w` and `tone3w` put the line art
+back over the tone as a hairline: one pixel whatever the model is drawn at, where every
+other line on the board scales with the stage.
+
+**Members.** A click on a model drops it from the group and strikes it through, red over
+black. A click on the cross puts it back. A dropped member is named in `excluded` in
+`data/presentation.json`; `data/groups.json` still lists it, so nothing is lost by
+changing your mind.
+
+**Rotation** is fixed or random, drawn from whichever of the eight bearings are switched
+on. **Colour** is preview only: the board paints a region from the map in `src/paint.js`,
+where no two touching regions share an ink, and nothing here changes that. One seed
+drives both the rotation draw and the colour draw, so a re-roll moves them together.
+
+After changing what is in play, two things are rebuilt from the settings:
+`python3 research/model-sets/rank_groups.py --write` puts `data/groups.json` back in
+difficulty order, and `python3 tools/model_views/bake_title.py` re-bakes the crowd the
+title screen opens on.
+
+The fleet group is not written by hand. `TIERS` in `src/levels.js` owns how the shipped
+fleet is tiered, and `python3 tools/sync_fleet.py` copies it into `data/groups.json`;
+`--check` reports staleness without touching anything. Run it after moving a vehicle
+between tiers.
+
+The bench saves itself. `run.sh` takes a POST to `data/presentation.json` and refuses
+every other path, so the page must be served — opened from the filesystem it will draw
+and fail to save.
+
+Each group names its own views root. The fleet the game deals reads `assets/views`;
+the candidate groups read `tmp/sets/<group>`, which are working files rather than shipped
+assets — `research/model-sets` holds the tools that picked those groups and the packs they
+came from. Both were traced by `tools/model_views/render_views.py` at eight angles, so a
+group can be moved into `assets/` by copying it and editing one line of
+`data/groups.json`.

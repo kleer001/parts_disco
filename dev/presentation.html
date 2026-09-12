@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>presentation — parts disco</title>
+<style>
+  :root {
+    --paper: #f4f1ea;
+    --ink: #1a1a1a;
+    --rule: #d4d0c8;
+    --panel: #ffffff;
+    --soft: #6b6558;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+
+  main {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 18px;
+    height: 100dvh;
+    padding: 18px;
+  }
+
+  .rail {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  h1 {
+    font-size: 1.05rem;
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+
+  .sub { color: var(--soft); font-size: 0.8rem; }
+
+  fieldset {
+    border: 1px solid var(--rule);
+    background: var(--panel);
+    padding: 10px 12px 12px;
+    margin: 0;
+  }
+
+  legend {
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--soft);
+    padding: 0 4px;
+  }
+
+  .rowlist { display: grid; gap: 4px; }
+
+  label.opt {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    cursor: pointer;
+  }
+
+  label.opt span.hint { color: var(--soft); font-size: 0.76rem; }
+
+  select, button, input[type="number"] {
+    font: inherit;
+    color: inherit;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    padding: 5px 8px;
+  }
+
+  select { width: 100%; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--ink); }
+  button:focus-visible, select:focus-visible, input:focus-visible,
+  label.opt:focus-within { outline: 2px solid #4a6b96; outline-offset: 1px; }
+
+  .stepper { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: center; }
+  .stepper button { white-space: nowrap; }
+
+  .angles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+
+  .angles button {
+    padding: 6px 0;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+  }
+
+  .angles button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .angles button.first { box-shadow: inset 0 0 0 2px #c08a2e; }
+
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-top: 6px; }
+
+  .swatches button {
+    aspect-ratio: 1;
+    border: 1px solid var(--rule);
+    padding: 0;
+  }
+
+  .swatches button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--paper), 0 0 0 2px var(--ink); }
+
+  .wide { width: 100%; }
+
+  .status {
+    font-size: 0.76rem;
+    color: var(--soft);
+    min-height: 1.2em;
+  }
+
+  .stage {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    display: grid;
+    place-items: stretch;
+    overflow: hidden;
+  }
+
+  canvas { display: block; width: 100%; height: 100%; }
+
+  .tierline { font-size: 0.76rem; color: var(--soft); }
+  .tierline b { color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <div class="rail">
+    <div>
+      <h1>Presentation</h1>
+      <div class="sub">How a group is drawn on the board. Saves itself to
+        <code>data/presentation.json</code>.</div>
+    </div>
+
+    <fieldset>
+      <legend>Group</legend>
+      <div class="stepper">
+        <button id="prev" title="Previous group">◀</button>
+        <select id="group"></select>
+        <button id="next" title="Next group">▶</button>
+      </div>
+      <div class="sub" id="groupmeta" style="margin-top:8px"></div>
+      <div class="tierline" id="tiers" style="margin-top:6px"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Render</legend>
+      <div class="rowlist" id="renders"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Rotation</legend>
+      <div class="rowlist" id="rotmode"></div>
+      <div class="sub" style="margin:8px 0 6px">Allowed bearings</div>
+      <div class="angles" id="angles"></div>
+      <div class="sub" style="margin-top:6px">Gold ring marks the one a fixed rotation uses.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Members</legend>
+      <div class="sub">Click a model in the preview to drop it from the group. Click the
+        cross to put it back.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Colour (preview only)</legend>
+      <div class="rowlist" id="colmode"></div>
+      <div class="swatches" id="inks"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Seed</legend>
+      <div class="stepper">
+        <button id="reroll">Re-roll</button>
+        <input id="seed" type="number" min="1" step="1">
+        <span></span>
+      </div>
+      <div class="sub" style="margin-top:6px">One seed drives rotation and colour.</div>
+    </fieldset>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="stage"><canvas id="stage"></canvas></div>
+</main>
+
+<script type="module">
+import { PALETTE, INKS, rgbOf, drawView } from '../src/layers.js';
+import { mulberry32 } from '../src/rng.js';
+import { bounds } from '../src/geometry.js';
+
+const SETTINGS = '/data/presentation.json';
+
+/** The ways a group can be drawn, in the order they appear on the rail. */
+const RENDERS = [
+  ['flat', 'Flat', 'silhouette only'],
+  ['lines', 'As it ships', 'contour and seams'],
+  ['terminator', 'Terminator', 'plus the light break'],
+  ['tone2', 'Two tone', 'one shadow shape'],
+  ['tone3', 'Three tone', 'mid and core'],
+  ['tone2w', 'Two tone + wire', 'shadow shape under the line art'],
+  ['tone3w', 'Three tone + wire', 'mid and core under the line art'],
+];
+
+/**
+ * What a tone treatment draws: which of a view's traced bands, and whether the line art
+ * goes back over them. Without a wire the contour alone is drawn, because tone and line
+ * art describe the same form twice.
+ */
+const TONE = {
+  tone2: { bands: [1], wire: false },
+  tone3: { bands: [2, 0], wire: false },
+  tone2w: { bands: [1], wire: true },
+  tone3w: { bands: [2, 0], wire: true },
+};
+
+/** How far each band is darkened from the body ink. Deepest shape, deepest step. */
+const SHADE = [0.74, 0.52];
+
+const defaults = () => ({
+  render: 'lines',
+  rotation: 'random',
+  angles: [...state.groups.angles],
+  colour: 'random',
+  ink: 1,
+  seed: 12345,
+  excluded: [],
+});
+
+const el = (id) => document.getElementById(id);
+const canvas = el('stage');
+const ctx = canvas.getContext('2d');
+
+const state = { groups: null, index: 0, settings: {}, views: new Map(), placed: [], hover: null };
+
+/** Darken a hex ink by a factor, for a tone band that has to read against its body. */
+function shade(hex, factor) {
+  const [r, g, b] = rgbOf(hex).map((v) => Math.round(v * factor));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+const current = () => state.groups.groups[state.index];
+const settingsFor = (id) => (state.settings[id] ??= defaults());
+
+/** Every view of one model, fetched once and kept. */
+async function loadGroup(group) {
+  await Promise.all(group.members.flatMap((model) =>
+    state.groups.angles.map(async (angle) => {
+      const key = `${group.id}/${model}/${angle}`;
+      if (state.views.has(key)) return;
+      const at = String(angle).padStart(3, '0');
+      const res = await fetch(`${group.views}/${model}/${at}.json`);
+      if (!res.ok) throw new Error(`no view ${key}`); // boundary
+      state.views.set(key, await res.json());
+    })));
+}
+
+/** What a view actually covers, in frame coordinates. Cached: every layout needs it. */
+function boundsOf(view) {
+  if (view.box) return view.box;
+  const points = view.silhouette.flat();
+  const { minX, minY, maxX, maxY } = points.length
+    ? bounds(points)
+    : { minX: 0, minY: 0, maxX: 1, maxY: 1 };   // a view that traced empty
+  view.box = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  return view.box;
+}
+
+/**
+ * Row-pack the members at the largest scale that fits, and keep the rows even.
+ *
+ * Each member takes the room its own drawing needs rather than a share of a square
+ * grid, so a swordfish lies flat and a puffer sits square and neither is shrunk to the
+ * other's cell. Every row count is tried and the one that draws biggest wins: filling
+ * rows greedily leaves a last row holding one model and the rest of the group small.
+ */
+function layout(boxes, width, height, gap) {
+  const total = boxes.reduce((sum, b) => sum + b.w, 0);
+  let best = null;
+
+  for (let rowCount = 1; rowCount <= boxes.length; rowCount++) {
+    const rows = [];
+    let row = [];
+    let carried = 0;
+    const target = total / rowCount;
+    boxes.forEach((box, i) => {
+      row.push(i);
+      carried += box.w;
+      if (carried >= target * (rows.length + 1) && rows.length < rowCount - 1) {
+        rows.push(row);
+        row = [];
+      }
+    });
+    if (row.length) rows.push(row);
+    if (rows.length !== rowCount) continue;
+
+    const widest = Math.max(...rows.map((r) =>
+      r.reduce((sum, i) => sum + boxes[i].w, 0) / Math.max(1e-6, width - gap * (r.length - 1))));
+    const tall = rows.reduce((sum, r) => sum + Math.max(...r.map((i) => boxes[i].h)), 0)
+      / Math.max(1e-6, height - gap * (rowCount - 1));
+    const scale = 1 / Math.max(widest, tall);
+    if (!best || scale > best.scale) best = { scale, rows };
+  }
+  return best;
+}
+
+/** Draw one member into a cell, the way the board would draw it. */
+function drawMember(view, anchor, span, ink, render) {
+  const tone = TONE[render];
+  drawView(ctx, anchor, view, span, {
+    fill: ink,
+    bands: (tone?.bands ?? []).map((which, i) => ({
+      rings: view.bands[which], fill: shade(ink, SHADE[i]),
+    })),
+    // A wire is a hairline whatever the model is drawn at; every other line scales.
+    width: tone?.wire ? 1 : Math.max(1, span * 0.008),
+    // Flat draws no line at all, and a tone without a wire draws only the contour,
+    // because tone and line art describe the same form twice.
+    strokes: render === 'flat' ? []
+      : tone && !tone.wire ? view.silhouette
+      : render === 'terminator' ? view.light
+      : view.strokes,
+  });
+}
+
+/** The whole group at once, packed as tightly as the drawings allow. */
+function draw() {
+  const group = current();
+  const set = settingsFor(group.id);
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const want = [Math.round(rect.width * dpr), Math.round(rect.height * dpr)];
+  // Assigning either of these clears the backing store, so it is done only when the
+  // canvas has actually changed size -- a hover redraw must not reallocate it.
+  if (canvas.width !== want[0] || canvas.height !== want[1]) {
+    [canvas.width, canvas.height] = want;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = PALETTE.paper;
+  ctx.fillRect(0, 0, rect.width, rect.height);
+
+  const allowed = set.angles;
+  const dropped = set.excluded;
+  const roll = mulberry32(set.seed);
+
+  const picks = group.members.map((model) => {
+    const angle = set.rotation === 'same'
+      ? allowed[0]
+      : allowed[Math.floor(roll() * allowed.length)];
+    const ink = set.colour === 'same'
+      ? INKS[set.ink]
+      : INKS[Math.floor(roll() * INKS.length)];
+    return { model, angle, ink, view: state.views.get(`${group.id}/${model}/${angle}`) };
+  });
+
+  const pad = 8;
+  const gap = 10;
+  const boxes = picks.map((p) => boundsOf(p.view));
+  const packed = layout(boxes, rect.width - pad * 2, rect.height - pad * 2, gap);
+  if (!packed) return;
+
+  const span = packed.scale;
+  const heights = packed.rows.map((row) => Math.max(...row.map((i) => boxes[i].h * span)));
+  const stack = heights.reduce((sum, h) => sum + h, 0) + gap * (packed.rows.length - 1);
+
+  state.placed = [];
+  let y = pad + (rect.height - pad * 2 - stack) / 2;
+  packed.rows.forEach((row, r) => {
+    const rowW = row.reduce((sum, i) => sum + boxes[i].w * span, 0) + gap * (row.length - 1);
+    let x = pad + (rect.width - pad * 2 - rowW) / 2;
+    for (const i of row) {
+      const pick = picks[i];
+      const box = boxes[i];
+      const w = box.w * span, h = box.h * span;
+      const top = y + (heights[r] - h) / 2;
+      const anchor = {
+        cx: x + w / 2 - (box.x + box.w / 2 - 0.5) * span,
+        cy: top + h / 2 - (box.y + box.h / 2 - 0.5) * span,
+      };
+      drawMember(pick.view, anchor, span, pick.ink, set.render);
+      const place = { ...pick, x, y: top, w, h };
+      if (dropped.includes(pick.model)) cross(place);
+      state.placed.push(place);
+      x += w + gap;
+    }
+    y += heights[r] + gap;
+  });
+
+  if (state.hover) label(state.hover);
+}
+
+/** A member struck out: red over black, half the size of what it covers. */
+function cross(place) {
+  const reach = Math.min(place.w, place.h) * 0.25;   // half the object, corner to corner
+  const cx = place.x + place.w / 2;
+  const cy = place.y + place.h / 2;
+  const arms = [[-reach, -reach, reach, reach], [-reach, reach, reach, -reach]];
+  ctx.lineCap = 'round';
+  for (const [colour, width] of [[PALETTE.ink, Math.max(7, reach * 0.44)],
+                                 ['#d1281e', Math.max(3, reach * 0.24)]]) {
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = width;
+    for (const [x1, y1, x2, y2] of arms) {
+      ctx.beginPath();
+      ctx.moveTo(cx + x1, cy + y1);
+      ctx.lineTo(cx + x2, cy + y2);
+      ctx.stroke();
+    }
+  }
+}
+
+/** The name and bearing of whatever the cursor is over, rather than under every model. */
+function label(hit) {
+  const text = `${hit.model} · ${hit.angle}°`;
+  ctx.font = '12px ui-monospace, monospace';
+  const w = ctx.measureText(text).width + 12;
+  const x = Math.max(4, Math.min(hit.x + hit.w / 2 - w / 2, canvas.clientWidth - w - 4));
+  const y = Math.max(hit.y - 22, 2);
+  ctx.fillStyle = 'rgba(26,26,26,0.88)';
+  ctx.fillRect(x, y, w, 19);
+  ctx.fillStyle = PALETTE.paper;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + w / 2, y + 10);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+}
+
+/* ---- saving ------------------------------------------------------------- */
+
+let pending = null;
+function save() {
+  clearTimeout(pending);
+  pending = setTimeout(async () => {
+    const res = await fetch(SETTINGS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state.settings, null, 1),
+    });
+    el('status').textContent = res.ok
+      ? `saved ${new Date().toLocaleTimeString()}`
+      : `save failed: ${res.status} — is this served by ./run.sh?`;
+  }, 350);
+}
+
+function change(patch) {
+  Object.assign(settingsFor(current().id), patch);
+  render();
+  save();
+}
+
+/* ---- the rail ----------------------------------------------------------- */
+
+function radios(host, options, selected, onPick) {
+  host.replaceChildren(...options.map(([value, label, hint]) => {
+    const row = document.createElement('label');
+    row.className = 'opt';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = host.id;
+    input.value = value;
+    input.checked = value === selected;
+    input.addEventListener('change', () => onPick(value));
+    row.append(input, Object.assign(document.createElement('span'), { textContent: label }));
+    if (hint) row.append(Object.assign(document.createElement('span'),
+      { className: 'hint', textContent: hint }));
+    return row;
+  }));
+}
+
+function render() {
+  const group = current();
+  const set = settingsFor(group.id);
+
+  el('group').value = group.id;
+  const out = set.excluded.length;
+  el('groupmeta').textContent =
+    `${group.members.length - out} of ${group.members.length} in play · ${group.source} · ${group.licence}`;
+  el('tiers').innerHTML =
+    `<b>loud</b> ${group.tiers.loud.join(', ')}<br>` +
+    `<b>plain</b> ${group.tiers.plain.join(', ')}<br>` +
+    `<b>twins</b> ${group.tiers.twins.join(', ')} <span class="hint">floor ${group.twins_floor}</span>`;
+
+  radios(el('renders'), RENDERS, set.render, (v) => change({ render: v }));
+  radios(el('rotmode'), [['random', 'Random', 'from the allowed set'], ['same', 'Fixed', 'all one bearing']],
+    set.rotation, (v) => change({ rotation: v }));
+  radios(el('colmode'), [['random', 'Random', 'from the board inks'], ['same', 'One colour', '']],
+    set.colour, (v) => change({ colour: v }));
+
+  el('angles').replaceChildren(...state.groups.angles.map((angle) => {
+    const b = document.createElement('button');
+    b.textContent = `${angle}°`;
+    const on = set.angles.includes(angle);
+    b.setAttribute('aria-pressed', String(on));
+    if (on && angle === set.angles[0]) b.classList.add('first');
+    b.addEventListener('click', () => {
+      const next = on ? set.angles.filter((a) => a !== angle) : [...set.angles, angle].sort((x, y) => x - y);
+      change({ angles: next.length ? next : set.angles });
+    });
+    return b;
+  }));
+
+  el('inks').replaceChildren(...INKS.map((hex, i) => {
+    const b = document.createElement('button');
+    b.style.background = hex;
+    b.title = hex;
+    b.setAttribute('aria-pressed', String(set.colour === 'same' && set.ink === i));
+    b.addEventListener('click', () => change({ ink: i, colour: 'same' }));
+    return b;
+  }));
+
+  el('seed').value = set.seed;
+  draw();
+}
+
+function step(by) {
+  state.index = (state.index + by + state.groups.groups.length) % state.groups.groups.length;
+  loadGroup(current()).then(render);
+}
+
+/* ---- boot --------------------------------------------------------------- */
+
+state.groups = await (await fetch('/data/groups.json')).json();
+const saved = await fetch(SETTINGS);
+state.settings = saved.ok ? await saved.json() : {};
+
+el('group').replaceChildren(...state.groups.groups.map((g) =>
+  Object.assign(document.createElement('option'), { value: g.id, textContent: g.title })));
+el('group').addEventListener('change', (e) => {
+  state.index = state.groups.groups.findIndex((g) => g.id === e.target.value);
+  loadGroup(current()).then(render);
+});
+el('prev').addEventListener('click', () => step(-1));
+el('next').addEventListener('click', () => step(1));
+el('reroll').addEventListener('click', () => change({ seed: (Math.random() * 1e9) | 0 || 1 }));
+el('seed').addEventListener('change', (e) => change({ seed: Number(e.target.value) || 1 }));
+window.addEventListener('resize', draw);
+
+/** Whichever member the pointer is over, or null. */
+const under = (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  return state.placed.find((p) =>
+    x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) ?? null;
+};
+
+canvas.addEventListener('mousemove', (e) => {
+  const hit = under(e);
+  if (hit !== state.hover) { state.hover = hit; draw(); }
+});
+canvas.addEventListener('click', (e) => {
+  const hit = under(e);
+  if (!hit) return;
+  const dropped = settingsFor(current().id).excluded;
+  change({
+    excluded: dropped.includes(hit.model)
+      ? dropped.filter((m) => m !== hit.model)
+      : [...dropped, hit.model],
+  });
+});
+canvas.addEventListener('mouseleave', () => {
+  if (state.hover) { state.hover = null; draw(); }
+});
+
+await loadGroup(current());
+render();
+el('status').textContent = 'ready';
+</script>
+</body>
+</html>
