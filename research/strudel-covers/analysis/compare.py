@@ -10,29 +10,15 @@ original's LUFS/LRA with `master.sh`.
 Deterministic. Needs numpy, scipy, ffmpeg on PATH.
 """
 import argparse, re, subprocess, numpy as np
-from scipy.signal import find_peaks
-from scipy.ndimage import uniform_filter1d
 
-SR = 48000
-
-
-def decode(p):
-    return np.frombuffer(subprocess.run(["ffmpeg", "-v", "error", "-i", p, "-f", "f32le",
-        "-ac", "1", "-ar", str(SR), "-"], capture_output=True, check=True).stdout,
-        dtype=np.float32).astype(float)
+from loopdsp import SR, decode, onsets
 
 
 def profile(x, bpm, bars):
     barlen = 4 * 60.0 / bpm
     s16 = barlen / 16
     x = x[:int(bars * barlen * SR)]
-    n, hop = 2048, 256
-    win = np.hanning(n)
-    idx = np.arange(0, len(x) - n, hop)
-    mag = np.abs(np.array([np.fft.rfft(x[i:i + n] * win) for i in idx]))
-    odf = np.diff(mag, axis=0).clip(0).sum(1)
-    odf /= odf.max() + 1e-12
-    pk, _ = find_peaks(odf, height=np.maximum(0.06, uniform_filter1d(odf, size=30) * 1.4), distance=5)
+    n_onsets = len(onsets(x))
     fr = np.fft.rfftfreq(16384, 1 / SR)
     m_sub = (fr >= 30) & (fr < 110); m_clap = (fr >= 1000) & (fr < 5000); m_hi = (fr >= 6000) & (fr < 16000)
     sub = np.zeros(16); clap = np.zeros(16); hi = np.zeros(16)
@@ -44,7 +30,7 @@ def profile(x, bpm, bars):
             pw = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), 16384)) ** 2   # one FFT, three bands
             sub[q] += pw[m_sub].sum(); clap[q] += pw[m_clap].sum(); hi[q] += pw[m_hi].sum()
     norm = lambda a: a / (a.max() + 1e-12)
-    return len(pk) / bars, norm(sub), norm(clap), norm(hi)
+    return n_onsets / bars, norm(sub), norm(clap), norm(hi)
 
 
 def loudness(p):

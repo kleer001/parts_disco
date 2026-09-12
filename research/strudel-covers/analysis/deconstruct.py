@@ -16,14 +16,12 @@ Method, all deterministic (re-running gives identical numbers):
 
 Run:  python3 deconstruct.py        (needs numpy, scipy, ffmpeg on PATH)
 """
-import os, subprocess, numpy as np
-from scipy.signal import find_peaks
-from scipy.ndimage import uniform_filter1d
+import os, numpy as np
 
-SR = 44100
+from loopdsp import SR, NAMES, decode, parab, onsets
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ORIG = os.path.join(HERE, "..", "originals")
-NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 # (name, file, startSec, endSec, bars) -- the bar-aligned trim measured in disco-loops.
 TRACKS = [
@@ -32,38 +30,6 @@ TRACKS = [
     ("Disco",      "disco.ogg",      0.004, 31.955,  16),
     ("Piano",      "piano.ogg",      0.006, 15.981,  8),
 ]
-
-
-def decode(path, start, end):
-    out = subprocess.run(
-        ["ffmpeg", "-v", "error", "-ss", str(start), "-to", str(end), "-i", path,
-         "-f", "f32le", "-ac", "1", "-ar", str(SR), "-"],
-        capture_output=True, check=True).stdout
-    return np.frombuffer(out, dtype=np.float32).astype(float)
-
-
-def parab(y0, y1, y2):
-    d = y0 - 2 * y1 + y2
-    return 0.0 if abs(d) < 1e-12 else 0.5 * (y0 - y2) / d
-
-
-def onsets(x):
-    n, hop = 2048, 256
-    win = np.hanning(n)
-    idx = np.arange(0, len(x) - n, hop)
-    S = np.abs(np.array([np.fft.rfft(x[i:i + n] * win) for i in idx]))
-    flux = np.diff(S, axis=0)
-    flux[flux < 0] = 0
-    total = flux.sum(1)
-    total /= total.max() + 1e-12
-    thr = np.maximum(0.05, uniform_filter1d(total, size=40) * 1.5)
-    peaks, _ = find_peaks(total, height=thr, distance=6)
-    times = (idx + n / 2) / SR
-    ev = []
-    for p in peaks:
-        t = times[p] + (parab(total[p - 1], total[p], total[p + 1]) * hop / SR if 0 < p < len(total) - 1 else 0)
-        ev.append(max(0.0, t))
-    return ev
 
 
 def classify(x, t, ms=45):

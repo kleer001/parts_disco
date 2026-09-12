@@ -28,35 +28,16 @@ Lessons this encodes (each cost a round of a rebuild):
   - A drum kit reads as "noise" to a flatness test; classify by band, not by tonality.
   - A clap hides in 1-5 kHz over the kick; a per-16th clap-band pass finds it.
 """
-import argparse, os, subprocess, numpy as np
+import argparse, os, numpy as np
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
-from scipy.signal import find_peaks
 from scipy.ndimage import uniform_filter1d
 
-SR = 48000
-NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+from loopdsp import SR, NAMES, decode, stft, onsets
+
 NFFT = 16384                                     # zero-pad every hit FFT to this
 FR16 = np.fft.rfftfreq(NFFT, 1 / SR)             # its bin frequencies -- constant, hoisted
 BANDS = {'sub': (30, 110), 'low': (110, 300), 'mid': (300, 1000),
          'clap': (1000, 5000), 'hi': (6000, 16000)}   # drum-kit classification bands
-
-
-def decode(path):
-    out = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-f", "f32le", "-ac", "1",
-                          "-ar", str(SR), "-"], capture_output=True, check=True).stdout
-    return np.frombuffer(out, dtype=np.float32).astype(float)
-
-
-def parab(y0, y1, y2):
-    d = y0 - 2 * y1 + y2
-    return 0.0 if abs(d) < 1e-12 else 0.5 * (y0 - y2) / d
-
-
-def stft(x, n=2048, hop=256):
-    win = np.hanning(n)
-    idx = np.arange(0, max(1, len(x) - n), hop)
-    S = np.abs(np.array([np.fft.rfft(x[i:i + n] * win) for i in idx]))
-    return S, np.fft.rfftfreq(n, 1 / SR), (idx + n / 2) / SR, hop
 
 
 def estimate_grid(x, ev=None):
@@ -89,19 +70,6 @@ def estimate_grid(x, ev=None):
             best = (score, bpm, bars)
     _, bpm, bars = best
     return round(bpm, 2), bars, round(best[0], 2)
-
-
-def onsets(x):
-    S, freqs, times, hop = stft(x)
-    odf = np.diff(S, axis=0).clip(0).sum(1)
-    odf /= odf.max() + 1e-12
-    thr = np.maximum(0.06, uniform_filter1d(odf, size=30) * 1.4)
-    pk, _ = find_peaks(odf, height=thr, distance=5)
-    out = []
-    for p in pk:
-        t = times[p] + (parab(odf[p - 1], odf[p], odf[p + 1]) * hop / SR if 0 < p < len(odf) - 1 else 0)
-        out.append(max(0.0, t))
-    return out
 
 
 def reverb_tail(x, ev):
