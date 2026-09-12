@@ -100,7 +100,7 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
 import { deal, layout } from '../src/board.js';
 import { stageAt } from '../src/levels.js';
 import { stampRegions, createPaperLayer, INKS, rgbOf, ring, inkStroke,
-         PAPER_RGB } from '../src/layers.js';
+         drawView, PAPER_RGB } from '../src/layers.js';
 import { planBoard } from '../src/paint.js';
 import { loadViews, proxyOf } from '../src/views.js';
 
@@ -217,14 +217,8 @@ function drawAt(offset, measured = false) {
         const cy = moved.cy + (along ? 0 : wrap);
         if (cx < -span || cx > W + span || cy < -span || cy > H + span) continue;
         const at = { ...moved, cx, cy };
-        ctx.fillStyle = INKS[anchor.slot.model.length % state.inks];
-        for (const points of viewOf(anchor.slot).silhouette) {
-          ring(ctx, at, points, span); ctx.fill();
-        }
-        inkStroke(ctx);
-        for (const points of viewOf(anchor.slot).strokes) {
-          ring(ctx, at, points, span); ctx.stroke();
-        }
+        drawView(ctx, at, viewOf(anchor.slot), span,
+                 { fill: INKS[anchor.slot.model.length % state.inks] });
       }
     }
   } else {

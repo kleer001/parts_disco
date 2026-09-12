@@ -25,7 +25,7 @@ import { pick } from './game.js';
 import { labelRegions, borders, assignInks } from './paint.js';
 import { stampRegions, INKS, rgbOf, inkStroke, PAPER_RGB,
          SETTLED, REFUSED, PALETTE, promptCanvas,
-         shape, outline, face, tintedSlab, paintRegions } from './layers.js';
+         drawView, outline, face, tintedSlab, paintRegions } from './layers.js';
 import { SEMANTIC } from './juice.js';
 import { fleetLookups } from './views.js';
 import { stageAt, PATH } from './levels.js';
@@ -565,14 +565,7 @@ export function createBelt(place, views, seed) {
         if (!car.tagged) continue;
         const anchor = onScreen(car);
         const view = viewOf(anchor.slot);
-        // The whole silhouette as one path: a view's rings are its outline and the
-        // holes in it, and filled one at a time a hole fills in as another shape.
-        ctx.fillStyle = car.tagged.right ? SETTLED : REFUSED;
-        shape(ctx, anchor, view.silhouette, 0);
-        ctx.fill('evenodd');
-        inkStroke(ctx);
-        outline(ctx, anchor, view.strokes, 0);
-        ctx.stroke();
+        drawView(ctx, anchor, view, 0, { fill: car.tagged.right ? SETTLED : REFUSED });
       }
       ctx.restore();
     },

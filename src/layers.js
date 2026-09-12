@@ -134,7 +134,7 @@ function lay(ctx, anchor, points, span, scale, dx, dy) {
  * The board's ground and the panel's mats are the same paper in different inks, which
  * is the only reason this is a function and not a line inside the grid.
  */
-function ruledTile(cell, alpha, noise, noiseScale, ink) {
+export function ruledTile(cell, alpha, noise, noiseScale, ink) {
   const size = Math.max(8, Math.round(cell * 8));
   const tile = document.createElement('canvas');
   tile.width = size;
@@ -260,6 +260,41 @@ export function inkStroke(ctx) {
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   ctx.strokeStyle = PALETTE.ink;
+}
+
+/**
+ * Draw one view where an anchor puts it: its body, any tone over that, then its lines.
+ *
+ * Every surface that shows a vehicle draws it this way -- the board, the find's pulse,
+ * the wash a refusal leaves, the belt, the title, the benches -- and each of them used
+ * to spell it out. The order is the whole of the rule: the silhouette is filled
+ * `evenodd` so a traced hole stays a hole, tone sits on the body, and the line art goes
+ * last so nothing covers it.
+ *
+ * @param {object} opts
+ * @param {string} opts.fill - the body's colour
+ * @param {Array<{rings: Array, fill: string}>} [opts.bands] - tone over the body
+ * @param {Array} [opts.strokes] - which lines to draw; the view's own by default
+ * @param {number} [opts.width] - line width, for a surface that draws thinner than the board
+ */
+export function drawView(ctx, anchor, view, span, {
+  fill, bands = [], strokes = view.strokes, width = STROKE,
+  scale = 1, dx = 0, dy = 0,
+} = {}) {
+  ctx.fillStyle = fill;
+  shape(ctx, anchor, view.silhouette, span, scale, dx, dy);
+  ctx.fill('evenodd');
+
+  for (const band of bands) {
+    ctx.fillStyle = band.fill;
+    shape(ctx, anchor, band.rings, span, scale, dx, dy);
+    ctx.fill('evenodd');
+  }
+
+  inkStroke(ctx);
+  ctx.lineWidth = width;
+  outline(ctx, anchor, strokes, span, scale, dx, dy);
+  ctx.stroke();
 }
 
 /** A shaded edge falling away from a lip, for anything sitting in a well. */
@@ -494,14 +529,10 @@ export function createFindLayer(viewOf, settings = () => TUNING) {
         const view = viewOf(anchor.slot);
         // The off beat is the colour the vehicle is about to keep, so the pulse ends
         // on the board's own answer instead of changing colour once more after it.
-        ctx.fillStyle = pulse.lit ? SEMANTIC.found.loud : SETTLED;
-        shape(ctx, anchor, view.silhouette, span, pulse.scale, pulse.dx, pulse.dy);
-        ctx.fill('evenodd');
-        inkStroke(ctx);
-        for (const points of view.strokes) {
-          ring(ctx, anchor, points, span, pulse.scale, pulse.dx, pulse.dy);
-          ctx.stroke();
-        }
+        drawView(ctx, anchor, view, span, {
+          fill: pulse.lit ? SEMANTIC.found.loud : SETTLED,
+          scale: pulse.scale, dx: pulse.dx, dy: pulse.dy,
+        });
       }
     },
   };
@@ -539,14 +570,7 @@ export function createRefuseLayer(viewOf, settings = () => TUNING) {
         const view = viewOf(anchor.slot);
         ctx.save();
         ctx.globalAlpha = wash.alpha;
-        ctx.fillStyle = REFUSED;
-        shape(ctx, anchor, view.silhouette, span);
-        ctx.fill('evenodd');
-        inkStroke(ctx);
-        for (const points of view.strokes) {
-          ring(ctx, anchor, points, span);
-          ctx.stroke();
-        }
+        drawView(ctx, anchor, view, span, { fill: REFUSED });
         ctx.restore();
       }
     },
