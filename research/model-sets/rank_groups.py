@@ -14,40 +14,35 @@ a bearing switched off is one the player never sees, so neither belongs in the n
 
 import json
 import sys
-from itertools import combinations
 from pathlib import Path
 
 import numpy as np
 
-from inspect_pack import mask
+from inspect_pack import mask, overlaps
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def views_of(group, members, angles):
-    """Every member's silhouette raster, one row per bearing."""
-    out = {}
+    """Each member's silhouette rasters, one row per bearing -- one dict per model, the
+    shape inspect_pack.overlaps() consumes."""
+    out = []
     for model in members:
-        rows = []
-        for angle in angles:
-            path = ROOT / group['views'].lstrip('/') / model / f'{angle:03d}.json'
-            rows.append(mask(path).reshape(-1).astype(np.float32))
-        out[model] = np.array(rows)
+        rows = [mask(ROOT / group['views'].lstrip('/') / model / f'{angle:03d}.json')
+                .reshape(-1).astype(np.float32) for angle in angles]
+        out.append({'masks': np.array(rows)})
     return out
 
 
-def hardness(rasters):
-    """Mean same-bearing IoU over every pair of members."""
-    # Areas do not depend on the pair, so they are summed once rather than once per
-    # comparison a member takes part in.
-    areas = {model: raster.sum(axis=1) for model, raster in rasters.items()}
-    scores = []
-    for a, b in combinations(rasters, 2):
-        inter = (rasters[a] * rasters[b]).sum(axis=1)
-        union = areas[a] + areas[b] - inter
-        scores.append(float(np.mean(np.divide(inter, union,
-                                              out=np.zeros_like(inter), where=union > 0))))
-    return float(np.mean(scores)), max(scores), min(scores)
+def hardness(models):
+    """Mean, closest and furthest same-bearing IoU over every pair of members.
+
+    inspect_pack.overlaps returns the full pairwise mean-over-angles IoU matrix; the
+    upper triangle is the per-pair scores this ranks on.
+    """
+    iou = overlaps(models)
+    pairs = iou[np.triu_indices(len(models), 1)]
+    return float(np.mean(pairs)), float(np.max(pairs)), float(np.min(pairs))
 
 
 def main():

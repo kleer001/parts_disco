@@ -40,11 +40,8 @@ const YARD = { wanted: 176, span: 0.208, jitter: 0.72, cell: 16 };
 const TYPE = { wordmark: 0.115, button: 0.05 };
 
 /**
- * How far the three panels stand off the yard.
- *
- * Shares of the short edge, like everything else here. The shadow is cast by the fill
- * and not by the border: a stroke that casts one too draws the edge twice and the panel
- * reads as embossed rather than as lifted.
+ * How far the three panels stand off the yard. Shares of the short edge, like everything
+ * else here. Why the shadow comes off the fill and not the border is on `panel()`.
  */
 const LIFT = { blur: 0.016, x: 0.005, y: 0.008, edge: 0.004,
                ink: 'rgba(26, 26, 26, 0.42)' };
