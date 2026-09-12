@@ -16,8 +16,10 @@ function fakeCtx() {
     said,
     fillStyle: '', strokeStyle: '', lineWidth: 0, font: '',
     textAlign: '', textBaseline: '',
+    shadowColor: '', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
     fillRect() {}, fill() {}, stroke() {},
     beginPath() {}, moveTo() {}, lineTo() {}, arcTo() {}, closePath() {},
+    save() {}, restore() {},
     measureText: (t) => ({ width: t.length * 10 }),
     fillText(t) { said.push(t); },
   };

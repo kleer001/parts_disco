@@ -14,9 +14,8 @@
 // know; it reaches for nothing.
 
 import { mulberry32 } from './rng.js';
-import { PALETTE, INKS, ring, shape, inkStroke, roundRect,
-         face } from './layers.js';
-import { SEMANTIC } from './juice.js';
+import { PALETTE, INKS, drawView, roundRect, ruledTile, face } from './layers.js';
+import { SEMANTIC, TUNING } from './juice.js';
 
 /** What the screen says. Here rather than inline, because it is copy, not logic. */
 export const WORDMARK = 'parts disco';
@@ -35,10 +34,40 @@ export const ENDLESS = 'ENDLESS';
  * which keeps the crowding the same in both orientations. Set against the width, a
  * landscape screen pulls the crowd apart into a lineup.
  */
-const YARD = { wanted: 176, span: 0.13, jitter: 0.72 };
+const YARD = { wanted: 176, span: 0.208, jitter: 0.72, cell: 16 };
 
 /** Type, as a share of the screen's short edge, so it holds at any size. */
 const TYPE = { wordmark: 0.115, button: 0.05 };
+
+/**
+ * How far the three panels stand off the yard.
+ *
+ * Shares of the short edge, like everything else here. The shadow is cast by the fill
+ * and not by the border: a stroke that casts one too draws the edge twice and the panel
+ * reads as embossed rather than as lifted.
+ */
+const LIFT = { blur: 0.016, x: 0.005, y: 0.008, edge: 0.004,
+               ink: 'rgba(26, 26, 26, 0.42)' };
+
+/**
+ * Draw the current path as a panel standing off the yard.
+ *
+ * The shadow is cast by the fill and not by the border: a stroke that casts one too
+ * draws the edge twice and the panel reads as embossed rather than as lifted.
+ */
+function panel(ctx, short, fill, edge) {
+  ctx.save();
+  ctx.shadowColor = LIFT.ink;
+  ctx.shadowBlur = short * LIFT.blur;
+  ctx.shadowOffsetX = short * LIFT.x;
+  ctx.shadowOffsetY = short * LIFT.y;
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = Math.max(1, short * LIFT.edge);
+  ctx.stroke();
+}
 
 /**
  * Build the opening screen for one layout.
@@ -85,20 +114,26 @@ export function createTitle(place, seed) {
 
   const print = (yard) => {
     sheet = document.createElement('canvas');
-    sheet.width = Math.round(width);
-    sheet.height = Math.round(height);
+    // Rounded up, not to nearest: the sheet is blitted unscaled, so a sheet a fraction
+    // short of a fractional layout would leave a bare strip down the edge.
+    sheet.width = Math.ceil(width);
+    sheet.height = Math.ceil(height);
     const sc = sheet.getContext('2d');
+    sc.fillStyle = PALETTE.paper;
+    sc.fillRect(0, 0, sheet.width, sheet.height);
+
+    // The same ruled, speckled paper the board is printed on, at a fixed cell rather
+    // than the board's -- the title has no depth to say, so the rules only have to say
+    // paper. Laid under the crowd so the whole screen is one blit.
+    sc.fillStyle = sc.createPattern(
+      ruledTile(YARD.cell, TUNING.gridAlpha, TUNING.gridNoise, TUNING.gridNoiseScale,
+                '#000000'), 'repeat');
+    sc.fillRect(0, 0, sheet.width, sheet.height);
+
     const span = short * YARD.span;
     for (const spot of parked) {
       const drawing = yard.drawings[spot.pick % yard.drawings.length];
-      sc.fillStyle = spot.ink;
-      shape(sc, spot, drawing.silhouette, span);
-      sc.fill('evenodd');
-      inkStroke(sc);
-      for (const points of drawing.strokes) {
-        ring(sc, spot, points, span);
-        sc.stroke();
-      }
+      drawView(sc, spot, drawing, span, { fill: spot.ink });
     }
   };
 
@@ -111,17 +146,18 @@ export function createTitle(place, seed) {
      * @param {object|null} yard - the baked title drawings, or null while they are
      */
     draw(ctx, views, yard) {
-      ctx.fillStyle = PALETTE.paper;
-      ctx.fillRect(0, 0, width, height);
 
       // The yard, once there is one. It is drawn from the baked title set rather than
       // from the fleet: the crowd is a portrait of everything the game can deal, not of
       // the twelve it happens to open with, and it lands long before the fleet does.
       // Each thing takes its own ink, so the field reads as the map the board is rather
       // than as a catalogue.
-      if (yard) {
-        if (!sheet) print(yard);
-        ctx.drawImage(sheet, 0, 0, width, height);
+      if (!sheet && yard) print(yard);
+      if (sheet) {
+        ctx.drawImage(sheet, 0, 0);
+      } else {
+        ctx.fillStyle = PALETTE.paper;
+        ctx.fillRect(0, 0, width, height);
       }
 
       ctx.textAlign = 'center';
@@ -137,11 +173,7 @@ export function createTitle(place, seed) {
       const cardH = mark * 1.5;
       const cardY = height * 0.53 - mark * 0.98;
       roundRect(ctx, (width - cardW) / 2, cardY, cardW, cardH, mark * 0.18);
-      ctx.fillStyle = PALETTE.paper;
-      ctx.fill();
-      inkStroke(ctx);
-      ctx.lineWidth = Math.max(1, short * 0.004);
-      ctx.stroke();
+      panel(ctx, short, PALETTE.paper, PALETTE.ink);
 
       ctx.fillStyle = PALETTE.ink;
       ctx.fillText(WORDMARK, width / 2, height * 0.53);
@@ -155,12 +187,11 @@ export function createTitle(place, seed) {
       const y = height * 0.74;
       const lay = [];
 
+      ctx.font = face(size);
       if (!views) {
-        ctx.font = face(size);
         const w = ctx.measureText(WAITING).width + pad * 2;
-        lay.push({ label: WAITING, mode: null, x: (width - w) / 2, w });
+        lay.push({ label: WAITING, x: (width - w) / 2, w });
       } else {
-        ctx.font = face(size);
         const widths = [READY, ENDLESS].map((t) => ctx.measureText(t).width + pad * 2);
         const gap = size * 0.5;
         let x = (width - (widths[0] + widths[1] + gap)) / 2;
@@ -173,11 +204,7 @@ export function createTitle(place, seed) {
       for (const b of lay) {
         const role = views ? SEMANTIC.found : SEMANTIC.quiet;
         roundRect(ctx, b.x, y, b.w, h, size * 0.18);
-        ctx.fillStyle = role.tint;
-        ctx.fill();
-        ctx.strokeStyle = role.loud;
-        ctx.lineWidth = Math.max(1, short * 0.004);
-        ctx.stroke();
+        panel(ctx, short, role.tint, role.loud);
         ctx.fillStyle = role.ink;
         ctx.textBaseline = 'middle';
         ctx.fillText(b.label, b.x + b.w / 2, y + h / 2 + 1);
