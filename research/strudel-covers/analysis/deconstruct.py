@@ -24,6 +24,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ORIG = os.path.join(HERE, "..", "originals")
 
 # (name, file, startSec, endSec, bars) -- the bar-aligned trim measured in disco-loops.
+# disco.ogg and funky.ogg are 44.1 kHz; loopdsp.decode resamples every source to SR (48 kHz),
+# so these two are upsampled and the drum grids below shift a little from a 44.1 kHz read.
 TRACKS = [
     ("Funky",      "funky.ogg",      0.0,   130.961, 60),
     ("Techno-ish", "techno-ish.ogg", 0.0,   7.988,   4),

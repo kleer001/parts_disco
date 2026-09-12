@@ -5,8 +5,9 @@ the same way. This is that one implementation, so a change to the detector lands
 every tool measures a loop with the same one — the tool that verifies a cover then uses the
 same onsets as the tool that deconstructed it.
 
-48 kHz because the loops these tools read are 48 kHz: analysing at the native rate avoids a
-resample. Deterministic. Needs numpy, scipy, ffmpeg on PATH.
+decode resamples every source to SR, so all three tools measure at one rate. Set SR to the
+sources' rate to avoid a resample; when the sources do not share one rate, one is chosen and
+the rest are resampled to it. Deterministic. Needs numpy, scipy, ffmpeg on PATH.
 """
 import subprocess
 import numpy as np
@@ -17,10 +18,10 @@ SR = 48000
 NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 
-def decode(path, start=0.0, end=None):
+def decode(path, start=None, end=None):
     """One mono float channel at SR, optionally trimmed to [start, end] seconds."""
     cmd = ["ffmpeg", "-v", "error"]
-    if start:
+    if start is not None:
         cmd += ["-ss", str(start)]
     if end is not None:
         cmd += ["-to", str(end)]
