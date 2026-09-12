@@ -1,0 +1,27 @@
+// parts disco — "Funky" loop re-scored with new instrumentation
+// Source loop: Fupi, "Funky Disco Beats to Boogie/Woogie to", CC0 — opengameart.org/content/funky-disco-beats-to-boogiewoogie-to
+// Deconstructed (16k-FFT, sub-hop onsets): 109.96 BPM.
+//   Harmony: Am <-> F vamp, one chord per bar (i - bVI, A aeolian).
+//   Bass   : A pedal with chromatic walk fills; F on the F bar.
+//   Drums  : busy syncopated 16th low groove, backbeat snare on 2 and 4.
+//   The source is an arrangement that later moves on; this captures the core vamp it loops around.
+// New palette: synth clavinet + synth bass + RolandTR808 kit (the original was a live funk band).
+setcps(109.96/60/4)   // 109.96 BPM — one cycle = one bar
+
+$: /* KICK */ s("bd ~ [~ bd] ~ ~ bd ~ [~ bd]").bank("RolandTR808")
+   .attack(.001).decay(.11).sustain(0).shape(.25).gain(.9)
+
+$: /* SNARE */ s("~ ~ ~ ~ sd ~ ~ ~ ~ ~ ~ ~ sd ~ ~ ~").bank("RolandTR808")
+   .gain(.72).room(.18)                    // backbeat: 2 and 4
+
+$: /* HATS */ s("hh*16").bank("RolandTR808")
+   .gain("[.34 .18 .26 .2]*4").hpf(6500)   // 16th shuffle, accent on the beat
+
+$: /* CLAV */ chord("<Am F>").voicing()
+   .struct("x ~ x x ~ x ~ x x ~ x ~ x x ~ x")   // funk 16th chank
+   .s("gm_clavinet")
+   .attack(.003).release(.06).clip(.2)
+   .lpf(3200).gain(.4).room(.12)
+
+$: /* BASS */ note("<[a1 a1 e2 a1 c2 a1 g1 a1] [f1 f1 c2 f1 e1 f1 a1 f1]>")  // A-pedal walk / F walk
+   .s("gm_synth_bass_1").lpf(750).lpq(4).gain(.82).clip(.55)

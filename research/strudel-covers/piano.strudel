@@ -1,0 +1,22 @@
+// parts disco — "Piano" loop re-scored with new instrumentation
+// Source loop: bassimat, "Piano Drum Loop Disco Organic Melodic #002", CC0 — freesound.org/s/832693
+// Deconstructed (16k-FFT, sub-hop onsets): 120.19 BPM, 4-bar loop, C major.
+//   Drums  : soft four-on-the-floor kick, no hats; syncopated 16th comp carries the groove.
+//   Harmony: one chord per bar, C - G - Am - Dm (I - V - vi - ii).
+//   Bass   : root motion C - G - A - D, one per bar.
+//   Register is warm/dark (846 Hz centroid) — kept low, no bright top.
+// New palette: FM/electric piano + synth bass (the original was an acoustic piano).
+setcps(120.19/60/4)   // 120.19 BPM — one cycle = one bar
+
+$: /* KICK */ s("bd*4").bank("RolandTR909")
+   .attack(.001).decay(.1).sustain(0).gain(.72)
+
+$: /* COMP */ chord("<C G Am Dm>").voicing()
+   .struct("x ~ ~ x x x ~ ~ x ~ ~ x x x ~ ~")   // measured syncopated 16th comp
+   .s("gm_epiano1")
+   .attack(.004).release(.16).clip(.42)
+   .lpf(3000).gain(.5).room(.2)
+
+$: /* BASS */ chord("<C G Am Dm>").rootNotes(2).note()   // C G A D, one per bar
+   .struct("x ~ ~ ~ x ~ x ~")
+   .s("gm_synth_bass_1").lpf(600).gain(.72).clip(.5)

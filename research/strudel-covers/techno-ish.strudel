@@ -1,0 +1,30 @@
+// parts disco — "Techno-ish" loop re-scored with new instrumentation
+// Source loop: deleted_user_9051603, "Techno-ish Kind of Loop", CC0 — freesound.org/s/447576
+// Deconstructed (per-16th band-energy, unfolded over all 4 bars): 120.18 BPM. It is a drum kit —
+// kick, clap and hats, no pitched content — and the loop is a 4-BAR phrase, not a 1-bar pattern.
+//   Kick : 16ths 0 4 8 10 12 14 — four-on-the-floor in the first half, then a driving run
+//          (beat 3, &3, 4, &4) in the second half. That asymmetry is the groove.
+//   Clap : beats 2 and 4 (16ths 4 12) every bar, broadband 1-5 kHz over the kick — beat 2 a touch louder.
+//   Fill : an EXTRA clap once every two bars — 16th 15 of bar 2, and 16th 13 of bar 4 (the "a" of beat 4).
+//          The bar-4 clap is the turnaround that leads the loop back to the top.
+//   Open hats (bright, loud) : 2 7 10 14 — the sizzle accents; 10 and 14 land on kicks.
+//   Closed hats : the remaining 16ths, so the bar stays busy and bright throughout.
+//   Reverb : short — each hit drops fast but leaves a low tail; a little room on the kit carries it.
+// New palette: a RolandTR909 kit (the original is an unnamed electronic kit).
+setcps(120.18/60/4)   // 120.18 BPM — one cycle = one bar
+
+$: /* KICK */ s("bd").struct("x ~ ~ ~ x ~ ~ ~ x ~ x ~ x ~ x ~").bank("RolandTR909")
+   .decay(.12).sustain(0).shape(.22).gain(.42).room(.08)
+
+$: /* CLAP */ s("cp").struct("~ ~ ~ ~ x ~ ~ ~ ~ ~ ~ ~ x ~ ~ ~").bank("RolandTR909")   // backbeat, 2 & 4
+   .gain("[.46 .37]").hpf(500).room(.22).size(.6)
+
+$: /* FILL CLAP (4-bar phrase) */ s("cp").bank("RolandTR909")   // bar 2: 16th 15;  bar 4: 16th 13
+   .struct("<~ [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ x] ~ [~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ x ~ ~]>")
+   .gain("<0 .38 0 .45>").hpf(500).room(.24).size(.6)
+
+$: /* OPEN HATS */ s("oh").struct("~ ~ x ~ ~ ~ ~ x ~ ~ x ~ ~ ~ x ~").bank("RolandTR909")
+   .decay(.12).hpf(6000).gain(.37).room(.16).size(.5)
+
+$: /* CLOSED HATS */ s("hh").struct("~ x ~ x ~ x x ~ ~ x ~ x ~ x ~ x").bank("RolandTR909")
+   .decay(.06).hpf(7000).gain(.32).room(.14).size(.5)

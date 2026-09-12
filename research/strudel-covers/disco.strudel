@@ -1,0 +1,26 @@
+// parts disco — "Disco" loop re-scored with new instrumentation
+// Source loop: josefpres, "Disco funk loops 001 remix 3", CC0 — freesound.org/s/572397
+// Deconstructed (16k-FFT, sub-hop onsets): 120.18 BPM, 4-bar loop.
+//   Drums  : four-on-the-floor kick; open-hat on every offbeat 8th, swung ~12 ms late.
+//   Bass   : holds on B for three bars, turnaround walk C#-G-D on the fourth.
+//   Harmony: bluesy D-dorian stab; measured top pitch classes C E G A D.
+// New palette: RolandTR909 kit + synth strings + synth bass (the original was a live disco band).
+setcps(120.18/60/4)   // 120.18 BPM — one cycle = one bar
+
+$: /* KICK */ s("bd*4").bank("RolandTR909")
+   .attack(.001).decay(.09).sustain(0).shape(.3).gain(.92)
+
+$: /* OHAT */ s("~ oh ~ oh ~ oh ~ oh").bank("RolandTR909")
+   .swingBy(1/16, 8)                       // the measured late offbeat
+   .gain(.4).hpf(3000)
+
+$: /* CLAP */ s("~ cp ~ cp").bank("RolandTR909").gain(.5).room(.22)
+
+$: /* STAB */ note("[c4,e4,g4,a4]")        // C6 = measured top PCs C E G A
+   .struct("~ x ~ x ~ x ~ x")              // on the offbeats, riding with the hats
+   .s("gm_synth_strings_1")
+   .attack(.005).release(.11).clip(.28)
+   .lpf(2600).gain(.32).room(.28)
+
+$: /* BASS */ note("<b1*8 b1*8 b1*8 [c#2 g1 d2 d2]>")  // 3 bars B, 4th-bar walk
+   .s("gm_synth_bass_1").lpf(720).gain(.8).clip(.62)
