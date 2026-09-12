@@ -5,3 +5,7 @@ dist/
 clips/
 tmp/
 .playwright-mcp/
+
+# python bytecode
+__pycache__/
+*.pyc
