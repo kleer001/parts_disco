@@ -77,7 +77,10 @@ def main():
     print(f"\n{'':11s}{'LUFS':>8}{'LRA':>7}{'truePk':>8}{'crest':>7}")
     for lbl, d in [("original", lo), ("render", lr)]:
         print(f"{lbl:11s}{d['lufs']:8.1f}{d['lra']:7.1f}{d['tp']:8.1f}{d['crest']:7.1f}")
-    print("\nplacement corrs low? re-read the loop with loopscope.py (a missed clap/fill).")
+    print("\nNOTE: hat corr is the least reliable line — loud broadband claps/fills bleed into the")
+    print("  hi band and scramble it, and reverb tails inflate onsets/bar. Trust loopscope.py's")
+    print("  per-lane read for the final hat call; use this as a quick gate, not a verdict.")
+    print("placement corrs low? re-read the loop with loopscope.py (a missed clap/fill).")
     print("loudness/LRA off? master the render to the original's LUFS with master.sh.")
 
 
