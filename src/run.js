@@ -26,9 +26,9 @@ import { createMeter } from './meter.js';
  * @param {number} seed - the run's seed; every deal is drawn from it
  */
 export function createRun(place, atlas, seed) {
-  // A board may deal from any group, so the view reaches into the right one off the
-  // slot, and the proxy it caches is keyed by the slot's group as well as its shape.
-  const { viewOf, proxyFor } = fleetLookups(atlas.view);
+  // A board may deal from any group, so the view reaches into the right one off the slot,
+  // and the proxy and size it caches are keyed by the slot's group as well as its shape.
+  const { viewOf, proxyFor, sizeFor } = fleetLookups(atlas.view, atlas.sizing);
 
   // Which group each stage deals from -- shuffled level by level, bookends never
   // touching. It hangs off the seed, so a reseed rebuilds it.
@@ -82,14 +82,11 @@ export function createRun(place, atlas, seed) {
     // The attempt is counted rather than rolled, so the run still reproduces.
     const draw = seed + depth + attempt * STRIDE.near;
     const { placed, target, askedAt } = deal(draw, level, atlas.fleet(gid));
-    // Some sets read badly at the board's size -- glasses too thin, cube pets too heavy.
-    // Each set carries its own size, drawn and click-tested a little bigger or smaller
-    // than the board's. A board is one set, so the scale rides on every anchor's span,
-    // which the drawing and the hit test both already honour. Packing stays at the board
-    // size, so the spacing is the stage's and only the pieces on it grow or shrink.
-    const anchors = layout(placed, draw, span, field, proxyFor);
-    const gscale = atlas.scaleOf(gid);
-    if (gscale !== 1) for (const a of anchors) a.span = span * gscale;
+    // Objects carry very different ink for one frame -- a fork is 2%, an apple 55% -- so
+    // each is sized on its own by the sizing rule (see `sizeUnder`): thin shapes grow,
+    // heavy ones shrink, toward one footprint. `layout` packs, places and stamps each at
+    // that size, and the anchor carries it, so the drawing and the hit test agree.
+    const anchors = layout(placed, draw, span, field, proxyFor, sizeFor);
     round = createRound(anchors, target, viewOf);
     prompt = new Image();
     prompt.src = atlas.promptFor(gid, target, askedAt ?? atlas.anglesOf(gid, target)[0]);

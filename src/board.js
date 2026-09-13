@@ -95,10 +95,17 @@ export function deal(seed, level, views) {
  * every car is the one that fills the field, which makes the count the only thing
  * that sets density: to bury the cars deeper, deal more of them.
  *
- * @returns anchors, each `{ slot, cx, cy }` -- where a view's frame goes.
+ * @returns anchors, each `{ slot, cx, cy }`, plus its own `span` when `sizeOf` is given --
+ *   where a view's frame goes, and how big it is drawn.
  */
-export function layout(placed, seed, span, field, proxyFor) {
-  const bodies = placed.map((slot) => ({ slot, r: proxyFor(slot).r * span }));
+export function layout(placed, seed, span, field, proxyFor, sizeOf = null) {
+  // A board may draw each object at its own size -- the footprint rule sizes a thin fork
+  // up and a heavy apple down -- or all of them at the board's, which is what the belt and
+  // the benches want. When it is given, the size scales the body that is packed, where the
+  // frame is centred, and the span the anchor carries, so a piece is spaced, placed, drawn
+  // and clicked at one size throughout.
+  const sizeAt = sizeOf || (() => 1);
+  const bodies = placed.map((slot) => ({ slot, r: proxyFor(slot).r * span * sizeAt(slot) }));
 
   let out = null;
   let low = 0;
@@ -111,11 +118,15 @@ export function layout(placed, seed, span, field, proxyFor) {
   if (!out) throw new Error('no separation fits this many cars'); // boundary
 
   return out.map((p) => {
-    const proxy = proxyFor(p.body.slot);
-    return {
-      slot: p.body.slot,
-      cx: p.x - (proxy.cx - 0.5) * span,
-      cy: p.y - (proxy.cy - 0.5) * span,
+    const slot = p.body.slot;
+    const size = span * sizeAt(slot);
+    const proxy = proxyFor(slot);
+    const anchor = {
+      slot,
+      cx: p.x - (proxy.cx - 0.5) * size,
+      cy: p.y - (proxy.cy - 0.5) * size,
     };
+    if (sizeOf) anchor.span = size; // only when sizing; other callers keep the board's span
+    return anchor;
   });
 }

@@ -101,8 +101,8 @@ export async function loadAtlas(indexPath = 'assets/views/groups.json', base = '
     groups: index.groups,
     ids: index.groups.map((g) => g.id),
     tiers: (id) => groupOf(id).tiers,
-    /** How much bigger or smaller this group's objects are drawn than the board's size. */
-    scaleOf: (id) => groupOf(id).scale ?? 1,
+    /** The rule that sizes each object against the board, applied by `fleetLookups`. */
+    sizing: index.sizing || null,
     fleet: fleetOf,
     view: (slot) => fleetOf(slot.group).view(slot.model, slot.angle),
     promptFor: (id, model, angle) => fleetOf(id).promptFor(model, angle),
@@ -142,21 +142,72 @@ export function proxyOf(view) {
   };
 }
 
+/** A view's silhouette longest side and filled area, both as a share of its 0..1 frame. */
+function extent(view) {
+  const rings = (view.silhouette && view.silhouette.length) ? view.silhouette : view.strokes;
+  let minX = 1;
+  let minY = 1;
+  let maxX = 0;
+  let maxY = 0;
+  for (const ring of rings) {
+    for (const [x, y] of ring) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  let area = 0;
+  for (const ring of (view.silhouette || [])) {
+    for (let i = 0, n = ring.length; i < n; i++) {
+      const [x0, y0] = ring[i];
+      const [x1, y1] = ring[(i + 1) % n];
+      area += x0 * y1 - x1 * y0;
+    }
+  }
+  return { long: Math.max(maxX - minX, maxY - minY), area: Math.abs(area) / 2 };
+}
+
 /**
- * A board's two lookups, memoised: a slot's view, and the circle that stands in for it.
+ * How much larger or smaller a view is drawn than the board's own size, under a rule.
+ *
+ * Objects carry very different ink for the same frame -- a fork is 2%, an apple 55% -- so
+ * one size for a whole set leaves the thin ones lost and the heavy ones overbearing. The
+ * `footprint` rule aims every object at one target ink area, then clamps its longest side
+ * to [floor, cap] of the frame: a heavy shape shrinks toward the target, a thin one grows,
+ * and neither clips past the frame nor shrinks to nothing. Any other rule leaves it at 1.
+ */
+export function sizeUnder(view, rule) {
+  if (!rule || rule.mode !== 'footprint') return 1;
+  const { long, area } = extent(view);
+  const want = area > 0 ? Math.sqrt(rule.area / area) : Infinity;
+  const floor = long > 0 ? rule.floor / long : 1;
+  const cap = long > 0 ? rule.cap / long : 1;
+  return Math.max(floor, Math.min(want, cap));
+}
+
+/**
+ * A board's lookups, memoised: a slot's view, the circle that stands in for it, and how
+ * much it is scaled under the sizing rule.
  *
  * Handed the `view(slot)` that reaches into the right group, since a board may draw from
- * any of them. Every caller that lays a board out needs both, and both are pure functions
- * of the slot's group, model and angle, so both are worth keeping. The cache key is the
- * whole shape of a slot -- which is a fact one file should state, not four: a board laid
- * against a stale hull packs to a different density without saying so.
+ * any of them, and the sizing rule so every object's size is settled once. All three are
+ * pure functions of the slot's group, model and angle, so all three are worth keeping --
+ * a board laid against a stale hull packs to a different density without saying so.
  */
-export function fleetLookups(viewOf) {
+export function fleetLookups(viewOf, rule = null) {
   const proxies = new Map();
+  const sizes = new Map();
+  const keyOf = (slot) => `${slot.group}/${slot.model}/${slot.angle}`;
   const proxyFor = (slot) => {
-    const key = `${slot.group}/${slot.model}/${slot.angle}`;
+    const key = keyOf(slot);
     if (!proxies.has(key)) proxies.set(key, proxyOf(viewOf(slot)));
     return proxies.get(key);
   };
-  return { viewOf, proxyFor };
+  const sizeFor = (slot) => {
+    const key = keyOf(slot);
+    if (!sizes.has(key)) sizes.set(key, sizeUnder(viewOf(slot), rule));
+    return sizes.get(key);
+  };
+  return { viewOf, proxyFor, sizeFor };
 }
