@@ -21,20 +21,30 @@ const key = (model, angle) => `${model}/${String(angle).padStart(3, '0')}`;
  * from any of it at any moment, so paying once at the start beats a fetch in the
  * middle of a round.
  *
- * @returns {{models: Array, view: Function, promptFor: Function}}
+ * @param {string} [root] - where the group's views and manifest live
+ * @param {number[]|null} [allow] - the rotations to keep; others are dropped, and their
+ *   view files never fetched. Null keeps every rotation the manifest lists.
+ * @returns {{models: Array, view: Function, promptFor: Function, anglesOf: Function}}
  */
-export async function loadViews(root = ROOT) {
+export async function loadViews(root = ROOT, allow = null) {
   const manifest = await (await fetch(`${root}/manifest.json`)).json();
 
+  // Keep only the rotations this group is drawn at, when a set is given. A model traced
+  // at more angles than its group uses simply never offers the extra ones, and the view
+  // files for those angles are never fetched.
+  const models = allow
+    ? manifest.models.map((m) => ({ ...m, angles: m.angles.filter((a) => allow.includes(a)) }))
+    : manifest.models;
+
   const views = new Map();
-  await Promise.all(manifest.models.flatMap((model) =>
+  await Promise.all(models.flatMap((model) =>
     model.angles.map(async (angle) => {
       const at = key(model.name, angle);
       views.set(at, await (await fetch(`${root}/${at}.json`)).json());
     })));
 
   return {
-    models: manifest.models,
+    models,
 
     /** The strokes and silhouette of one view. */
     view(model, angle) {
@@ -50,7 +60,7 @@ export async function loadViews(root = ROOT) {
 
     /** The angles a model was traced from. */
     anglesOf(model) {
-      const found = manifest.models.find((m) => m.name === model);
+      const found = models.find((m) => m.name === model);
       if (!found) throw new Error(`no model ${model}`); // boundary
       return found.angles;
     },
@@ -75,7 +85,7 @@ export async function loadAtlas(indexPath = 'assets/views/groups.json', base = '
   const index = await (await fetch(base + indexPath)).json();
   const fleets = {};
   await Promise.all(index.groups.map(async (g) => {
-    fleets[g.id] = await loadViews(base + g.root);
+    fleets[g.id] = await loadViews(base + g.root, g.angles);
   }));
   const fleetOf = (id) => {
     const found = fleets[id];
