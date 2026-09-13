@@ -203,10 +203,10 @@
   "floor": 0.3,
   "cap": 1.0,
   "boosts": {
-   "utensil-fork": 1.6,
-   "cooking-fork": 1.6,
-   "utensil-knife": 1.6,
-   "chopstic-decorative": 1.6
+   "utensil-fork": 1.2,
+   "cooking-fork": 1.2,
+   "utensil-knife": 1.2,
+   "chopstic-decorative": 1.2
   }
  }
 }
