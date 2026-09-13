@@ -201,6 +201,12 @@
   "mode": "footprint",
   "area": 0.3,
   "floor": 0.3,
-  "cap": 1.0
+  "cap": 1.0,
+  "boosts": {
+   "utensil-fork": 1.6,
+   "cooking-fork": 1.6,
+   "utensil-knife": 1.6,
+   "chopstic-decorative": 1.6
+  }
  }
 }

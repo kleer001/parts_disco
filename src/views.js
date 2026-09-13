@@ -204,9 +204,13 @@ export function fleetLookups(viewOf, rule = null) {
     if (!proxies.has(key)) proxies.set(key, proxyOf(viewOf(slot)));
     return proxies.get(key);
   };
+  // A per-model boost on top of the sizing rule, for shapes the rule cannot serve on its
+  // own: a fork is thin at every angle, so footprint can only make it longer, never
+  // fatter, and it wants a plain multiplier the rest of the set does not.
+  const boostOf = (model) => (rule && rule.boosts && rule.boosts[model]) || 1;
   const sizeFor = (slot) => {
     const key = keyOf(slot);
-    if (!sizes.has(key)) sizes.set(key, sizeUnder(viewOf(slot), rule));
+    if (!sizes.has(key)) sizes.set(key, sizeUnder(viewOf(slot), rule) * boostOf(slot.model));
     return sizes.get(key);
   };
   return { viewOf, proxyFor, sizeFor };
