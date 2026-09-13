@@ -101,6 +101,8 @@ export async function loadAtlas(indexPath = 'assets/views/groups.json', base = '
     groups: index.groups,
     ids: index.groups.map((g) => g.id),
     tiers: (id) => groupOf(id).tiers,
+    /** How much bigger or smaller this group's objects are drawn than the board's size. */
+    scaleOf: (id) => groupOf(id).scale ?? 1,
     fleet: fleetOf,
     view: (slot) => fleetOf(slot.group).view(slot.model, slot.angle),
     promptFor: (id, model, angle) => fleetOf(id).promptFor(model, angle),

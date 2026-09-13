@@ -82,7 +82,15 @@ export function createRun(place, atlas, seed) {
     // The attempt is counted rather than rolled, so the run still reproduces.
     const draw = seed + depth + attempt * STRIDE.near;
     const { placed, target, askedAt } = deal(draw, level, atlas.fleet(gid));
-    round = createRound(layout(placed, draw, span, field, proxyFor), target, viewOf);
+    // Some sets read badly at the board's size -- glasses too thin, cube pets too heavy.
+    // Each set carries its own size, drawn and click-tested a little bigger or smaller
+    // than the board's. A board is one set, so the scale rides on every anchor's span,
+    // which the drawing and the hit test both already honour. Packing stays at the board
+    // size, so the spacing is the stage's and only the pieces on it grow or shrink.
+    const anchors = layout(placed, draw, span, field, proxyFor);
+    const gscale = atlas.scaleOf(gid);
+    if (gscale !== 1) for (const a of anchors) a.span = span * gscale;
+    round = createRound(anchors, target, viewOf);
     prompt = new Image();
     prompt.src = atlas.promptFor(gid, target, askedAt ?? atlas.anglesOf(gid, target)[0]);
     shades = INKS.slice(0, level.inks).map(rgbOf);
