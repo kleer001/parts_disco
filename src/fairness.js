@@ -63,7 +63,7 @@ const READABLE = 0.75;
 /** How many cells across the board `trim` fills to measure how much of each shape shows. A
  *  true pixel count, not a scatter of samples, so a thin frame or a fin is read as exactly
  *  the area it is -- fine enough to separate touching shapes, coarse enough to stay cheap. */
-const TRIM_RES = 220;
+const TRIM_RES = 600;
 
 /** The point at local [x, y] of a view placed at an anchor, in board coordinates. */
 const toBoard = (anchor, size, x, y) => [

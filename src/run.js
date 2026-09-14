@@ -96,9 +96,12 @@ export function createRun(place, atlas, seed) {
     // each is sized on its own by the sizing rule (see `sizeUnder`): thin shapes grow,
     // heavy ones shrink, toward one footprint. `layout` packs, places and stamps each at
     // that size, and the anchor carries it, so the drawing and the hit test agree.
+    // A silhouette board keeps every shape whole on the field -- an edge eats an outline as
+    // surely as a neighbour does -- where a full-detail board lets shapes run off as before.
+    const onBoard = level.render === 'silhouette';
     const throwYard = (at) => {
       const dealt = deal(at, level, atlas.fleet(gid));
-      return { dealt, anchors: layout(dealt.placed, at, span, field, proxyFor, sizeFor) };
+      return { dealt, anchors: layout(dealt.placed, at, span, field, proxyFor, sizeFor, onBoard) };
     };
 
     // Each branch yields one { anchors, target, askedAt }, the shape a round is dealt from.

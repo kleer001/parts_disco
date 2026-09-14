@@ -42,7 +42,9 @@ function dartThrow(bodies, seed, separation, field) {
         const away = reach * (1 + rand());
         const x = anchor.x + Math.cos(angle) * away;
         const y = anchor.y + Math.sin(angle) * away;
-        if (x < 0 || y < 0 || x > field.width || y > field.height) continue;
+        // A dart is the centre of the body's box, so keeping it a margin in from each edge
+        // keeps the whole body on the board. The margin is zero unless the caller asks for it.
+        if (x < body.mx || y < body.my || x > field.width - body.mx || y > field.height - body.my) continue;
         if (down.every((q) => Math.hypot(x - q.x, y - q.y) >= (q.r + body.r) * separation)) {
           put = { body, x, y, r: body.r };
         }
@@ -50,8 +52,8 @@ function dartThrow(bodies, seed, separation, field) {
     }
 
     for (let attempt = 0; attempt < DART_TRIES && !put; attempt++) {
-      const x = rand() * field.width;
-      const y = rand() * field.height;
+      const x = body.mx + rand() * (field.width - 2 * body.mx);
+      const y = body.my + rand() * (field.height - 2 * body.my);
       if (down.every((q) => Math.hypot(x - q.x, y - q.y) >= (q.r + body.r) * separation)) {
         put = { body, x, y, r: body.r };
       }
@@ -95,17 +97,29 @@ export function deal(seed, level, views) {
  * every car is the one that fills the field, which makes the count the only thing
  * that sets density: to bury the cars deeper, deal more of them.
  *
+ * `onBoard` keeps every body whole inside the field, a margin of its own half-extent in
+ * from each edge, instead of letting it run off. The silhouette stages ask for it: a shape
+ * the edge eats cannot be read, where a full-detail one keeps its inner lines to the last.
+ *
  * @returns anchors, each `{ slot, cx, cy }`, plus its own `span` when `sizeOf` is given --
  *   where a view's frame goes, and how big it is drawn.
  */
-export function layout(placed, seed, span, field, proxyFor, sizeOf = null) {
+export function layout(placed, seed, span, field, proxyFor, sizeOf = null, onBoard = false) {
   // A board may draw each object at its own size -- the footprint rule sizes a thin fork
   // up and a heavy apple down -- or all of them at the board's, which is what the belt and
   // the benches want. When it is given, the size scales the body that is packed, where the
   // frame is centred, and the span the anchor carries, so a piece is spaced, placed, drawn
   // and clicked at one size throughout.
   const sizeAt = sizeOf || (() => 1);
-  const bodies = placed.map((slot) => ({ slot, r: proxyFor(slot).r * span * sizeAt(slot) }));
+  const bodies = placed.map((slot) => {
+    const size = span * sizeAt(slot);
+    const proxy = proxyFor(slot);
+    // The keep-in margin is the body's half-extent, capped so a body wider than the field
+    // still has somewhere to sit -- centred -- rather than nowhere.
+    const mx = onBoard ? Math.min(proxy.halfW * size, field.width / 2 - 1) : 0;
+    const my = onBoard ? Math.min(proxy.halfH * size, field.height / 2 - 1) : 0;
+    return { slot, r: proxy.r * size, mx, my };
+  });
 
   let out = null;
   let low = 0;
