@@ -11,6 +11,7 @@
 import { MIX } from './audio.js';
 import { TRACKS, MUSIC_ROOT } from './music.js';
 import { freshSeed as newSeed } from './rng.js';
+import { PATH, STAGES } from './levels.js';
 
 /**
  * Where the panel's settings are kept between visits.
@@ -220,12 +221,56 @@ export function createOptions(mount, voice, run) {
   body.append(el('p', 'opts-note',
     'Every launch deals a different run. Type a seed back in to play it again.'));
 
+  // -- the level -----------------------------------------------------------
+  // Endless has no path to stand on, so this is a campaign pick: the run can either
+  // move itself to a stage or it cannot. Jumping keeps the seed -- the same run, opened
+  // at a different board -- and wipes the damage, so a chosen board starts clean.
+  let repaintLevels = () => {};
+  if (typeof run.goTo === 'function') {
+    body.append(el('h3', null, 'Level'));
+    const grid = el('div', 'opts-levels');
+    // One row per level, one cell per stage, so a cell's place in the array is its depth.
+    const cells = [];
+    for (let level = 0; level < PATH.length / STAGES; level++) {
+      const row = el('div', 'opts-level-row');
+      row.append(el('span', 'opts-level-no', String(level + 1)));
+      for (let stage = 0; stage < STAGES; stage++) {
+        const depth = level * STAGES + stage;
+        const cell = el('button', 'opts-stage', String(stage + 1));
+        cell.type = 'button';
+        cell.title = `level ${level + 1}, stage ${stage + 1}`;
+        cell.addEventListener('click', () => {
+          run.meter.clear();
+          run.goTo(depth);
+          repaintLevels();
+          setOpen(false);
+          opener.focus();
+        });
+        cells.push(cell);
+        row.append(cell);
+      }
+      grid.append(row);
+    }
+    body.append(grid);
+    body.append(el('p', 'opts-note',
+      'Jump to any board. The run keeps its seed; the damage resets.'));
+    // The current stage can move while the panel is shut, so the mark is painted on open.
+    repaintLevels = () => cells.forEach((cell, depth) => {
+      cell.classList.toggle('on', depth === run.depth);
+      cell.setAttribute('aria-current', String(depth === run.depth));
+    });
+    repaintLevels();
+  }
+
   // -- raising and lowering it ---------------------------------------------
   const setOpen = (open) => {
     panel.hidden = !open;
     opener.setAttribute('aria-expanded', String(open));
     opener.classList.toggle('on', open);
-    if (open) panel.querySelector('input, button').focus();
+    if (open) {
+      repaintLevels();
+      panel.querySelector('input, button').focus();
+    }
   };
   opener.addEventListener('click', () => setOpen(panel.hidden));
   close.addEventListener('click', () => {
