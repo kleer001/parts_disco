@@ -81,7 +81,9 @@ function bits(mask) {
  * overlap test. When more than a mask holds, the set is thinned evenly, keeping its span.
  */
 function sampleView(view) {
-  const silhouette = (view.silhouette && view.silhouette.length) ? view.silhouette : view.strokes;
+  // The silhouette, the same polygon `pick` clicks against -- never the strokes, so a
+  // shape is judged against the outline it is hit-tested against and the two cannot drift.
+  const { silhouette } = view;
   let minX = 1;
   let minY = 1;
   let maxX = 0;
@@ -179,13 +181,10 @@ export function createFairPlay(viewOf) {
     const car = anchors.map((a, i) => {
       const d = dataFor(a.slot);
       const s = size(i);
-      const count = d.samples.length;
       return {
         model: a.slot.model,
         data: d,
-        count,
-        // A bit per sample. At the cap the shift would reach the sign bit, so it is spelt out.
-        full: count >= MASK_BITS ? 0x7fffffff : (1 << count) - 1,
+        count: d.samples.length,
         box: {
           minX: a.cx + (d.ext.minX - 0.5) * s, maxX: a.cx + (d.ext.maxX - 0.5) * s,
           minY: a.cy + (d.ext.minY - 0.5) * s, maxY: a.cy + (d.ext.maxY - 0.5) * s,
@@ -200,7 +199,9 @@ export function createFairPlay(viewOf) {
     const overlap = (i, j) => !(car[i].box.maxX < car[j].box.minX || car[j].box.maxX < car[i].box.minX
       || car[i].box.maxY < car[j].box.minY || car[j].box.maxY < car[i].box.minY);
     for (let i = 0; i < n; i++) {
-      let seen = car[i].full;
+      // A one bit per sample, all shown to start. `2 ** count` rather than `1 << count`
+      // because at the 31-sample cap the shift would land on the sign bit.
+      let seen = (2 ** car[i].count) - 1;
       for (let j = i + 1; j < n; j++) {
         if (!overlap(i, j)) continue;
         const a = anchors[i];
@@ -216,45 +217,54 @@ export function createFairPlay(viewOf) {
       }
       vis[i] = seen;
     }
+    // How much each shape shows, counted once: `faultsFor` reads it for every candidate ask.
+    const shown = Int32Array.from(vis, bits);
 
     const models = [...new Set(car.map((c) => c.model))];
+
+    // Every other shape whose outline coincides enough with shape `i` to be mistaken for it,
+    // and their combined tell. `matchTarget` picks the side: a copy of the target is read
+    // against the other models, a decoy against the target's own copies.
+    const twinTell = (i, target, matchTarget) => {
+      let tell = 0;
+      let twinned = false;
+      for (let k = 0; k < n; k++) {
+        if ((car[k].model === target) !== matchTarget) continue;
+        const cmp = pairFor(anchors[i].slot, anchors[k].slot);
+        if (cmp.iou >= TWIN_IOU) { tell |= cmp.tell; twinned = true; }
+      }
+      return { tell, twinned };
+    };
 
     // The faults asking for one shape carries on this board, sorted by how each is mended.
     // A copy of the target showing too little to click is buried -- the round cannot be won
     // until it is gone -- and a buried copy showing nothing at all can be lifted off the
     // board without changing a pixel. A copy that shows enough but hides the tell that holds
-    // it apart from a twin is unread. A twin of the target that is clickable yet shows no
-    // tell of its own reads as the target, an unfair click. The tells are read once here.
+    // it apart from a twin is unread. A twin of the target clickable yet showing no tell of
+    // its own reads as the target, an unfair click. Kept per target, since the ask is scored
+    // once for every candidate and again as a board is mended.
+    const faultCache = new Map();
     const faultsFor = (target) => {
+      const done = faultCache.get(target);
+      if (done) return done;
       const buried = [];   // a target copy showing nothing -- invisible, free to lift off
       const dim = [];      // a target copy showing only a sliver -- too little to find
       const unread = [];   // a target copy clickable but tell-hidden -- taken for a twin
       const decoy = [];    // a twin of the target reading as the target -- an unfair click
       for (let i = 0; i < n; i++) {
-        const shown = bits(vis[i]);
         if (car[i].model === target) {
-          let tell = 0;
-          let twinned = false;
-          for (let k = 0; k < n; k++) {
-            if (car[k].model === target) continue;
-            const cmp = pairFor(anchors[i].slot, anchors[k].slot);
-            if (cmp.iou >= TWIN_IOU) { tell |= cmp.tell; twinned = true; }
-          }
-          if (shown === 0) buried.push(i);
-          else if (!clickable(shown, car[i].count)) dim.push(i);
+          const { tell, twinned } = twinTell(i, target, false);
+          if (shown[i] === 0) buried.push(i);
+          else if (!clickable(shown[i], car[i].count)) dim.push(i);
           else if (twinned && (vis[i] & tell) === 0) unread.push(i);
         } else {
-          let tell = 0;
-          let twin = false;
-          for (let k = 0; k < n; k++) {
-            if (car[k].model !== target) continue;
-            const cmp = pairFor(anchors[i].slot, anchors[k].slot);
-            if (cmp.iou >= TWIN_IOU) { tell |= cmp.tell; twin = true; }
-          }
-          if (twin && clickable(shown, car[i].count) && (vis[i] & tell) === 0) decoy.push(i);
+          const { tell, twinned } = twinTell(i, target, true);
+          if (twinned && clickable(shown[i], car[i].count) && (vis[i] & tell) === 0) decoy.push(i);
         }
       }
-      return { buried, dim, unread, decoy };
+      const faults = { buried, dim, unread, decoy };
+      faultCache.set(target, faults);
+      return faults;
     };
 
     const costFor = (target) => {
@@ -300,24 +310,6 @@ export function createFairPlay(viewOf) {
      */
     faults(anchors, target, span) {
       return assess(anchors, span).faultsFor(target);
-    },
-
-    /**
-     * The target this board reads most fairly for, and the angle to ask it at.
-     *
-     * Every shape on the board is a candidate, and the least unfair wins; the dealt target
-     * keeps the ask when it is among the fairest, so the board's own variety stands unless
-     * it is the thing that cheats. Remaining ties are broken by the seed. The board is not
-     * touched -- an unfair one is dealt again.
-     *
-     * @param {string} [prefer] - the ask to keep if it reads as fairly as any other
-     * @returns {{ target, askedAt, cost }}
-     */
-    choose(anchors, anglesOf, span, seed, prefer = null) {
-      const rng = mulberry32((seed ^ 0x9e3779b9) >>> 0);
-      const assessed = assess(anchors, span);
-      const target = pickTarget(assessed, rng, prefer);
-      return { target, askedAt: askAngle(anchors, target, anglesOf, rng), cost: assessed.costFor(target) };
     },
 
     /**

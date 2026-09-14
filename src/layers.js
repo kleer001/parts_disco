@@ -366,20 +366,19 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
       //
       // `colourOf` and `fadeOf` are read by standing index -- a car's region is its
       // place in `standing` -- and the fade lifts toward white exactly as `paintRegions`
-      // does, so a car burning out here matches the ground burning out under it.
+      // does, so a car burning out here matches the ground burning out under it. Each car
+      // is drawn through `drawView`, so the board states the body-then-lines order once,
+      // the same as the find and refuse layers -- here with the stage's linework, which is
+      // the silhouette itself when the inner lines are taken away.
       const solid = (colourOf, fadeOf) => {
         for (let i = 0; i < standing.length; i++) {
           const anchor = standing[i];
           const c = colourOf(i);
           const f = fadeOf(i);
-          ctx.fillStyle = `rgb(${Math.round(c[0] + (255 - c[0]) * f)},`
+          const fill = `rgb(${Math.round(c[0] + (255 - c[0]) * f)},`
             + `${Math.round(c[1] + (255 - c[1]) * f)},`
             + `${Math.round(c[2] + (255 - c[2]) * f)})`;
-          shape(ctx, anchor, viewOf(anchor.slot).silhouette, span);
-          ctx.fill('evenodd');
-          inkStroke(ctx);
-          outline(ctx, anchor, lineOf(anchor.slot), span);
-          ctx.stroke();
+          drawView(ctx, anchor, viewOf(anchor.slot), span, { fill, strokes: lineOf(anchor.slot) });
         }
       };
 

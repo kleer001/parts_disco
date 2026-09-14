@@ -48,7 +48,7 @@ test('the ask falls on the target the board reads most fairly for', () => {
   const fair = createFairPlay(viewOf);
   // full has a buried copy; corner is clear. The fair ask is corner.
   const board = [at('full', 300, 300), at('full', 300, 300), at('corner', 700, 400)];
-  const out = fair.choose(board, anglesOf, SPAN, 11);
+  const out = fair.mend(board, anglesOf, SPAN, 11);
   assert.equal(out.target, 'corner');
   assert.equal(out.cost, 0);
   assert.ok(out.askedAt === null || anglesOf().includes(out.askedAt));
@@ -95,12 +95,14 @@ test('mend lifts the offenders off and hands back a fair board', () => {
   assert.ok(out.anchors.some((a) => a.slot.model === out.target));
 });
 
-test('the same seed chooses the same ask; a valid one', () => {
+test('the same seed mends the same yard the same way; a valid ask', () => {
   const fair = createFairPlay(viewOf);
   const board = [at('full', 200, 200), at('corner', 260, 220), at('full', 320, 240),
                  at('corner', 240, 300)];
-  const a = fair.choose(board, anglesOf, SPAN, 77);
-  const b = fair.choose(board, anglesOf, SPAN, 77);
-  assert.deepEqual(a, b);
+  const a = fair.mend(board, anglesOf, SPAN, 77);
+  const b = fair.mend(board, anglesOf, SPAN, 77);
+  assert.equal(a.target, b.target);
+  assert.equal(a.askedAt, b.askedAt);
+  assert.deepEqual(a.anchors.map((x) => [x.cx, x.cy]), b.anchors.map((x) => [x.cx, x.cy]));
   assert.ok(['full', 'corner'].includes(a.target));
 });

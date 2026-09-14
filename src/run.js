@@ -101,13 +101,11 @@ export function createRun(place, atlas, seed) {
       return { dealt, anchors: layout(dealt.placed, at, span, field, proxyFor, sizeFor) };
     };
 
-    let anchors;
-    let target;
-    let askedAt;
+    // Each branch yields one { anchors, target, askedAt }, the shape a round is dealt from.
+    let picked;
     if (level.render !== 'silhouette') {
-      const yard = throwYard(draw);
-      ({ anchors } = yard);
-      ({ target, askedAt } = yard.dealt);
+      const { dealt, anchors: laid } = throwYard(draw);
+      picked = { anchors: laid, target: dealt.target, askedAt: dealt.askedAt };
     } else {
       // A silhouette board hides the inner lines a shape is otherwise known by, so it can
       // bury the target past finding or wear a decoy into the target's own outline. Once the
@@ -125,8 +123,9 @@ export function createRun(place, atlas, seed) {
         if (!best || mended.cost < best.cost) best = mended;
         if (mended.cost === 0) break;
       }
-      ({ anchors, target, askedAt } = best);
+      picked = best;
     }
+    const { anchors, target, askedAt } = picked;
     round = createRound(anchors, target, viewOf);
     prompt = new Image();
     prompt.src = atlas.promptFor(gid, target, askedAt ?? atlas.anglesOf(gid, target)[0]);
