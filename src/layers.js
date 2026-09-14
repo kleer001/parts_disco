@@ -55,18 +55,14 @@ function flashInk(car, flash) {
 }
 
 /**
- * The colour a found vehicle comes to rest in.
- *
- * Not one of the board's inks. Every ink is spent on the puzzle, so a resting colour
- * drawn from that set is a colour some unfound vehicle is also wearing -- the only
- * record that a vehicle was found reads as one more thing to sort through. A neutral
- * grey is in no one else's alphabet, so a found vehicle leaves the puzzle visibly.
+ * A neutral grey, in no board ink's alphabet: the dark beat of the find pulse's
+ * strobe, and the colour a correctly tagged vehicle keeps on the belt. A colour drawn
+ * from the inks would read as one more thing to sort through; this one cannot.
  *
  * Its luminance is the darkest ink's, which is what keeps the black linework reading
  * over it exactly as it reads over the rest of the board.
  */
 export const SETTLED = '#4c4c4c';
-export const SETTLED_RGB = rgbOf(SETTLED);
 
 /** The wash a refused vehicle wears for as long as the refusal lasts. */
 export const REFUSED = '#c9c9c9';
@@ -345,10 +341,10 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
         ? viewOf(slot).silhouette : viewOf(slot).strokes);
 
       // What the board looks like with nothing moving on it: every car in the ink the
-      // map gave it, or in the one it came to rest in after being found.
+      // map gave it, or -- once found -- the bare ground it has returned to.
       const restingOf = (region) => {
         if (region < 0) return PAPER_RGB;
-        if (region < standing.length && round.found.has(region)) return SETTLED_RGB;
+        if (region < standing.length && round.found.has(region)) return PAPER_RGB;
         return shades[plan.ink[region]];
       };
 
@@ -364,13 +360,15 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
       // colours are laid down first by `repaint`; this draws the same colours back over
       // the cars, so the ground still shows through the gaps between them.
       //
-      // `colourOf` and `fadeOf` are read by standing index -- a car's region is its
-      // place in `standing` -- and the fade lifts toward white exactly as `paintRegions`
-      // does, so a car burning out here matches the ground burning out under it. Each car
-      // is drawn through `drawView`, so the board states the body-then-lines order once,
-      // the same as the find and refuse layers -- here with the stage's linework, which is
-      // the silhouette itself when the inner lines are taken away.
-      const solid = (colourOf, fadeOf) => {
+      // `colourOf`, `fadeOf` and `strokesOf` are read by standing index -- a car's region
+      // is its place in `standing` -- and the fade lifts toward white exactly as
+      // `paintRegions` does, so a car burning out here matches the ground burning out under
+      // it. Each car is drawn through `drawView`, so the board states the body-then-lines
+      // order once, the same as the find and refuse layers. A found car is filled with the
+      // ground and given no lines, so it returns to the void it stands on rather than
+      // resting on the board as one more shape; it is still drawn, in order, so it goes on
+      // occluding whatever sits behind it.
+      const solid = (colourOf, fadeOf, strokesOf) => {
         for (let i = 0; i < standing.length; i++) {
           const anchor = standing[i];
           const c = colourOf(i);
@@ -378,17 +376,18 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
           const fill = `rgb(${Math.round(c[0] + (255 - c[0]) * f)},`
             + `${Math.round(c[1] + (255 - c[1]) * f)},`
             + `${Math.round(c[2] + (255 - c[2]) * f)})`;
-          drawView(ctx, anchor, viewOf(anchor.slot), span, { fill, strokes: lineOf(anchor.slot) });
+          drawView(ctx, anchor, viewOf(anchor.slot), span, { fill, strokes: strokesOf(anchor, i) });
         }
       };
 
       // The still board is kept and put back down, because most frames are the same
       // picture as the last one. It is rebuilt when the map changes or a car is found,
-      // and it shows found cars already at rest -- whatever is answering a find is
-      // painted over it afterwards.
+      // and it shows found cars already returned to the ground -- the pulse answering a
+      // find is painted over it afterwards and dissolves into that ground.
       if (heldPlan !== plan || heldFound !== round.found.size) {
         repaint(restingOf, () => 0);
-        solid(restingOf, () => 0);
+        solid(restingOf, () => 0,
+          (anchor, i) => (round.found.has(i) ? [] : lineOf(anchor.slot)));
         cache.getContext('2d').drawImage(ctx.canvas, 0, 0, width, height, 0, 0, width, height);
         heldPlan = plan;
         heldFound = round.found.size;
@@ -403,7 +402,7 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
           (region) => (region < 0 ? PAPER_RGB
             : region < standing.length ? flashing[region] : shades[plan.ink[region]]),
           (region) => (region >= 0 && region < standing.length ? burn : won));
-        solid((region) => flashing[region], () => burn);
+        solid((region) => flashing[region], () => burn, (anchor) => lineOf(anchor.slot));
         return;
       }
 
@@ -431,6 +430,7 @@ export function createGridLayer(settings = () => TUNING) {
   let tileKey = null;
   let cutKey = null;
   let planFrom = null;
+  let foundCut = -1;
 
   // Everything the tile is made of. One place, because a knob added to the tile and
   // forgotten here leaves a stale texture with nothing to report it.
@@ -443,8 +443,9 @@ export function createGridLayer(settings = () => TUNING) {
     tile = ruledTile(cell, s.gridAlpha, s.gridNoise, s.gridNoiseScale, '#000000');
   };
 
-  // Which pixels are ground rather than vehicle. A fact about the plan, so it is
-  // asked when the plan changes and not once a frame.
+  // Which pixels are ground rather than a standing vehicle: bare ground between the
+  // cars, or a car that has been found and returned to the ground. A fact about the
+  // plan and the found set, so it is asked when either changes and not once a frame.
   const buildMask = (frame) => {
     mask = document.createElement('canvas');
     mask.width = frame.width;
@@ -453,8 +454,10 @@ export function createGridLayer(settings = () => TUNING) {
     const img = c.createImageData(frame.width, frame.height);
     const owner = frame.plan.owner;
     const cars = frame.standing.length;
+    const found = frame.round.found;
     for (let p = 0; p < owner.length; p++) {
-      img.data[p * 4 + 3] = owner[p] >= cars ? 255 : 0;
+      const o = owner[p];
+      img.data[p * 4 + 3] = (o >= cars || found.has(o)) ? 255 : 0;
     }
     c.putImageData(img, 0, 0);
   };
@@ -477,12 +480,14 @@ export function createGridLayer(settings = () => TUNING) {
         return;
       }
 
-      // The tile cut to the ground is kept and blitted. Two things change it -- the
-      // texture and the map it is cut to -- and cutting it every frame would allocate
-      // a field-sized canvas sixty times a second to arrive at the same picture.
-      if (planFrom !== frame.plan) {
+      // The tile cut to the ground is kept and blitted. Three things change it -- the
+      // texture, the map it is cut to, and which cars have been found and joined the
+      // ground -- and cutting it every frame would allocate a field-sized canvas sixty
+      // times a second to arrive at the same picture.
+      if (planFrom !== frame.plan || foundCut !== frame.round.found.size) {
         buildMask(frame);
         cutKey = null;
+        foundCut = frame.round.found.size;
       }
       if (cutKey !== key) {
         if (!cut) {
@@ -536,13 +541,19 @@ export function createFindLayer(viewOf, settings = () => TUNING) {
 
         const anchor = standing[region];
         const view = viewOf(anchor.slot);
-        // The off beat is the colour the vehicle is about to keep, so the pulse ends
-        // on the board's own answer instead of changing colour once more after it.
+        // The vehicle keeps nothing -- it has returned to the ground -- so the pulse
+        // dissolves as it settles rather than landing on a colour. The strobe still
+        // reads through the fade over the ground the car once covered.
+        const t = (at - when) / alive;
+        const gone = t < 0.55 ? 1 : 1 - (t - 0.55) / 0.45;
+        ctx.save();
+        ctx.globalAlpha = gone;
         drawView(ctx, anchor, view, span, {
           fill: pulse.lit ? SEMANTIC.found.loud : SETTLED,
           strokes: sil ? view.silhouette : undefined,
           scale: pulse.scale, dx: pulse.dx, dy: pulse.dy,
         });
+        ctx.restore();
       }
     },
   };

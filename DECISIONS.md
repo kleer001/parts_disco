@@ -103,10 +103,15 @@ it went; it is never a reason to refuse a change he asks for.
 - **Meaning is coloured off the board.** REJECTED: giving "found" or "wrong" a board
   ink — the map spends every ink on the puzzle, so a semantic ink would either break
   the colouring or be mistaken for a vehicle.
-- **A found vehicle rests in one neutral grey, off the board's palette.** REJECTED:
-  rotating it onto another board ink that its neighbours are not wearing — the resting
-  colour is the only record that a vehicle was found, and an ink some unfound vehicle
-  is also wearing reads as one more thing to sort through.
+- **A found vehicle returns to the ground: no fill, no lines, the grid and noise
+  closing over where it stood.** REJECTED: resting it in one neutral grey off the
+  palette — a found car left as a solid shape is one more object to re-scan, and the
+  scan is the puzzle; the owner spent that record on purpose. The car is still drawn,
+  as ground, in z-order, so it goes on occluding whatever sits behind it, and the grid
+  layer counts its pixels as ground so the texture fills the void seamlessly. The find
+  pulse dissolves into that ground rather than landing on a colour. Threaded:
+  `layers.js` `createBoardLayer` (`restingOf`/`solid`), `createGridLayer` (`buildMask`),
+  `createFindLayer`.
 - **A wrong click washes the vehicle it hit in light grey, and the wash fades.**
   REJECTED: leaving the wash on for the rest of the round — a permanently greyed
   vehicle is a candidate crossed off the list, which turns the difficulty dial rather

@@ -1306,3 +1306,37 @@ The slim vehicles that already fit come back framed a hair tighter; the footprin
 that draws them is a share of silhouette area, so their board size is unmoved.
 
 **Threaded:** `frame_camera` and `setup_camera` in `tools/model_views/render_views.py`.
+
+### [2026-09-14] A found vehicle returns to the ground
+
+A found vehicle used to settle to one neutral grey, off the board's palette, and stay
+there as a solid grey shape. The grey was the record that the car was found. That record
+is also one more object on the board, and the board is a search: a grey car among the
+colours is a shape the eye still has to land on and rule out.
+
+Now a found vehicle returns to the ground it stands on. Its region is painted as bare
+ground, it is drawn with no lines, and the grid layer counts its pixels as ground so the
+grid and noise close over the void seamlessly -- the tile is aligned to the board, so the
+ruled lines run straight through where the car stood. The car is still drawn, as ground,
+in the map's front-to-back order, so it goes on occluding whatever sits behind it rather
+than revealing a car the deal never meant to show. The find pulse dissolves into that
+ground over its last frames instead of landing on the grey it used to keep.
+
+The cost the owner chose to spend: the record is gone. Two found cars sitting apart on a
+board with bare ground between them look like empty board. Where a found car sits among
+unfound ones the void reads as a hole punched to the ground -- correct, but on a densely
+coloured board a ground-coloured void is high in contrast against saturated neighbours,
+so a found car is uncoloured, not subtle.
+
+**Rejected:** the neutral grey resting colour. It kept a found car legible as found, at
+the price of leaving it on the board as a shape to re-scan.
+
+**Rejected:** filling the void with a Voronoi inpaint seeded from the car-shaped holes.
+The ground is a periodic tile, defined at every pixel, so the void needs no reconstruction
+-- the grid layer already sits over the cars and only had to treat a found car's pixels as
+ground.
+
+**Threaded:** `layers.js` -- `createBoardLayer` (`restingOf`, `solid`), `createGridLayer`
+(`buildMask` and its rebuild on the found set growing), `createFindLayer` (the dissolve).
+`SETTLED` stays, off the board, as the dark beat of the find pulse and the belt's
+right-tag colour.
