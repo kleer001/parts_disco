@@ -72,6 +72,29 @@ test('a shape and its silhouette-subset are unfair to ask either way', () => {
   assert.ok(fair.judge(board, 'base', SPAN) > 0, 'a visible bump should trap a base ask');
 });
 
+test('faults name the offending shapes: a buried copy, a decoy twin', () => {
+  const fair = createFairPlay(viewOf);
+  // Three copies stacked exactly: the two under the top show nothing, so they are buried.
+  const buried = fair.faults([at('full', 300, 300), at('full', 300, 300), at('full', 300, 300)],
+                             'full', SPAN);
+  assert.equal(buried.buried.length, 2);
+  // A visible base cannot be told from a bump with its tab hidden, so it traps a bump ask.
+  const decoy = fair.faults([at('bump', 200, 200), at('base', 600, 200)], 'bump', SPAN);
+  assert.equal(decoy.decoy.length, 1);
+});
+
+test('mend lifts the offenders off and hands back a fair board', () => {
+  const fair = createFairPlay(viewOf);
+  // Two clear corners to ask for, and a full with two buried copies that would otherwise
+  // make it unwinnable. mend keeps a fair board -- and never returns more anchors than it got.
+  const board = [at('full', 300, 300), at('full', 300, 300), at('full', 300, 300),
+                 at('corner', 700, 200), at('corner', 200, 600)];
+  const out = fair.mend(board, anglesOf, SPAN, 4);
+  assert.equal(out.cost, 0);
+  assert.ok(out.anchors.length <= board.length);
+  assert.ok(out.anchors.some((a) => a.slot.model === out.target));
+});
+
 test('the same seed chooses the same ask; a valid one', () => {
   const fair = createFairPlay(viewOf);
   const board = [at('full', 200, 200), at('corner', 260, 220), at('full', 320, 240),

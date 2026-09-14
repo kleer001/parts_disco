@@ -110,21 +110,20 @@ export function createRun(place, atlas, seed) {
       ({ target, askedAt } = yard.dealt);
     } else {
       // A silhouette board hides the inner lines a shape is otherwise known by, so it can
-      // bury the target past finding or wear a decoy into the target's own outline. Almost
-      // every board is fair as dealt, so an unfair one is thrown again rather than
-      // rearranged -- a fresh yard is a truer variety than a restack. The dealt ask keeps
-      // its place where it is fair, the board's fairest stands in where it is not, and the
-      // least unfair holds when a clean one is out of reach, so a stage always deals.
+      // bury the target past finding or wear a decoy into the target's own outline. Once the
+      // fairest ask is chosen almost every board is fair; the few that are not are mended by
+      // lifting their one or two offending shapes off -- a buried copy shows nothing, so it
+      // leaves without a trace -- rather than dealing the whole yard again. A board too
+      // tangled to mend within the cap is dealt afresh, the least unfair kept when none comes
+      // clean, so a stage always deals.
       const anglesFor = (m) => atlas.anglesOf(gid, m);
       let best = null;
       for (let k = 0; k < FAIR_DEALS; k++) {
         const at = draw + k * STRIDE.far;
         const { dealt, anchors: laid } = throwYard(at);
-        const chosen = fair.choose(laid, anglesFor, span, at, dealt.target);
-        if (!best || chosen.cost < best.cost) {
-          best = { anchors: laid, target: chosen.target, askedAt: chosen.askedAt, cost: chosen.cost };
-        }
-        if (chosen.cost === 0) break;
+        const mended = fair.mend(laid, anglesFor, span, at, dealt.target);
+        if (!best || mended.cost < best.cost) best = mended;
+        if (mended.cost === 0) break;
       }
       ({ anchors, target, askedAt } = best);
     }

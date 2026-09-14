@@ -46,6 +46,10 @@ const clickable = (visBits, count) => visBits >= Math.max(CLICKABLE_MIN, CLICKAB
  *  copy -- a round that cannot be won -- outweighs any number of the softer faults. */
 const COST = { hidden: 100, unread: 10, decoy: 10 };
 
+/** How many shapes may be lifted off a board to mend it before it is dealt again instead.
+ *  A board with more faults than this is more tangled than it is worth un-picking. */
+const MEND_CAP = 5;
+
 /** The point at local [x, y] of a view placed at an anchor, in board coordinates. */
 const toBoard = (anchor, size, x, y) => [
   anchor.cx + (x - 0.5) * size,
@@ -215,13 +219,19 @@ export function createFairPlay(viewOf) {
 
     const models = [...new Set(car.map((c) => c.model))];
 
-    // The fairness cost of asking for one of the shapes on this board. A copy of the
-    // target must show the tell that holds it apart from its nearest twin, or it cannot
-    // be told from one; a twin of the target that shows enough to be clicked must show the
-    // tell that gives it away, or it reads as the target and punishes the honest click.
-    const costFor = (target) => {
-      let cost = 0;
+    // The faults asking for one shape carries on this board, sorted by how each is mended.
+    // A copy of the target showing too little to click is buried -- the round cannot be won
+    // until it is gone -- and a buried copy showing nothing at all can be lifted off the
+    // board without changing a pixel. A copy that shows enough but hides the tell that holds
+    // it apart from a twin is unread. A twin of the target that is clickable yet shows no
+    // tell of its own reads as the target, an unfair click. The tells are read once here.
+    const faultsFor = (target) => {
+      const buried = [];   // a target copy showing nothing -- invisible, free to lift off
+      const dim = [];      // a target copy showing only a sliver -- too little to find
+      const unread = [];   // a target copy clickable but tell-hidden -- taken for a twin
+      const decoy = [];    // a twin of the target reading as the target -- an unfair click
       for (let i = 0; i < n; i++) {
+        const shown = bits(vis[i]);
         if (car[i].model === target) {
           let tell = 0;
           let twinned = false;
@@ -230,8 +240,9 @@ export function createFairPlay(viewOf) {
             const cmp = pairFor(anchors[i].slot, anchors[k].slot);
             if (cmp.iou >= TWIN_IOU) { tell |= cmp.tell; twinned = true; }
           }
-          if (!clickable(bits(vis[i]), car[i].count)) cost += COST.hidden;
-          else if (twinned && (vis[i] & tell) === 0) cost += COST.unread;
+          if (shown === 0) buried.push(i);
+          else if (!clickable(shown, car[i].count)) dim.push(i);
+          else if (twinned && (vis[i] & tell) === 0) unread.push(i);
         } else {
           let tell = 0;
           let twin = false;
@@ -240,21 +251,55 @@ export function createFairPlay(viewOf) {
             const cmp = pairFor(anchors[i].slot, anchors[k].slot);
             if (cmp.iou >= TWIN_IOU) { tell |= cmp.tell; twin = true; }
           }
-          if (twin && clickable(bits(vis[i]), car[i].count) && (vis[i] & tell) === 0) {
-            cost += COST.decoy;
-          }
+          if (twin && clickable(shown, car[i].count) && (vis[i] & tell) === 0) decoy.push(i);
         }
       }
-      return cost;
+      return { buried, dim, unread, decoy };
     };
 
-    return { models, costFor };
+    const costFor = (target) => {
+      const f = faultsFor(target);
+      return COST.hidden * (f.buried.length + f.dim.length)
+        + COST.unread * f.unread.length + COST.decoy * f.decoy.length;
+    };
+
+    return { models, costFor, faultsFor };
+  };
+
+  // The fairest ask on an assessed board: the least unfair, keeping a preferred ask when it
+  // is among the fairest so the board's own variety stands, ties broken by the seed.
+  const pickTarget = (assessed, rng, prefer) => {
+    let best = [];
+    let low = Infinity;
+    for (const target of assessed.models) {
+      const cost = assessed.costFor(target);
+      if (cost < low) { low = cost; best = [target]; } else if (cost === low) best.push(target);
+    }
+    return best.includes(prefer) ? prefer : best[Math.floor(rng() * best.length)];
+  };
+
+  // The angle to ask a target at: one no copy on the board is wearing, so the prompt has to
+  // be recognised rather than matched. None spare gives null, and the caller falls back.
+  const askAngle = (laid, target, anglesOf, rng) => {
+    const here = new Set(laid.filter((a) => a.slot.model === target).map((a) => a.slot.angle));
+    const spare = anglesOf(target).filter((a) => !here.has(a));
+    return spare.length ? spare[Math.floor(rng() * spare.length)] : null;
   };
 
   return {
     /** The fairness cost of asking for `target` on this board, in its own draw order. 0 is fair. */
     judge(anchors, target, span) {
       return assess(anchors, span).costFor(target);
+    },
+
+    /**
+     * The faults asking for `target` carries on this board, as anchor indices by kind:
+     * `buried` (a copy showing nothing), `dim` (a copy showing too little to find),
+     * `unread` (a copy taken for a twin), `decoy` (a twin reading as the target). Lifting
+     * the buried and dim copies off the board wins back a board a churn would have redealt.
+     */
+    faults(anchors, target, span) {
+      return assess(anchors, span).faultsFor(target);
     },
 
     /**
@@ -270,17 +315,50 @@ export function createFairPlay(viewOf) {
      */
     choose(anchors, anglesOf, span, seed, prefer = null) {
       const rng = mulberry32((seed ^ 0x9e3779b9) >>> 0);
-      const { models, costFor } = assess(anchors, span);
-      let best = [];
-      let low = Infinity;
-      for (const target of models) {
-        const cost = costFor(target);
-        if (cost < low) { low = cost; best = [target]; } else if (cost === low) best.push(target);
+      const assessed = assess(anchors, span);
+      const target = pickTarget(assessed, rng, prefer);
+      return { target, askedAt: askAngle(anchors, target, anglesOf, rng), cost: assessed.costFor(target) };
+    },
+
+    /**
+     * A fair board from this one, by lifting off its few offending shapes rather than
+     * dealing a whole new one.
+     *
+     * The fairest ask is chosen, then the shapes that make it unfair are removed: a buried
+     * or half-shown copy of the target, a copy taken for a twin, a twin that reads as the
+     * target. Removing a shape only reveals what was under it, so it makes no new fault --
+     * the board is re-read after a lift and settles in a pass or two. A board with more
+     * faults than the cap, or one that would lose its last target copy, is handed back
+     * unmended for the caller to deal again. Most boards mend in one lift or were fair.
+     *
+     * @param {string} [prefer] - the ask to keep if it reads as fairly as any other
+     * @returns {{ anchors, target, askedAt, cost, removed }}
+     */
+    mend(anchors, anglesOf, span, seed, prefer = null) {
+      const rng = mulberry32((seed ^ 0x9e3779b9) >>> 0);
+      let laid = anchors;
+      let assessed = assess(laid, span);
+      const target = pickTarget(assessed, rng, prefer);
+      let removed = 0;
+      for (let pass = 0; pass < 3; pass++) {
+        const f = assessed.faultsFor(target);
+        const lift = [...f.buried, ...f.dim, ...f.unread, ...f.decoy];
+        if (!lift.length) break;
+        const copiesLost = f.buried.length + f.dim.length + f.unread.length;
+        const copiesLeft = laid.reduce((k, a) => k + (a.slot.model === target ? 1 : 0), 0) - copiesLost;
+        if (lift.length > MEND_CAP || copiesLeft < 1) break;   // too tangled -- deal again
+        const drop = new Set(lift);
+        laid = laid.filter((_, i) => !drop.has(i));
+        removed += lift.length;
+        assessed = assess(laid, span);   // re-read only after an actual lift
       }
-      const target = best.includes(prefer) ? prefer : best[Math.floor(rng() * best.length)];
-      const here = new Set(anchors.filter((a) => a.slot.model === target).map((a) => a.slot.angle));
-      const spare = anglesOf(target).filter((a) => !here.has(a));
-      return { target, askedAt: spare.length ? spare[Math.floor(rng() * spare.length)] : null, cost: low };
+      return {
+        anchors: laid,
+        target,
+        askedAt: askAngle(laid, target, anglesOf, rng),
+        cost: assessed.costFor(target),
+        removed,
+      };
     },
   };
 }
