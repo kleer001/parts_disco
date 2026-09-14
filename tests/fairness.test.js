@@ -83,6 +83,16 @@ test('faults name the offending shapes: a buried copy, a decoy twin', () => {
   assert.equal(decoy.decoy.length, 1);
 });
 
+test('trim lifts off every shape too covered to read', () => {
+  const fair = createFairPlay(viewOf);
+  // A clear corner, and two full shapes stacked exactly: the lower one shows nothing.
+  const board = [at('corner', 700, 200), at('full', 300, 300), at('full', 300, 300)];
+  const out = fair.trim(board, SPAN);
+  assert.ok(out.length < board.length, 'the buried copy should be lifted off');
+  // Order is kept, and every survivor now reads -- a second pass lifts nothing more.
+  assert.equal(fair.trim(out, SPAN).length, out.length);
+});
+
 test('mend lifts the offenders off and hands back a fair board', () => {
   const fair = createFairPlay(viewOf);
   // Two clear corners to ask for, and a full with two buried copies that would otherwise

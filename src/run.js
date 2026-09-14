@@ -107,19 +107,19 @@ export function createRun(place, atlas, seed) {
       const { dealt, anchors: laid } = throwYard(draw);
       picked = { anchors: laid, target: dealt.target, askedAt: dealt.askedAt };
     } else {
-      // A silhouette board hides the inner lines a shape is otherwise known by, so it can
-      // bury the target past finding or wear a decoy into the target's own outline. Once the
-      // fairest ask is chosen almost every board is fair; the few that are not are mended by
-      // lifting their one or two offending shapes off -- a buried copy shows nothing, so it
-      // leaves without a trace -- rather than dealing the whole yard again. A board too
-      // tangled to mend within the cap is dealt afresh, the least unfair kept when none comes
-      // clean, so a stage always deals.
+      // A silhouette board is known by outline alone, so a shape too covered to read is one
+      // the player can neither find nor rule out. `trim` lifts those off first, leaving a
+      // board where every shape shows enough of itself -- the overlap that gives the
+      // full-detail stages their depth cannot stand here. On that readable board nothing is
+      // buried, so `mend` has only to settle the ask on a target no readable twin can be
+      // taken for; the few boards with no such target are dealt afresh, the least unfair kept
+      // when none comes clean, so a stage always deals.
       const anglesFor = (m) => atlas.anglesOf(gid, m);
       let best = null;
       for (let k = 0; k < FAIR_DEALS; k++) {
         const at = draw + k * STRIDE.far;
         const { dealt, anchors: laid } = throwYard(at);
-        const mended = fair.mend(laid, anglesFor, span, at, dealt.target);
+        const mended = fair.mend(fair.trim(laid, span), anglesFor, span, at, dealt.target);
         if (!best || mended.cost < best.cost) best = mended;
         if (mended.cost === 0) break;
       }
