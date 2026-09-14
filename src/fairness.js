@@ -26,15 +26,14 @@ import { contains } from './geometry.js';
 /** How much of two outlines must coincide before one can be mistaken for the other. */
 const TWIN_IOU = 0.55;
 
-/** How finely a silhouette is filled to sample its body -- rows and columns. Fine enough
- *  that a thin shape, whose interior a coarse grid slips between, still fills a run of cells
- *  on every row it crosses. */
+/** How many rows the fill scans a silhouette at. Fine enough that a thin shape, whose
+ *  interior a coarse grid slips between, still crosses a row and lands a sample. */
 const SAMPLE_RES = 48;
 
-/** The fill is reduced to one sample per cell of a grid this many on a side over the shape,
- *  so a shape stands for itself by evenly-spread samples -- fine enough that how much of it a
- *  cover hides tracks its area, capped so the set fits the two-lane mask. */
-const SAMPLE_CELLS = 7;
+/** One sample is kept per cell of a grid this many on a side over the shape, so a shape
+ *  stands for itself by evenly-spread samples -- fine enough that how much of it a cover
+ *  hides tracks its area, few enough that the set is one bit per cell in a single mask. */
+const SAMPLE_CELLS = 5;
 
 /** A coarser grid, for the area overlap that decides whether two shapes are twins. */
 const IOU_GRID = 12;
@@ -79,37 +78,42 @@ function inSilhouette(silhouette, x, y) {
   return inside;
 }
 
-/** popcount for one 30-bit lane. */
-function bits(lane) {
+/** popcount of a sample mask, at most one bit per grid cell. */
+function bits(mask) {
   let n = 0;
-  for (let m = lane; m; m &= m - 1) n++;
+  for (let m = mask; m; m &= m - 1) n++;
   return n;
 }
 
-// A set of sample bits as two 30-bit lanes, so a shape can carry more samples than one
-// number holds bits -- enough that how many a cover hides tracks how much area it takes.
-// Each helper is the plain bit op it is named for, on the pair.
-const LANE = 30;
-const emptyMask = () => [0, 0];
-const copyMask = (m) => [m[0], m[1]];
-const setBit = (m, k) => { if (k < LANE) m[0] |= 1 << k; else m[1] |= 1 << (k - LANE); };
-const orMask = (m, o) => { m[0] |= o[0]; m[1] |= o[1]; };          // m |= o
-const clearMask = (m, o) => { m[0] &= ~o[0]; m[1] &= ~o[1]; };     // m &= ~o
-const countMask = (m) => bits(m[0]) + bits(m[1]);
-const anyMask = (m) => m[0] !== 0 || m[1] !== 0;
-const meetMask = (a, b) => (a[0] & b[0]) !== 0 || (a[1] & b[1]) !== 0;   // a & b is non-empty
-const fullMask = (count) => [(2 ** Math.min(count, LANE)) - 1, count > LANE ? (2 ** (count - LANE)) - 1 : 0];
+/**
+ * The x's where the horizontal line at `y` crosses a silhouette's outline, sorted. Between
+ * each pair is inside the shape -- the even-odd fill both `sampleView` and `trim` read, one
+ * to place sample points across the body, the other to paint owner cells.
+ */
+function rowCrossings(silhouette, y) {
+  const xs = [];
+  for (const ring of silhouette) {
+    for (let k = 0; k < ring.length; k++) {
+      const [x0, y0] = ring[k];
+      const [x1, y1] = ring[(k + 1) % ring.length];
+      if ((y0 > y) !== (y1 > y)) xs.push(x0 + ((x1 - x0) * (y - y0)) / (y1 - y0));
+    }
+  }
+  xs.sort((a, b) => a - b);
+  return xs;
+}
 
 /**
- * Interior sample points of a view, and its outline's box, in the 0..1 frame.
+ * Interior sample points of a view, spread over a grid across its body, and its outline's
+ * box, in the 0..1 frame.
  *
- * The silhouette is filled by scanlines: on each row the ranges between the outline's
- * crossings are inside it, and every cell a range touches is taken as a sample. Filling by
- * range rather than testing a grid of points is what carries a thin shape -- a fork on its
- * side, no wider than a hair at some angles -- which slips between the points of any grid
- * but still fills a cell on each row it crosses. The samples are interior, so how many a
- * neighbour hides is how much of the shape's body it covers, with no edge-of-a-cover point
- * to read as neither in nor out. Capped to one 31-bit mask, thinned evenly across the fill.
+ * The silhouette is filled by scanlines -- the ranges between the outline's crossings on
+ * each row are inside it -- and one point is kept per cell of a grid over the shape. Filling
+ * by range carries a thin shape, a fork on its side no wider than a hair at some angles,
+ * that slips between the points of a plain grid; keeping one point per grid cell spreads the
+ * samples over the body, so how many a neighbour hides tracks how much of its area it takes.
+ * The points are interior, never on a cover's edge to read as neither in nor out, and one
+ * per cell of a small grid, so the set fits one mask.
  */
 function sampleView(view) {
   const { silhouette } = view;
@@ -125,40 +129,27 @@ function sampleView(view) {
       if (y > maxY) maxY = y;
     }
   }
-  const filled = [];
-  for (let r = 0; r < SAMPLE_RES; r++) {
-    const y = (r + 0.5) / SAMPLE_RES;
-    const crossings = [];
-    for (const ring of silhouette) {
-      for (let k = 0; k < ring.length; k++) {
-        const [x0, y0] = ring[k];
-        const [x1, y1] = ring[(k + 1) % ring.length];
-        if ((y0 > y) !== (y1 > y)) crossings.push(x0 + ((x1 - x0) * (y - y0)) / (y1 - y0));
-      }
-    }
-    crossings.sort((a, b) => a - b);
-    // Between each pair of crossings is inside the shape. Spread points evenly within the
-    // range -- always strictly inside it, never on a cover's edge -- one at the midpoint when
-    // the range is thinner than a cell, so a hairline stretch still stands for the shape.
-    for (let p = 0; p + 1 < crossings.length; p += 2) {
-      const xa = crossings[p];
-      const xb = crossings[p + 1];
-      const count = Math.max(1, Math.round((xb - xa) * SAMPLE_RES));
-      for (let m = 0; m < count; m++) filled.push([xa + ((m + 0.5) / count) * (xb - xa), y]);
-    }
-  }
-  // Reduce the fill to one sample per cell of a coarse grid over the shape, so the samples
-  // are spread across its body rather than picked by a stride through the fill's row order.
-  // That stride lines up with a covered region often enough to miss it whole; a grid loses
-  // samples to a cover in proportion to the area it takes, which is what visibility is.
   const spanX = (maxX - minX) || 1;
   const spanY = (maxY - minY) || 1;
+  const cellOf = (v, lo, span) => Math.min(SAMPLE_CELLS - 1, Math.floor(((v - lo) / span) * SAMPLE_CELLS));
   const chosen = new Map();
-  for (const [x, y] of filled) {
-    const gx = Math.min(SAMPLE_CELLS - 1, Math.floor(((x - minX) / spanX) * SAMPLE_CELLS));
-    const gy = Math.min(SAMPLE_CELLS - 1, Math.floor(((y - minY) / spanY) * SAMPLE_CELLS));
-    const key = gy * SAMPLE_CELLS + gx;
-    if (!chosen.has(key)) chosen.set(key, [x, y]);
+  for (let r = 0; r < SAMPLE_RES; r++) {
+    const y = (r + 0.5) / SAMPLE_RES;
+    const gy = cellOf(y, minY, spanY);
+    const xs = rowCrossings(silhouette, y);
+    for (let p = 0; p + 1 < xs.length; p += 2) {
+      // A point per cell the range reaches, each strictly inside it -- one at the midpoint
+      // when the range is thinner than a cell, so a hairline stretch still stands for the
+      // shape. The first point to land in a cell keeps it, spreading the set over the body.
+      const xa = xs[p];
+      const xb = xs[p + 1];
+      const count = Math.max(1, Math.ceil(((xb - xa) / spanX) * SAMPLE_CELLS));
+      for (let m = 0; m < count; m++) {
+        const x = xa + ((m + 0.5) / count) * (xb - xa);
+        const key = gy * SAMPLE_CELLS + cellOf(x, minX, spanX);
+        if (!chosen.has(key)) chosen.set(key, [x, y]);
+      }
+    }
   }
   const samples = chosen.size ? [...chosen.values()]
     : (silhouette.length ? [silhouette[0][0]] : []);
@@ -187,9 +178,9 @@ function compare(a, b) {
       if (inA && inB) both++;
     }
   }
-  const tell = emptyMask();
+  let tell = 0;
   a.samples.forEach(([x, y], k) => {
-    if (!inSilhouette(b.silhouette, x, y)) setBit(tell, k);
+    if (!inSilhouette(b.silhouette, x, y)) tell |= (1 << k);
   });
   return { iou: either ? both / either : 0, tell };
 }
@@ -245,7 +236,7 @@ export function createFairPlay(viewOf) {
     // Which later, nearer neighbours cover which of a shape's samples, worked out once. The
     // draw order is the array order, so a neighbour is nearer when its index is greater,
     // exactly as `pick` walks the pile. From it, how much of each shape shows.
-    const full = car.map((c) => fullMask(c.count));
+    const full = car.map((c) => (2 ** c.count) - 1);
     const overlap = (i, j) => !(car[i].box.maxX < car[j].box.minX || car[j].box.maxX < car[i].box.minX
       || car[i].box.maxY < car[j].box.minY || car[j].box.maxY < car[i].box.minY);
     const cover = Array.from({ length: n }, () => []);
@@ -255,24 +246,23 @@ export function createFairPlay(viewOf) {
         const a = anchors[i];
         const b = anchors[j];
         const sj = size(j);
-        const mask = emptyMask();
+        let mask = 0;
         car[i].data.samples.forEach(([x, y], k) => {
           const [bx, by] = toBoard(a, size(i), x, y);
           if (inSilhouette(car[j].data.silhouette, (bx - b.cx) / sj + 0.5, (by - b.cy) / sj + 0.5)) {
-            setBit(mask, k);
+            mask |= (1 << k);
           }
         });
-        if (anyMask(mask)) cover[i].push({ j, mask });
+        if (mask) cover[i].push({ j, mask });
       }
     }
     // What each shape shows of itself on the full board, and how much of it -- read once by
     // `faultsFor` for every candidate ask.
-    const vis = full.map((f, i) => {
-      const seen = copyMask(f);
-      for (const { mask } of cover[i]) clearMask(seen, mask);
+    const vis = full.map((seen, i) => {
+      for (const { mask } of cover[i]) seen &= ~mask;
       return seen;
     });
-    const shown = vis.map(countMask);
+    const shown = vis.map(bits);
 
     const models = [...new Set(car.map((c) => c.model))];
 
@@ -280,12 +270,12 @@ export function createFairPlay(viewOf) {
     // and their combined tell. `matchTarget` picks the side: a copy of the target is read
     // against the other models, a decoy against the target's own copies.
     const twinTell = (i, target, matchTarget) => {
-      const tell = emptyMask();
+      let tell = 0;
       let twinned = false;
       for (let k = 0; k < n; k++) {
         if ((car[k].model === target) !== matchTarget) continue;
         const cmp = pairFor(anchors[i].slot, anchors[k].slot);
-        if (cmp.iou >= TWIN_IOU) { orMask(tell, cmp.tell); twinned = true; }
+        if (cmp.iou >= TWIN_IOU) { tell |= cmp.tell; twinned = true; }
       }
       return { tell, twinned };
     };
@@ -310,10 +300,10 @@ export function createFairPlay(viewOf) {
           const { tell, twinned } = twinTell(i, target, false);
           if (shown[i] === 0) buried.push(i);
           else if (!clickable(shown[i], car[i].count)) dim.push(i);
-          else if (twinned && !meetMask(vis[i], tell)) unread.push(i);
+          else if (twinned && (vis[i] & tell) === 0) unread.push(i);
         } else {
           const { tell, twinned } = twinTell(i, target, true);
-          if (twinned && clickable(shown[i], car[i].count) && !meetMask(vis[i], tell)) decoy.push(i);
+          if (twinned && clickable(shown[i], car[i].count) && (vis[i] & tell) === 0) decoy.push(i);
         }
       }
       const faults = { buried, dim, unread, decoy };
@@ -381,74 +371,77 @@ export function createFairPlay(viewOf) {
       const box = anchors.map((a, i) => {
         const s = size(i);
         const e = data[i].ext;
-        const b = { x0: a.cx + (e.minX - 0.5) * s, x1: a.cx + (e.maxX - 0.5) * s,
-                    y0: a.cy + (e.minY - 0.5) * s, y1: a.cy + (e.maxY - 0.5) * s };
-        if (b.x0 < x0) x0 = b.x0;
-        if (b.x1 > x1) x1 = b.x1;
-        if (b.y0 < y0) y0 = b.y0;
-        if (b.y1 > y1) y1 = b.y1;
-        return b;
+        const [bx0, by0] = toBoard(a, s, e.minX, e.minY);
+        const [bx1, by1] = toBoard(a, s, e.maxX, e.maxY);
+        if (bx0 < x0) x0 = bx0;
+        if (bx1 > x1) x1 = bx1;
+        if (by0 < y0) y0 = by0;
+        if (by1 > y1) y1 = by1;
+        return { x0: bx0, x1: bx1, y0: by0, y1: by1 };
       });
       const cell = (x1 - x0) / TRIM_RES || 1;
       const w = TRIM_RES;
       const h = Math.max(1, Math.ceil((y1 - y0) / cell));
-      const owner = new Int32Array(w * h);
-      const total = new Int32Array(n);
-      const visible = new Int32Array(n);
 
-      // Fill every present shape into the grid, later over earlier as the board is drawn, and
-      // count both the cells each shape covers and the cells it keeps as topmost. A shape's
-      // share shown is the ratio -- an exact area, since every cell it fills is counted.
-      const measure = (present) => {
-        owner.fill(-1);
-        total.fill(0);
-        for (let i = 0; i < n; i++) {
-          if (!present[i]) continue;
-          const a = anchors[i];
-          const s = size(i);
-          const ry0 = Math.max(0, Math.floor((box[i].y0 - y0) / cell));
-          const ry1 = Math.min(h - 1, Math.floor((box[i].y1 - y0) / cell));
-          for (let ry = ry0; ry <= ry1; ry++) {
-            const ly = ((y0 + (ry + 0.5) * cell) - a.cy) / s + 0.5;
-            const xs = [];
-            for (const ring of data[i].silhouette) {
-              for (let k = 0; k < ring.length; k++) {
-                const [lx0, lyy0] = ring[k];
-                const [lx1, lyy1] = ring[(k + 1) % ring.length];
-                if ((lyy0 > ly) !== (lyy1 > ly)) xs.push(lx0 + ((lx1 - lx0) * (ly - lyy0)) / (lyy1 - lyy0));
-              }
-            }
-            xs.sort((p, q) => p - q);
-            for (let p = 0; p + 1 < xs.length; p += 2) {
-              const from = Math.max(0, Math.floor((a.cx + (xs[p] - 0.5) * s - x0) / cell));
-              const to = Math.min(w - 1, Math.floor((a.cx + (xs[p + 1] - 0.5) * s - x0) / cell));
-              for (let cx = from; cx <= to; cx++) { owner[ry * w + cx] = i; total[i]++; }
-            }
+      // Each shape's cells and its full footprint, worked out once: they are fixed for the
+      // whole trim, only which shapes are present changes. A run is `[row, from, to]` packed
+      // flat, three numbers a stretch, so a pass paints from it without touching the outline.
+      const runs = [];
+      const total = new Int32Array(n);
+      for (let i = 0; i < n; i++) {
+        const a = anchors[i];
+        const s = size(i);
+        const run = [];
+        const ry0 = Math.max(0, Math.floor((box[i].y0 - y0) / cell));
+        const ry1 = Math.min(h - 1, Math.floor((box[i].y1 - y0) / cell));
+        for (let ry = ry0; ry <= ry1; ry++) {
+          const ly = ((y0 + (ry + 0.5) * cell) - a.cy) / s + 0.5;
+          const xs = rowCrossings(data[i].silhouette, ly);
+          for (let p = 0; p + 1 < xs.length; p += 2) {
+            const from = Math.max(0, Math.floor((a.cx + (xs[p] - 0.5) * s - x0) / cell));
+            const to = Math.min(w - 1, Math.floor((a.cx + (xs[p + 1] - 0.5) * s - x0) / cell));
+            if (to < from) continue;
+            run.push(ry, from, to);
+            total[i] += to - from + 1;
           }
         }
-        // Only what falls on the board counts as shown. A shape run off an edge is as good as
-        // covered there -- the player never sees that part -- so its off-board cells, though it
-        // is the topmost shape in them, are left out. Given no field, the whole grid counts.
-        visible.fill(0);
-        const cxLo = field ? Math.max(0, Math.ceil((0 - x0) / cell - 0.5)) : 0;
-        const cxHi = field ? Math.min(w - 1, Math.floor((field.width - x0) / cell - 0.5)) : w - 1;
-        const ryLo = field ? Math.max(0, Math.ceil((0 - y0) / cell - 0.5)) : 0;
-        const ryHi = field ? Math.min(h - 1, Math.floor((field.height - y0) / cell - 0.5)) : h - 1;
-        for (let ry = ryLo; ry <= ryHi; ry++) {
-          for (let cx = cxLo; cx <= cxHi; cx++) {
-            const o = owner[ry * w + cx];
-            if (o >= 0) visible[o]++;
-          }
-        }
-      };
+        runs.push(run);
+      }
+
+      // What falls on the board. A shape run off an edge is as good as covered there -- the
+      // player never sees that part -- so its off-board cells, though it is the topmost shape
+      // in them, do not count as shown. Given no field, the whole grid counts.
+      const cxLo = field ? Math.max(0, Math.ceil((0 - x0) / cell - 0.5)) : 0;
+      const cxHi = field ? Math.min(w - 1, Math.floor((field.width - x0) / cell - 0.5)) : w - 1;
+      const ryLo = field ? Math.max(0, Math.ceil((0 - y0) / cell - 0.5)) : 0;
+      const ryHi = field ? Math.min(h - 1, Math.floor((field.height - y0) / cell - 0.5)) : h - 1;
 
       // Lift off every shape under the bar, then read the board again: removing a shape only
       // uncovers what was under it, so a shape that was just short may clear the bar once its
-      // cover goes, and none is ever pushed under. A few passes settle it, far fewer reads
-      // than lifting one shape at a time, and every survivor ends over the bar.
+      // cover goes, and none is ever pushed under. A pass paints the present shapes' cells --
+      // later over earlier, as they are drawn -- counts each shape's on-board topmost cells,
+      // and lifts those showing too few. A few passes settle it, and every survivor clears.
+      const owner = new Int32Array(w * h);
+      const visible = new Int32Array(n);
       const present = new Uint8Array(n).fill(1);
       for (;;) {
-        measure(present);
+        owner.fill(-1);
+        for (let i = 0; i < n; i++) {
+          if (!present[i]) continue;
+          const run = runs[i];
+          for (let q = 0; q < run.length; q += 3) {
+            const base = run[q] * w;
+            for (let cx = run[q + 1]; cx <= run[q + 2]; cx++) owner[base + cx] = i;
+          }
+        }
+        visible.fill(0);
+        for (let ry = ryLo; ry <= ryHi; ry++) {
+          const base = ry * w;
+          for (let cx = cxLo; cx <= cxHi; cx++) {
+            const o = owner[base + cx];
+            if (o >= 0) visible[o]++;
+          }
+        }
         let lifted = false;
         for (let i = 0; i < n; i++) {
           if (present[i] && total[i] && visible[i] / total[i] < READABLE) { present[i] = 0; lifted = true; }
