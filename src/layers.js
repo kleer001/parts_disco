@@ -350,6 +350,12 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
       const won = round.winning(at);
       const burn = Math.max(0, (won - BURN_OUT) / (1 - BURN_OUT));
 
+      // A silhouette stage keeps only the outline -- the shape's own edge, not the inner
+      // lines that name it. The edge is still inked, so shapes stay separate even at one
+      // colour, where a fill alone would merge the board into a single blob.
+      const lineOf = (slot) => (frame.level && frame.level.render === 'silhouette'
+        ? viewOf(slot).silhouette : viewOf(slot).strokes);
+
       // What the board looks like with nothing moving on it: every car in the ink the
       // map gave it, or in the one it came to rest in after being found.
       const restingOf = (region) => {
@@ -367,7 +373,7 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
       const stroke = () => {
         inkStroke(ctx);
         for (const anchor of standing) {
-          for (const points of viewOf(anchor.slot).strokes) {
+          for (const points of lineOf(anchor.slot)) {
             ring(ctx, anchor, points, span);
             ctx.stroke();
           }
@@ -511,6 +517,7 @@ export function createFindLayer(viewOf, settings = () => TUNING) {
       const s = settings();
       const { standing, span, round, at, plan } = frame;
       if (round.winning(at) > 0) return;
+      const sil = frame.level && frame.level.render === 'silhouette';
 
       // Rank is the order this one was found in, which is what the escalation reads.
       // A Map keeps insertion order and finds are inserted as they happen, so the
@@ -531,6 +538,7 @@ export function createFindLayer(viewOf, settings = () => TUNING) {
         // on the board's own answer instead of changing colour once more after it.
         drawView(ctx, anchor, view, span, {
           fill: pulse.lit ? SEMANTIC.found.loud : SETTLED,
+          strokes: sil ? view.silhouette : undefined,
           scale: pulse.scale, dx: pulse.dx, dy: pulse.dy,
         });
       }
@@ -557,6 +565,7 @@ export function createRefuseLayer(viewOf, settings = () => TUNING) {
       const s = settings();
       const { standing, span, round, at } = frame;
       if (round.winning(at) > 0) return;
+      const sil = frame.level && frame.level.render === 'silhouette';
 
       const alive = s.refuseMs / 1000;
       for (const [region, when] of round.refused) {
@@ -570,7 +579,7 @@ export function createRefuseLayer(viewOf, settings = () => TUNING) {
         const view = viewOf(anchor.slot);
         ctx.save();
         ctx.globalAlpha = wash.alpha;
-        drawView(ctx, anchor, view, span, { fill: REFUSED });
+        drawView(ctx, anchor, view, span, { fill: REFUSED, strokes: sil ? view.silhouette : undefined });
         ctx.restore();
       }
     },

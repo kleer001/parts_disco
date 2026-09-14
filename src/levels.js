@@ -1,21 +1,24 @@
-// The difficulty path. Data, not logic: every stage is the same game with four
+// The difficulty path. Data, not logic: every stage is the same game with a few
 // numbers changed, and the numbers are the whole of the design.
 //
-// Four things can be made harder, and they are hard in different ways:
+// What can be made harder, each in its own way:
 //
-//   fleet  WHICH vehicles are on the board. The strongest of the four by a long way.
-//          A tractor is found instantly however many cars surround it; a taxi is hard
-//          on an empty board, because three other bodies are the same shell.
+//   tier   WHICH members are on the board. LOUD carries its own silhouette; PLAIN is
+//          nearer its neighbours. (TWINS -- four bodies of one shell -- are retired from
+//          the path: they can only be told apart by inner detail, which the silhouette
+//          half below takes away, so they have no fair place here.)
 //   cars   HOW MANY there are. More to look at, and more burying each other.
-//   size   HOW BIG each one is. Smaller is harder twice over -- less of the detail
-//          that tells two shells apart, and more cars fitting on the field.
+//   size   HOW BIG each one is. Smaller is harder twice over -- less of the detail that
+//          tells two shells apart, and more of them fitting on the field.
 //   inks   HOW MANY COLOURS the board is painted in. Above five, every two touching
 //          regions get a different one and the board reads as separate objects. Below
-//          that they start sharing, and a car begins to merge into what it lies on.
+//          that they start sharing, and a shape begins to merge into what it lies on.
+//   render FULL keeps every inner line; SILHOUETTE keeps only the outline, so a shape
+//          has to be known by its edge alone. The back half of the path is the front
+//          half in silhouette: the same sets, learnt in detail, then seen in the dark.
 //
 // Four stages to a level, and a level is one idea about what is hard. Within a level
-// the numbers tighten; between levels the idea changes. A stage that got harder can
-// then say what got harder, which a single climbing number never can.
+// the numbers tighten; between levels the idea changes.
 
 /** How many stages make a level. */
 export const STAGES = 4;
@@ -41,12 +44,13 @@ export const TIERS = {
  * The path, in order. Sixteen stages: four levels of four.
  *
  * A stage names the tiers it draws from, not the models: which tiers is the difficulty,
- * and the board's group fills them in with its own loud / plain / twins.
+ * and the board's group fills them in with its own loud / plain. A stage may also ask to
+ * be drawn in silhouette, which is what carries the back half.
  *
- * Level 1 -- four kinds that look nothing like each other, and room to breathe.
- * Level 2 -- eight kinds and a filling board; the work becomes searching.
- * Level 3 -- the near-twins arrive, and the colours begin to run out.
- * Level 4 -- twins only, small, and finally a board painted in one ink.
+ * Level 1 -- loud, in full detail: four kinds that look nothing like each other.
+ * Level 2 -- loud and plain, still in detail: eight kinds, the work becomes searching.
+ * Level 3 -- the loud set again, now as bare silhouettes; the colours begin to run out.
+ * Level 4 -- loud and plain in silhouette, small, the palette collapsing toward one ink.
  */
 export const PATH = [
   { cars: 10, size: 0.44, inks: 6, tiers: ['loud'] },
@@ -59,15 +63,15 @@ export const PATH = [
   { cars: 40, size: 0.32, inks: 5, tiers: ['loud', 'plain'] },
   { cars: 46, size: 0.31, inks: 5, tiers: ['loud', 'plain'] },
 
-  { cars: 52, size: 0.30, inks: 5, tiers: ['loud', 'plain', 'twins'] },
-  { cars: 60, size: 0.29, inks: 4, tiers: ['loud', 'plain', 'twins'] },
-  { cars: 68, size: 0.28, inks: 4, tiers: ['plain', 'twins'] },
-  { cars: 76, size: 0.26, inks: 4, tiers: ['plain', 'twins'] },
+  { cars: 52, size: 0.30, inks: 5, tiers: ['loud'], render: 'silhouette' },
+  { cars: 60, size: 0.29, inks: 4, tiers: ['loud'], render: 'silhouette' },
+  { cars: 68, size: 0.28, inks: 4, tiers: ['loud'], render: 'silhouette' },
+  { cars: 76, size: 0.26, inks: 4, tiers: ['loud'], render: 'silhouette' },
 
-  { cars: 84, size: 0.24, inks: 3, tiers: ['plain', 'twins'] },
-  { cars: 96, size: 0.22, inks: 3, tiers: ['twins'] },
-  { cars: 108, size: 0.20, inks: 2, tiers: ['twins'] },
-  { cars: 120, size: 0.19, inks: 1, tiers: ['twins'] },
+  { cars: 84, size: 0.24, inks: 3, tiers: ['loud', 'plain'], render: 'silhouette' },
+  { cars: 96, size: 0.22, inks: 3, tiers: ['loud', 'plain'], render: 'silhouette' },
+  { cars: 108, size: 0.20, inks: 2, tiers: ['loud', 'plain'], render: 'silhouette' },
+  { cars: 120, size: 0.19, inks: 1, tiers: ['loud', 'plain'], render: 'silhouette' },
 ];
 
 /** The models a tier selection names, in the fleet -- the default when no group is given. */
