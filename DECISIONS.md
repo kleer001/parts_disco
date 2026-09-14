@@ -311,6 +311,11 @@ it went; it is never a reason to refuse a change he asks for.
   REJECTED: filling each ring on its own path — a hole ring then fills in as another
   shape. REJECTED: leaving holes untraced — a model with a gap is drawn solid and
   hit-tested solid, which is a lie the board tells about its own art.
+- **The camera frame is measured per model, by projecting its vertices at every angle.**
+  REJECTED: framing off the longest bounding-box side padded by a constant — it fits a
+  slim car but clips a chunky one, whose swept diagonal is wider than any one side; the
+  cube-pets overran the frame by 16%, so their prompt renders baked clipped. Threaded:
+  `render_views.py` `frame_camera`.
 
 ## Simulation
 

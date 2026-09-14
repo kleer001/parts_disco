@@ -75,9 +75,9 @@ DEFAULTS = {
     "angles": 8,
     "elevation": 18.0,
     "resolution": 512,
-    # Padding around the model's bounding sphere, as a fraction. Enough that a long
-    # truck at three-quarter view does not clip its own corners.
-    "fit": 1.15,
+    # A hair of margin around the model's swept extent, so no stroke lands on the frame
+    # edge. The frame itself is measured from geometry, not padded by a guess.
+    "margin": 1.05,
 }
 
 
@@ -135,14 +135,39 @@ def normalize(model):
     bpy.ops.object.transform_apply(location=True)
     model.scale = (2.0 / longest,) * 3
     bpy.ops.object.transform_apply(scale=True)
-    return max((2.0 / longest) * s for s in span)
 
 
-def setup_camera(fit_span):
-    """An orthographic camera aimed at the origin, framed to hold the model."""
+def frame_camera(model, camera, scene, angles, elevation_deg):
+    """Set the ortho frame from the model's own projection, so no angle clips.
+
+    Framing by the longest bounding-box side instead -- padded by a guess -- fits a slim
+    car but clips a chunky model, whose swept diagonal is wider than any one side. A shape
+    could be measured by hand, but the elevation tilt and the camera's own roll both feed
+    the projection, and reproducing them is exactly what world_to_camera_view already does.
+
+    So the model's vertices are projected through the camera at every azimuth the bake
+    walks, and the frame is set to the widest deviation from centre that any of them
+    reaches. It is the same projection the strokes come from, so what fits here fits there.
+    """
+    to_world = model.matrix_world
+    reach = 0.0
+    for i in range(angles):
+        place_camera(camera, i * 360.0 / angles, elevation_deg)
+        bpy.context.view_layer.update()
+        for vertex in model.data.vertices:
+            at = world_to_camera_view(scene, camera, to_world @ vertex.co)
+            reach = max(reach, abs(at.x - 0.5), abs(at.y - 0.5))
+    # `reach` is how far the widest vertex sits from centre, as a share of the current
+    # frame; a vertex on the edge is half a frame out. Scale the frame by twice that so
+    # the model just fills it, with a hair of margin so nothing lands on the edge.
+    camera.data.ortho_scale *= 2.0 * reach * DEFAULTS["margin"]
+
+
+def setup_camera():
+    """An orthographic camera aimed at the origin. `frame_camera` sizes its frame."""
     data = bpy.data.cameras.new("view")
     data.type = "ORTHO"
-    data.ortho_scale = fit_span * DEFAULTS["fit"]
+    data.ortho_scale = 2.0
     camera = bpy.data.objects.new("view", data)
     bpy.context.scene.collection.objects.link(camera)
     bpy.context.scene.camera = camera
@@ -447,9 +472,10 @@ def main(argv):
     args = parse_args(argv)
     clear_scene()
     model = import_model(args.model)
-    span = normalize(model)
+    normalize(model)
     setup_render(args.resolution)
-    camera = setup_camera(span)
+    camera = setup_camera()
+    frame_camera(model, camera, bpy.context.scene, args.angles, args.elevation)
     sun = setup_key_light()
     gp = setup_lineart()
     lineart = gp.grease_pencil_modifiers[0]

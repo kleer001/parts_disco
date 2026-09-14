@@ -1274,3 +1274,35 @@ wiring, which is worth knowing before trusting a green run on a refactor.
 **Threaded:** `face`, `tintedSlab`, `paintRegions`, `shape`, `outline` in
 `src/layers.js`; `fleetLookups` in `src/views.js`; `freshSeed` and `STRIDE` in
 `src/rng.js`.
+
+### [2026-09-14] The camera frame is fit to the model, not to a padded box
+
+The bake framed every model off its longest bounding-box side, padded 15%
+(`render_views.py`, the old `fit` constant). That fits a slim car: its longest side is
+its length, and length rotates into a frame already sized for it. It does not fit a
+chunky model. A chick's body is wide in two directions at once, so its swept diagonal
+runs wider than any one side, and the frame padded off that side clips it. The
+cube-pets overran by 16%, the glasses by 4%, the watercraft by 2%. The shaded prompt
+render bakes those overruns off the edge, so the prompt panel showed a chick with its
+wing cut away.
+
+Now `frame_camera` projects the model's own vertices through the camera at every angle
+the bake walks and sets the frame to the widest reach any of them makes, with a hair of
+margin. It is the same projection the strokes come from, so what fits the measure fits
+the drawing.
+
+**Rejected:** raising the padding constant until the animals fit. It is a guess tuned
+to one fleet — the next chunkier model overruns it again — and it pads every slim model
+with frame it does not use.
+
+**Rejected first, then dropped:** a shape measured by hand — the bounding cylinder about
+the vertical axis. It underran by 10% on the first bake: the elevation tilt and the
+camera's own roll both feed the projection, and reproducing them by trigonometry is what
+`world_to_camera_view` already does exactly. Measuring through the projection itself is
+both shorter and right.
+
+**Scope:** the whole fleet was re-baked, so every model is framed under the one rule.
+The slim vehicles that already fit come back framed a hair tighter; the footprint sizing
+that draws them is a share of silhouette area, so their board size is unmoved.
+
+**Threaded:** `frame_camera` and `setup_camera` in `tools/model_views/render_views.py`.

@@ -17,11 +17,15 @@ Writes `views/<model>/<azimuth>.json` and `views/<model>/<azimuth>.png`.
 - **Joins the model into one mesh.** Line Art draws a contour around every separate
   object, so a car assembled from a body and four wheels comes back with each wheel
   outlined straight through the bodywork.
-- **Normalizes** it to a 2-unit longest axis, centred on the origin, so one camera
-  framing serves any model and two cars' views are comparable.
+- **Normalizes** it to a 2-unit longest axis, centred on the origin, so two models'
+  views are comparable.
 - **Orbits an orthographic camera** at a shallow elevation. Orthographic because the
   board needs a view to be a function of the angle alone; under perspective the same
   car at the same angle is a different shape depending on its distance.
+- **Fits the frame to the model itself.** Before baking, the vertices are projected
+  through the camera at every angle and the frame is set to the widest reach any of
+  them makes. A frame padded off the longest bounding-box side fits a slim car but
+  clips a chunky model, whose swept diagonal is wider than any one side.
 - **Traces** each angle with a scene Line Art modifier and **projects the baked
   strokes through the camera itself**, straight to JSON.
 - **Renders** each angle shaded with the line art hidden, then **screens it down
