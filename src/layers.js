@@ -840,7 +840,43 @@ function cutGround(flat) {
  * @returns {HTMLCanvasElement} greys instead of dots, and no ground
  */
 export function promptCanvas(prompt) {
-  return cutGround(flatten(prompt));
+  return centreOnInk(cutGround(flatten(prompt)));
+}
+
+/**
+ * The render shifted so its ink sits in the middle of the frame.
+ *
+ * A view is framed on the model's rotation axis, so an angle narrower than the model's
+ * widest one leaves the object off to a side of its own frame. On the board that offset
+ * is taken out when the view is placed; the prompt draws the render straight, so without
+ * this the card carries the offset. The ink is moved to the centre of its own bounds at
+ * the same scale -- moved, not resized, so two prompts still read at the sizes the bake
+ * gave them.
+ */
+function centreOnInk(cut) {
+  const { width: w, height: h } = cut;
+  const px = cut.getContext('2d', { willReadFrequently: true })
+    .getImageData(0, 0, w, h).data;
+  let minX = w;
+  let minY = h;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (px[(y * w + x) * 4 + 3] > 0) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  const out = document.createElement('canvas');
+  out.width = w;
+  out.height = h;
+  out.getContext('2d').drawImage(cut,
+    Math.round((w - 1 - minX - maxX) / 2), Math.round((h - 1 - minY - maxY) / 2));
+  return out;
 }
 
 export function createPanelLayer(range, settings = () => TUNING, palette = PALETTE) {
