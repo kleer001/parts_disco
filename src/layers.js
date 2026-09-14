@@ -72,18 +72,6 @@ export const SETTLED_RGB = rgbOf(SETTLED);
 export const REFUSED = '#c9c9c9';
 
 /**
- * Trace one closed ring of a view, placed and sized.
- *
- * The swing is what a pulsing vehicle adds. It lives here rather than in the find
- * layer so that how a view lands on the board is stated once: a pulse that drew
- * itself by its own rule would drift off the board it is drawn over.
- */
-export function ring(ctx, anchor, points, span, scale = 1, dx = 0, dy = 0) {
-  ctx.beginPath();
-  lay(ctx, anchor, points, span, scale, dx, dy);
-}
-
-/**
  * Every ring of a silhouette as one path, to be filled `evenodd`.
  *
  * A view's rings are its outline and the holes inside it -- a lens opening, a gap under
@@ -370,13 +358,28 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
         ctx.putImageData(buffer, 0, 0);
       };
 
-      const stroke = () => {
-        inkStroke(ctx);
-        for (const anchor of standing) {
-          for (const points of lineOf(anchor.slot)) {
-            ring(ctx, anchor, points, span);
-            ctx.stroke();
-          }
+      // Every car drawn as a solid object, in the map's own front-to-back order: each
+      // one's body is filled before its lines go down, so a nearer car's body covers
+      // the lines of the car behind it and no buried edge is left on top. The map's
+      // colours are laid down first by `repaint`; this draws the same colours back over
+      // the cars, so the ground still shows through the gaps between them.
+      //
+      // `colourOf` and `fadeOf` are read by standing index -- a car's region is its
+      // place in `standing` -- and the fade lifts toward white exactly as `paintRegions`
+      // does, so a car burning out here matches the ground burning out under it.
+      const solid = (colourOf, fadeOf) => {
+        for (let i = 0; i < standing.length; i++) {
+          const anchor = standing[i];
+          const c = colourOf(i);
+          const f = fadeOf(i);
+          ctx.fillStyle = `rgb(${Math.round(c[0] + (255 - c[0]) * f)},`
+            + `${Math.round(c[1] + (255 - c[1]) * f)},`
+            + `${Math.round(c[2] + (255 - c[2]) * f)})`;
+          shape(ctx, anchor, viewOf(anchor.slot).silhouette, span);
+          ctx.fill('evenodd');
+          inkStroke(ctx);
+          outline(ctx, anchor, lineOf(anchor.slot), span);
+          ctx.stroke();
         }
       };
 
@@ -386,7 +389,7 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
       // painted over it afterwards.
       if (heldPlan !== plan || heldFound !== round.found.size) {
         repaint(restingOf, () => 0);
-        stroke();
+        solid(restingOf, () => 0);
         cache.getContext('2d').drawImage(ctx.canvas, 0, 0, width, height, 0, 0, width, height);
         heldPlan = plan;
         heldFound = round.found.size;
@@ -401,7 +404,7 @@ export function createBoardLayer(viewOf, cache, palette = PALETTE) {
           (region) => (region < 0 ? PAPER_RGB
             : region < standing.length ? flashing[region] : shades[plan.ink[region]]),
           (region) => (region >= 0 && region < standing.length ? burn : won));
-        stroke();
+        solid((region) => flashing[region], () => burn);
         return;
       }
 
