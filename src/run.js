@@ -15,8 +15,14 @@ import { stageAt } from './levels.js';
 import { stampRegions, INKS, rgbOf } from './layers.js';
 import { planBoard } from './paint.js';
 import { fleetLookups } from './views.js';
+import { createFairPlay } from './fairness.js';
 import { createGroupOrder } from './groups.js';
 import { createMeter } from './meter.js';
+
+// How many fresh deals a silhouette stage may throw looking for a fair one before it keeps
+// the least unfair. A fixed count, not a time budget: the board a seed deals must not
+// depend on how fast the machine churning it is, or a run stops reproducing.
+const FAIR_DEALS = 24;
 
 /**
  * Deal the first stage and hold everything that follows from it.
@@ -29,6 +35,11 @@ export function createRun(place, atlas, seed) {
   // A board may deal from any group, so the view reaches into the right one off the slot,
   // and the proxy and size it caches are keyed by the slot's group as well as its shape.
   const { viewOf, proxyFor, sizeFor } = fleetLookups(atlas.view, atlas.sizing);
+
+  // Judges whether a silhouette board can be clicked fairly, and re-stacks it until it
+  // can. Held across boards, since what it learns -- how a shape samples, how two of them
+  // coincide -- is about the art and not the yard. Only the silhouette stages ask it.
+  const fair = createFairPlay(atlas.view);
 
   // Which group each stage deals from -- shuffled level by level, bookends never
   // touching. It hangs off the seed, so a reseed rebuilds it.
@@ -81,12 +92,42 @@ export function createRun(place, atlas, seed) {
     // just memorised is a recall exercise rather than the search the stage asks for.
     // The attempt is counted rather than rolled, so the run still reproduces.
     const draw = seed + depth + attempt * STRIDE.near;
-    const { placed, target, askedAt } = deal(draw, level, atlas.fleet(gid));
     // Objects carry very different ink for one frame -- a fork is 2%, an apple 55% -- so
     // each is sized on its own by the sizing rule (see `sizeUnder`): thin shapes grow,
     // heavy ones shrink, toward one footprint. `layout` packs, places and stamps each at
     // that size, and the anchor carries it, so the drawing and the hit test agree.
-    const anchors = layout(placed, draw, span, field, proxyFor, sizeFor);
+    const throwYard = (at) => {
+      const dealt = deal(at, level, atlas.fleet(gid));
+      return { dealt, anchors: layout(dealt.placed, at, span, field, proxyFor, sizeFor) };
+    };
+
+    let anchors;
+    let target;
+    let askedAt;
+    if (level.render !== 'silhouette') {
+      const yard = throwYard(draw);
+      ({ anchors } = yard);
+      ({ target, askedAt } = yard.dealt);
+    } else {
+      // A silhouette board hides the inner lines a shape is otherwise known by, so it can
+      // bury the target past finding or wear a decoy into the target's own outline. Almost
+      // every board is fair as dealt, so an unfair one is thrown again rather than
+      // rearranged -- a fresh yard is a truer variety than a restack. The dealt ask keeps
+      // its place where it is fair, the board's fairest stands in where it is not, and the
+      // least unfair holds when a clean one is out of reach, so a stage always deals.
+      const anglesFor = (m) => atlas.anglesOf(gid, m);
+      let best = null;
+      for (let k = 0; k < FAIR_DEALS; k++) {
+        const at = draw + k * STRIDE.far;
+        const { dealt, anchors: laid } = throwYard(at);
+        const chosen = fair.choose(laid, anglesFor, span, at, dealt.target);
+        if (!best || chosen.cost < best.cost) {
+          best = { anchors: laid, target: chosen.target, askedAt: chosen.askedAt, cost: chosen.cost };
+        }
+        if (chosen.cost === 0) break;
+      }
+      ({ anchors, target, askedAt } = best);
+    }
     round = createRound(anchors, target, viewOf);
     prompt = new Image();
     prompt.src = atlas.promptFor(gid, target, askedAt ?? atlas.anglesOf(gid, target)[0]);
