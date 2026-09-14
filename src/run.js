@@ -119,7 +119,7 @@ export function createRun(place, atlas, seed) {
       for (let k = 0; k < FAIR_DEALS; k++) {
         const at = draw + k * STRIDE.far;
         const { dealt, anchors: laid } = throwYard(at);
-        const mended = fair.mend(fair.trim(laid, span), anglesFor, span, at, dealt.target);
+        const mended = fair.mend(fair.trim(laid, span, field), anglesFor, span, at, dealt.target);
         if (!best || mended.cost < best.cost) best = mended;
         if (mended.cost === 0) break;
       }

@@ -356,14 +356,18 @@ export function createFairPlay(viewOf) {
      *
      * A silhouette board is known by outline alone, so a shape too covered to read is one the
      * player can neither find nor rule out -- the overlap that gives the full-detail stages
-     * their depth is, here, a shape hidden in plain sight. This lifts the worst-covered shape
-     * off and reads the board again, over and over, until none is left too covered. Lifting a
-     * shape only uncovers what was under it, never buries more, so the pass settles and every
-     * survivor clears the bar. About one shape in five goes on the densest silhouette boards.
+     * their depth is, here, a shape hidden in plain sight. A shape is covered as much by the
+     * board's own edge, which eats whatever runs off it, as by a neighbour on top. This lifts
+     * the worst-covered shape off and reads the board again, over and over, until none is left
+     * too covered. Lifting a shape only uncovers what was under it, never buries more, so the
+     * pass settles and every survivor clears the bar. About one shape in five goes on the
+     * densest silhouette boards.
      *
+     * @param {object} [field] - the board `{ width, height }`; what runs off it does not count
+     *   as shown. Given none, the shapes are read against nothing but each other.
      * @returns {Array} the anchors that stay, in their original order
      */
-    trim(anchors, span) {
+    trim(anchors, span, field = null) {
       const n = anchors.length;
       if (!n) return anchors;
       const size = (i) => anchors[i].span ?? span;
@@ -422,8 +426,20 @@ export function createFairPlay(viewOf) {
             }
           }
         }
+        // Only what falls on the board counts as shown. A shape run off an edge is as good as
+        // covered there -- the player never sees that part -- so its off-board cells, though it
+        // is the topmost shape in them, are left out. Given no field, the whole grid counts.
         visible.fill(0);
-        for (let p = 0; p < owner.length; p++) if (owner[p] >= 0) visible[owner[p]]++;
+        const cxLo = field ? Math.max(0, Math.ceil((0 - x0) / cell - 0.5)) : 0;
+        const cxHi = field ? Math.min(w - 1, Math.floor((field.width - x0) / cell - 0.5)) : w - 1;
+        const ryLo = field ? Math.max(0, Math.ceil((0 - y0) / cell - 0.5)) : 0;
+        const ryHi = field ? Math.min(h - 1, Math.floor((field.height - y0) / cell - 0.5)) : h - 1;
+        for (let ry = ryLo; ry <= ryHi; ry++) {
+          for (let cx = cxLo; cx <= cxHi; cx++) {
+            const o = owner[ry * w + cx];
+            if (o >= 0) visible[o]++;
+          }
+        }
       };
 
       // Lift off every shape under the bar, then read the board again: removing a shape only

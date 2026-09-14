@@ -93,6 +93,17 @@ test('trim lifts off every shape too covered to read', () => {
   assert.equal(fair.trim(out, SPAN).length, out.length);
 });
 
+test('trim lifts off a shape the board edge eats', () => {
+  const fair = createFairPlay(viewOf);
+  const field = { width: 800, height: 600 };
+  // A full shape centred hard on the left edge shows only its right half; a clear one sits
+  // well inside. With the field, the edge-eaten shape goes; the inner one stays.
+  const board = [at('full', 0, 300), at('full', 400, 300)];
+  assert.deepEqual(fair.trim(board, SPAN, field).map((a) => a.cx), [400]);
+  // Given no field, an edge eats nothing, so both stay.
+  assert.equal(fair.trim(board, SPAN).length, 2);
+});
+
 test('mend lifts the offenders off and hands back a fair board', () => {
   const fair = createFairPlay(viewOf);
   // Two clear corners to ask for, and a full with two buried copies that would otherwise
